@@ -364,3 +364,10 @@ Cooper 錄影(桌面 `螢幕錄影 2026-11-11 22.03.10.mov`,8.6 秒,後方追車
 - 樣張 `docs/art/car-sample/ai3-keep-wheels/`,四視角拼圖 `docs/art/car-toon/keep-wheels.jpg`:輪子完整、沒有外凸的薄片。
 - 驗證:`tsc` 無錯;單元測試 221 項通過;e2e 第一次有 1 幀 33.6 ms(門檻 33 ms,當時系統負載很高),重跑全部通過。
 - 下一步:手感調整(待 Cooper 說明)。
+
+### 15.7 開始版控(2026-11-11)
+
+Cooper 要求 commit / push。專案原本不是 git 專案、也沒有遠端 → Cooper 選「只在本機 commit」、「data/ 原始下載不進版控」。
+- `git init -b main`,初次 commit `94853b9`(443 個檔案)。沒有遠端、沒有 push。
+- `.gitignore` 補上:`*.bak[0-9]*`(原本只排除 .bak、.bak2)、`data/osm/`、`data/gov/`、`data/elevation/`;`data/overrides`、`data/landmarks` 是手寫的,要進版控。
+- 放棄的方案:建 GitHub 私人 repo 並 push(Cooper 這次不要)、data/ 全部進版控(多 81 MB,可用腳本重抓)。
