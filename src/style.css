@@ -1,0 +1,100 @@
+:root {
+  --ink: #47484d;
+  --cream: #f6f4ef;
+  --sign: #2f6fb5;
+  --font: 'jf-openhuninn', 'PingFang TC', 'Noto Sans TC', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe3f5; font-family: var(--font); color: var(--ink); }
+#game { display: block; width: 100vw; height: 100vh; }
+#hud { position: fixed; inset: 0; pointer-events: none; }
+
+/* ===== HUD(decisions/0016 §10):共用結構 + 三套主題(#hud 的 hud-a / hud-b / hud-c,網址 ?hud=b 切換) ===== */
+.road-sign { position: absolute; left: 50%; transform: translate(-50%, -220%); transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); white-space: nowrap; }
+.road-sign.show { transform: translate(-50%, 0); }
+.speed { position: absolute; }
+.speed-row { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
+.speed-num { font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.speed-unit { font-weight: 800; letter-spacing: 1px; }
+.speed-bar { overflow: hidden; }
+.speed-fill { height: 100%; width: 0; transition: width 0.15s linear; }
+.minimap { position: absolute; width: 200px; height: 200px; border-radius: 50%; }
+.minimap canvas { display: block; border-radius: 50%; }
+.minimap-north { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 10px; font-weight: 800; line-height: 18px; text-align: center; }
+.help { position: absolute; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; }
+.help .key { display: inline-flex; align-items: center; gap: 6px; }
+.help kbd { font-family: inherit; font-weight: 800; font-size: 11px; padding: 2px 7px; border-radius: 6px; }
+.credit { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); font-size: 11px; opacity: 0.75; pointer-events: auto; }
+.credit a { color: inherit; }
+.fps { position: absolute; right: 18px; top: 14px; font-size: 12px; padding: 2px 8px; border-radius: 8px; }
+.toast { position: absolute; top: 110px; left: 50%; transform: translateX(-50%); padding: 6px 16px; border-radius: 999px; font-size: 14px; font-weight: 700; opacity: 0; transition: opacity 0.2s; }
+.toast.show { opacity: 1; }
+
+/* --- A 深色面板(照參考圖《Six Stars》):深藍半透明圓角面板、粗體大寫標籤;速度在下方中央配速度條,小地圖右上 --- */
+.hud-a { --panel: rgba(20, 27, 46, 0.78); --panel-line: rgba(255, 255, 255, 0.10); --accent: #ffc83c; --bar: #5fe0b0; color: #fff; }
+.hud-a .road-sign { top: 20px; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 16px; padding: 10px 26px 10px 22px; font-size: 26px; font-weight: 800; letter-spacing: 2px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); }
+.hud-a .road-sign::before { content: '➜'; color: var(--accent); margin-right: 12px; }
+.hud-a .speed { left: 50%; bottom: 30px; transform: translateX(-50%); width: 320px; text-align: center; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
+.hud-a .speed-num { font-size: 44px; }
+.hud-a .speed-unit { font-size: 14px; opacity: 0.8; }
+.hud-a .speed-bar { height: 8px; margin-top: 8px; border-radius: 999px; background: rgba(20, 27, 46, 0.55); }
+.hud-a .speed-fill { background: var(--bar); border-radius: 999px; box-shadow: 0 0 10px rgba(95, 224, 176, 0.7); }
+.hud-a .minimap { right: 22px; top: 20px; border: 6px solid rgba(20, 27, 46, 0.85); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }
+.hud-a .help { left: 20px; bottom: 22px; max-width: 360px; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 14px; padding: 10px 14px; }
+.hud-a .help kbd { background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.35); }
+.hud-a .credit { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+.hud-a .fps, .hud-a .toast { background: var(--panel); }
+
+/* --- B 明亮毛玻璃:白色半透明霧面面板、深藍字、橘色點綴;速度左下,小地圖右下 --- */
+.hud-b { --glass: rgba(255, 255, 255, 0.62); --ink2: #1d2a40; --accent: #ff7a2f; color: var(--ink2); }
+.hud-b .road-sign, .hud-b .speed, .hud-b .help, .hud-b .toast, .hud-b .fps { background: var(--glass); backdrop-filter: blur(12px) saturate(1.3); -webkit-backdrop-filter: blur(12px) saturate(1.3); border: 1px solid rgba(255, 255, 255, 0.8); box-shadow: 0 8px 28px rgba(29, 42, 64, 0.18); }
+.hud-b .road-sign { top: 20px; border-radius: 999px; padding: 10px 30px; font-size: 24px; font-weight: 800; letter-spacing: 2px; border-left: 6px solid var(--accent); }
+.hud-b .speed { left: 24px; bottom: 24px; width: 200px; border-radius: 22px; padding: 14px 18px 16px; }
+.hud-b .speed-row { justify-content: flex-start; }
+.hud-b .speed-num { font-size: 52px; }
+.hud-b .speed-unit { font-size: 14px; opacity: 0.6; }
+.hud-b .speed-bar { height: 6px; margin-top: 10px; border-radius: 999px; background: rgba(29, 42, 64, 0.12); }
+.hud-b .speed-fill { background: linear-gradient(90deg, #3c9bff, var(--accent)); border-radius: 999px; }
+.hud-b .minimap { right: 24px; bottom: 24px; border: 5px solid rgba(255, 255, 255, 0.9); box-shadow: 0 8px 28px rgba(29, 42, 64, 0.22); }
+.hud-b .help { left: 50%; transform: translateX(-50%); bottom: 26px; border-radius: 999px; padding: 8px 18px; }
+.hud-b .help kbd { background: var(--ink2); color: #fff; }
+
+/* --- C Q 版賽車:飽和色塊、粗白框、斜體大數字(像賽車遊戲);速度右下,小地圖左下 --- */
+.hud-c { --blue: #2f6fd0; --red: #ff4a3d; --yellow: #ffc83c; color: #fff; }
+.hud-c .road-sign { top: 18px; background: var(--blue); border: 5px solid #fff; border-radius: 18px; padding: 8px 28px; font-size: 28px; font-weight: 900; letter-spacing: 2px; box-shadow: 0 6px 0 rgba(20, 50, 110, 0.5), 0 12px 24px rgba(0, 0, 0, 0.2); }
+.hud-c .speed { right: 26px; bottom: 24px; width: 230px; text-align: right; }
+.hud-c .speed-row { justify-content: flex-end; }
+.hud-c .speed-num { font-size: 72px; font-style: italic; font-weight: 900; -webkit-text-stroke: 3px #1d2a40; paint-order: stroke fill; text-shadow: 0 5px 0 #1d2a40; }
+.hud-c .speed-unit { font-size: 18px; font-style: italic; font-weight: 900; color: var(--yellow); -webkit-text-stroke: 2px #1d2a40; paint-order: stroke fill; }
+.hud-c .speed-bar { height: 14px; margin-top: 6px; border: 3px solid #fff; border-radius: 999px; background: rgba(29, 42, 64, 0.6); transform: skewX(-15deg); }
+.hud-c .speed-fill { background: repeating-linear-gradient(90deg, var(--yellow) 0 14px, var(--red) 14px 28px); }
+.hud-c .minimap { left: 24px; bottom: 24px; border: 6px solid #fff; box-shadow: 0 6px 0 rgba(20, 50, 110, 0.35), 0 12px 24px rgba(0, 0, 0, 0.2); }
+.hud-c .help { right: 26px; top: 20px; flex-direction: column; align-items: flex-end; gap: 6px; font-weight: 800; text-shadow: 0 2px 0 #1d2a40; }
+.hud-c .help kbd { background: #fff; color: #1d2a40; box-shadow: 0 3px 0 #1d2a40; }
+.hud-c .credit { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+.hud-c .fps, .hud-c .toast { background: var(--blue); border: 3px solid #fff; }
+
+/* ===== 標題畫面與暫停選單(decisions/0016 §11,C Q 版賽車風格) ===== */
+.overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; transition: opacity 0.3s; font-family: var(--font); }
+.overlay.hidden { opacity: 0; pointer-events: none; }
+.overlay[data-mode='title'] { background: radial-gradient(ellipse at 50% 40%, rgba(47, 155, 240, 0.35), rgba(29, 42, 64, 0.55)); }
+.overlay[data-mode='pause'] { background: rgba(29, 42, 64, 0.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.overlay[data-mode='title'] .pause-menu, .overlay[data-mode='pause'] .title-screen { display: none; }
+.title-screen { display: flex; flex-direction: column; align-items: center; gap: 28px; color: #fff; }
+.logo { display: flex; flex-direction: column; align-items: center; transform: rotate(-3deg); }
+.logo h1 { margin: 0; font-size: 84px; font-weight: 900; font-style: italic; letter-spacing: 4px; -webkit-text-stroke: 6px #1d2a40; paint-order: stroke fill; text-shadow: 0 8px 0 #1d2a40, 0 16px 30px rgba(0, 0, 0, 0.3); }
+.logo-tag { background: #ff4a3d; color: #fff; border: 4px solid #fff; border-radius: 10px; padding: 2px 14px; font-weight: 900; font-style: italic; letter-spacing: 3px; font-size: 18px; box-shadow: 0 4px 0 #1d2a40; margin-bottom: -6px; z-index: 1; }
+.logo-sub { margin-top: 10px; background: #ffc83c; color: #1d2a40; border: 4px solid #fff; border-radius: 999px; padding: 4px 18px; font-weight: 900; font-size: 18px; box-shadow: 0 4px 0 #1d2a40; }
+.start-pill { margin: 0; background: #2f6fd0; border: 5px solid #fff; border-radius: 999px; padding: 12px 36px; font-size: 26px; font-weight: 900; letter-spacing: 2px; box-shadow: 0 6px 0 rgba(20, 50, 110, 0.6); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.06); } }
+.title-keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; font-weight: 800; font-size: 15px; text-shadow: 0 2px 0 #1d2a40; }
+.title-keys .key { display: inline-flex; align-items: center; gap: 6px; }
+.overlay kbd { font-family: inherit; font-weight: 900; font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #fff; color: #1d2a40; box-shadow: 0 3px 0 #1d2a40; }
+.pause-menu { display: flex; flex-direction: column; gap: 12px; min-width: 320px; background: #2f6fd0; border: 6px solid #fff; border-radius: 24px; padding: 22px 26px 26px; box-shadow: 0 8px 0 rgba(20, 50, 110, 0.6), 0 20px 40px rgba(0, 0, 0, 0.3); transform: rotate(-1.5deg); }
+.pause-menu h2 { margin: 0 0 6px; text-align: center; color: #fff; font-size: 40px; font-weight: 900; font-style: italic; letter-spacing: 6px; -webkit-text-stroke: 4px #1d2a40; paint-order: stroke fill; }
+.pause-menu button { display: flex; justify-content: space-between; align-items: center; font-family: inherit; font-size: 20px; font-weight: 900; color: #1d2a40; background: #fff; border: none; border-radius: 14px; padding: 12px 18px; cursor: pointer; box-shadow: 0 4px 0 #1d2a40; transition: transform 0.1s; }
+.pause-menu button:hover { background: #ffc83c; transform: translateY(-2px); }
+.pause-menu button:active { transform: translateY(2px); box-shadow: 0 2px 0 #1d2a40; }
+/* 標題畫面時不顯示 HUD(暫停時保留,在模糊背景後面) */
+body:has(.overlay[data-mode='title']:not(.hidden)) #hud { opacity: 0; }
+#hud { transition: opacity 0.3s; }

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>台中 MINI 兜風</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%223%22 y=%2212%22 width=%2226%22 height=%2210%22 rx=%224%22 fill=%22%232b2b33%22/%3E%3Crect x=%228%22 y=%227%22 width=%2215%22 height=%227%22 rx=%223%22 fill=%22white%22/%3E%3Ccircle cx=%229%22 cy=%2223%22 r=%223%22 fill=%22%23555%22/%3E%3Ccircle cx=%2223%22 cy=%2223%22 r=%223%22 fill=%22%23555%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="hud"></div>
+    <!-- 標題畫面與暫停選單(decisions/0016 §11,C Q 版賽車風格);data-mode = title / pause -->
+    <div id="overlay" class="overlay" data-mode="title">
+      <div class="title-screen">
+        <div class="logo">
+          <span class="logo-tag">TAICHUNG DRIVE</span>
+          <h1>台中 MINI 兜風</h1>
+          <span class="logo-sub">台中車站 ↔ 七期</span>
+        </div>
+        <p id="status" class="start-pill">地圖載入中…</p>
+        <div class="title-keys">
+          <span class="key"><kbd>WASD</kbd>開車</span><span class="key"><kbd>空白</kbd>甩尾</span><span class="key"><kbd>R</kbd>回到路面</span><span class="key"><kbd>C</kbd>視角</span><span class="key"><kbd>M</kbd>小地圖</span><span class="key"><kbd>Esc</kbd>暫停</span>
+        </div>
+      </div>
+      <div class="pause-menu">
+        <h2>暫停</h2>
+        <button data-action="pause"><span>繼續</span><kbd>Esc</kbd></button>
+        <button data-action="reset"><span>回到路面</span><kbd>R</kbd></button>
+        <button data-action="camera"><span>換視角</span><kbd>C</kbd></button>
+        <button data-action="map"><span>小地圖方向</span><kbd>M</kbd></button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

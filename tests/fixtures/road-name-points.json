@@ -1,0 +1,96 @@
+{
+  "source": "data/osm/raw/m0/m0_area.json",
+  "rule": "挑選規則:M0 區域(歌劇院中心 ±450 m,留 50 m 邊界)內、可行駛且有名稱的道路,",
+  "points": [
+    {
+      "name": "臺灣大道三段",
+      "osmWayId": 364269698,
+      "lat": 24.1651571,
+      "lon": 120.6448983,
+      "bearingDeg": 120.4,
+      "segLengthM": 285.9,
+      "highway": "primary"
+    },
+    {
+      "name": "河南路三段",
+      "osmWayId": 617310344,
+      "lat": 24.1640001,
+      "lon": 120.6385868,
+      "bearingDeg": 30.4,
+      "segLengthM": 245.5,
+      "highway": "tertiary"
+    },
+    {
+      "name": "市政路",
+      "osmWayId": 896172312,
+      "lat": 24.1595827,
+      "lon": 120.6380329,
+      "bearingDeg": 301.6,
+      "segLengthM": 244.7,
+      "highway": "tertiary"
+    },
+    {
+      "name": "市政北七路",
+      "osmWayId": 1312476775,
+      "lat": 24.1663517,
+      "lon": 120.6388022,
+      "bearingDeg": 302.8,
+      "segLengthM": 208.5,
+      "highway": "tertiary"
+    },
+    {
+      "name": "市政北一路",
+      "osmWayId": 666398456,
+      "lat": 24.1609018,
+      "lon": 120.639278,
+      "bearingDeg": 301.9,
+      "segLengthM": 188.1,
+      "highway": "tertiary"
+    },
+    {
+      "name": "惠中三街",
+      "osmWayId": 260107778,
+      "lat": 24.1629609,
+      "lon": 120.6428015,
+      "bearingDeg": 31.0,
+      "segLengthM": 181.5,
+      "highway": "residential"
+    },
+    {
+      "name": "惠中二街",
+      "osmWayId": 107444028,
+      "lat": 24.1626746,
+      "lon": 120.6433132,
+      "bearingDeg": 30.2,
+      "segLengthM": 180.0,
+      "highway": "residential"
+    },
+    {
+      "name": "惠來路二段",
+      "osmWayId": 515714960,
+      "lat": 24.1597402,
+      "lon": 120.6395805,
+      "bearingDeg": 31.7,
+      "segLengthM": 164.0,
+      "highway": "residential"
+    },
+    {
+      "name": "惠中路一段",
+      "osmWayId": 1307885938,
+      "lat": 24.1619098,
+      "lon": 120.6446816,
+      "bearingDeg": 211.0,
+      "segLengthM": 162.0,
+      "highway": "tertiary"
+    },
+    {
+      "name": "市政北六路",
+      "osmWayId": 24296703,
+      "lat": 24.1646114,
+      "lon": 120.6397889,
+      "bearingDeg": 302.2,
+      "segLengthM": 141.6,
+      "highway": "residential"
+    }
+  ]
+}

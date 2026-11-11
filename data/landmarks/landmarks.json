@@ -1,0 +1,10 @@
+{
+  "說明": "P0 地標設定(M1 第 4 項)。osmIds 的建築在建置時從一般建築挖掉，改放 model 指定的 GLB;ref 是驗收用的參考座標 [lat, lon](OSM 外框形心,出處 data/osm/derived/landmarks.json),地標位置誤差須 < 10 m。model 檔還沒做好時，遊戲用外框擠出的量體代替。height(公尺,選填)是查到的實際高度，會取代 OSM 推估;出處寫在 heightSrc,依據見 docs/art/landmarks-reference.md。",
+  "landmarks": [
+    { "id": "opera", "name": "臺中國家歌劇院", "osmIds": [222636759], "model": "models/landmarks/opera.glb", "height": 37.7, "heightSrc": "中文維基「建築高度37.7公尺」", "ref": [24.16293, 120.64052] },
+    { "id": "station-new", "name": "臺中車站", "osmIds": [442234244], "model": "models/landmarks/station-new.glb", "height": 37, "heightSrc": "中文維基〈臺中車站〉引台灣好新聞報;OSM height=37", "ref": [24.13722, 120.68677] },
+    { "id": "station-old", "name": "臺中驛(舊站)", "osmIds": [223056023], "model": "models/landmarks/station-old.glb", "height": 21, "heightSrc": "文化部保存計畫(草案)p.223「古蹟本體高度 21 m」,依與 OSM 外框的比例判讀為塔尖高(landmarks-reference.md §11)", "ref": [24.13692, 120.68527] },
+    { "id": "city-hall", "name": "臺中市政府臺灣大道市政大樓", "osmIds": [222413435], "model": "models/landmarks/city-hall.glb", "height": 43.2, "heightSrc": "中文維基〈臺灣大道市政大樓〉屋頂 43.2 m(英文維基寫 43.8 m)", "ref": [24.16172, 120.64684] },
+    { "id": "council", "name": "臺中市議會", "osmIds": [222636758], "model": "models/landmarks/council.glb", "height": 69.8, "heightSrc": "英文維基〈Taichung's 7th Redevelopment Zone〉建物表，引使用執照 100府授都建使字第02228號", "ref": [24.15858, 120.64479] }
+  ]
+}

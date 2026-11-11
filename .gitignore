@@ -1,0 +1,18 @@
+node_modules/
+dist/
+# 規格檔修改前的備份(*.bak、*.bak2 … *.bak13)
+*.bak
+*.bak[0-9]*
+.DS_Store
+tests/e2e/out/
+# Cooper 提供的實車參考照片(網路/媒體照片,只作建模參考,不進版控、不進遊戲)
+mini60/
+
+# API 金鑰(Tripo 等),只放本機
+.env
+.env.*
+
+# 原始下載資料(可用 tools 裡的下載腳本重抓;Cooper 2026-11-11 決定不進版控)。手寫的 overrides、landmarks 要進版控
+data/osm/
+data/gov/
+data/elevation/

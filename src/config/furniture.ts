@@ -1,0 +1,119 @@
+// 街道傢俱(decisions/0015 第四批):行道樹、路燈、號誌桿的擺放與尺寸。
+// 全部是外觀推論(標「推論」),不是法規;顏色在 src/config/palette.ts 的 tree* / pole* / signal*。
+// 擺放在建置端算好存進 world.json 的 furniture(tools/map-build/lib/furniture.ts),幾何在執行端生成(src/world/gen/furniture.ts)。
+
+/** 推論:種行道樹的道路等級(主要道路;巷弄不種) */
+export const TREE_HIGHWAYS = ['primary', 'secondary', 'tertiary', 'trunk'] as const;
+/** 人行道至少多寬(公尺)才種樹 */
+export const TREE_MIN_SIDEWALK = 2;
+/** 推論:樹距(公尺)與每棵前後亂移的範圍(±) */
+export const TREE_SPACING = 9;
+export const TREE_JITTER = 1.5;
+/** 樹離路緣多遠(公尺):人行道寬的一半,最多 TREE_CURB_MAX(樹穴靠車道側) */
+export const TREE_CURB_MAX = 1.2;
+/** 推論:樹的尺寸(公尺):樹幹半徑(樹幹長到樹冠中間)、樹冠半徑、樹冠中心高(半徑另乘 0.9–1.15、高度乘 0.92–1.08 的變化) */
+export const TREE_TRUNK_R = 0.16;
+export const TREE_CROWN_R = 1.9;
+export const TREE_CROWN_Y = 4.1;
+
+/**
+ * 推論:行道樹樹種(Cooper 2026-11-01:「樹木的外型可以多樣化」)。同一條路(同路名;沒路名的同一條 way)種同一種,
+ * 比較像實際的行道樹;樹種由路名雜湊依權重決定。椰子只種在路寬 ≥ PALM_MIN_WIDTH 的路,其他路抽到椰子改成球形。
+ * 0 球形(樟樹)、1 層狀(小葉欖仁)、2 叢生(榕樹、茄苳)、3 椰子(大王椰子)、4 尖塔(落羽松)
+ */
+export const TREE_SPECIES = { Round: 0, Tiered: 1, Cluster: 2, Palm: 3, Cone: 4 } as const;
+export const TREE_SPECIES_WEIGHTS = [30, 25, 20, 10, 15];
+export const PALM_MIN_WIDTH = 14;
+
+/** 推論:立路燈的道路等級(加上 OSM lit=yes 的道路) */
+export const LIGHT_HIGHWAYS = ['primary', 'secondary', 'tertiary', 'trunk'] as const;
+/** 推論:燈距(公尺);路寬 ≥ LIGHT_BOTH_SIDES 兩側都立(交錯),否則只立行車方向右側 */
+export const LIGHT_SPACING = 32;
+export const LIGHT_BOTH_SIDES = 16;
+/** 路燈離路緣(公尺) */
+export const LIGHT_CURB = 0.5;
+/** 推論:路燈尺寸(公尺):桿高、桿半徑、懸臂伸出長度、燈頭長 */
+export const LIGHT_H = 8;
+export const LIGHT_R = 0.1;
+export const LIGHT_ARM = 1.8;
+export const LIGHT_HEAD = 0.7;
+
+/** 號誌桿離路緣(公尺) */
+export const SIGNAL_CURB = 0.7;
+/** 推論:號誌桿尺寸(公尺):桿高、桿半徑、懸臂最長、燈箱長寬高 */
+export const SIGNAL_H = 6;
+export const SIGNAL_R = 0.13;
+export const SIGNAL_ARM_MAX = 5;
+export const SIGNAL_BOX: readonly [number, number, number] = [1.1, 0.4, 0.35];
+
+/**
+ * 推論:機車排(Cooper 2026-11-01 拍板 0015 §11.5 第 4 項:先做機車)。
+ * 停在店面建築前、人行道靠建築那一側,垂直於道路、車頭朝建築;一排 SCOOTER_GROUP_MIN–MAX 台,排與排之間空 SCOOTER_GAP_MIN–MAX 格。
+ * 只在人行道 ≥ SCOOTER_MIN_SIDEWALK、旁邊(人行道外緣往外 SCOOTER_SHOP_REACH 內)是店面建築的地方。
+ */
+export const SCOOTER_MIN_SIDEWALK = 2.5;
+export const SCOOTER_SHOP_REACH = 2.5;
+/** 每台佔的寬度(沿道路)、車長、車寬、車高(公尺) */
+export const SCOOTER_SLOT = 0.8;
+export const SCOOTER_LEN = 1.8;
+export const SCOOTER_W = 0.6;
+export const SCOOTER_H = 1.1;
+export const SCOOTER_GROUP_MIN = 3;
+export const SCOOTER_GROUP_MAX = 9;
+export const SCOOTER_GAP_MIN = 2;
+export const SCOOTER_GAP_MAX = 6;
+/** 不停機車的道路等級(快速道路、服務道路) */
+export const SCOOTER_SKIP_HIGHWAYS = ['motorway', 'trunk', 'service', 'motorway_link', 'trunk_link'] as const;
+
+/**
+ * 推論:直式招牌(Cooper 2026-11-01 拍板要做)。掛在店面建築(第三批的 s 旗標)面向道路的外牆上,二樓以上,
+ * 垂直於外牆伸出;沿外牆每 SIGN_SPACING 一個位置,SIGN_CHANCE 的機率掛。字用淺色方塊代表(不用貼圖,方向 A)。
+ */
+/** Cooper 2026-11-01:「少一點」→ 從每 4 m、70% 改成每 5 m、45%(密度約一半;0015 §11.11) */
+export const SIGN_SPACING = 5;
+export const SIGN_CHANCE = 0.45;
+/** 招牌底部高度、最短 / 最長(公尺);頂端不超過建築高度 - SIGN_TOP_GAP */
+export const SIGN_BOTTOM = 3.4;
+export const SIGN_MIN_H = 1.8;
+export const SIGN_MAX_H = 5;
+export const SIGN_TOP_GAP = 0.4;
+/** 招牌伸出外牆的長度、厚度、離牆間隙(公尺) */
+export const SIGN_DEPTH = 0.9;
+export const SIGN_THICK = 0.18;
+export const SIGN_WALL_GAP = 0.15;
+/** 招牌底色數(= palette.ts 的 signBoards 長度;測試會核對) */
+export const SIGN_COLORS = 6;
+/** 外牆離道路(人行道外緣)多遠以內算「面向道路」(公尺) */
+export const SIGN_ROAD_REACH = 4;
+
+/**
+ * 推論:公車站(Cooper 2026-11-01 拍板要做)。位置來自 OSM highway=bus_stop(tools/map-build/queries/range_a_nodes.overpassql),
+ * 貼到最近道路的路緣;OSM shelter=yes 且人行道 ≥ BUS_SHELTER_MIN_SIDEWALK 的做候車亭,其他只放站牌。
+ */
+export const BUS_SNAP = 25;
+export const BUS_DEDUPE = 6;
+export const BUS_SHELTER_MIN_SIDEWALK = 2.2;
+/** 站牌離路緣、候車亭前緣離路緣(公尺) */
+export const BUS_POLE_CURB = 0.6;
+export const BUS_SHELTER_CURB = 0.5;
+/** 候車亭長、深、高 */
+export const BUS_SHELTER_L = 4;
+export const BUS_SHELTER_D = 1.5;
+export const BUS_SHELTER_H = 2.5;
+/** 站牌桿高 */
+export const BUS_POLE_H = 2.9;
+
+/**
+ * 碰撞(Cooper 2026-11-01 拍板 0015 §11.5:要碰撞,撞到會彈開):每支樹幹 / 桿子一個直立圓柱。
+ * 半徑比畫出來的略粗一點(樹幹 0.16、路燈 0.1、號誌 0.13),高速時才不會擦邊穿過;高度只要擋得住車身。
+ */
+export const TREE_HIT_R = 0.3;
+export const LIGHT_HIT_R = 0.2;
+export const SIGNAL_HIT_R = 0.25;
+export const POST_HIT_H = 3;
+export const BUS_POLE_HIT_R = 0.15;
+
+/** 擺放時的淨空(公尺):離其他道路的車道邊緣、行人穿越道中心、彼此之間 */
+export const CLEAR_ROAD = 1;
+export const CLEAR_CROSSWALK = 4;
+export const CLEAR_LIGHT = 3;

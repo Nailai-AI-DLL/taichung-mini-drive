@@ -1,0 +1,41 @@
+{
+  "name": "taichung-mini-drive",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "台中 MINI 兜風(工作名稱):three.js 網頁開車遊戲",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "map:fetch:m0": "bash tools/map-build/fetch-m0.sh",
+    "map:build:m0": "tsx tools/map-build/build.ts --area m0",
+    "map:fetch:range-a": "bash tools/map-build/fetch-range-a.sh",
+    "map:widths:range-a": "python3 -I tools/research/road_width_match.py --gov data/gov/road-width/road_width_raw.csv --osm data/osm/raw/range-a/range-a_area.json --out-widths data/gov/road-width/widths-range-a.json",
+    "map:build:range-a": "tsx tools/map-build/build.ts --area range-a",
+    "test": "vitest run",
+    "test:perf": "PERF_STRICT=1 vitest run tests/unit/world-chunks.test.ts -t 最密的一格",
+    "test:e2e": "node tests/e2e/run.mjs",
+    "models:landmarks": "log=$(mktemp); for f in tools/models/landmark_*.py; do /Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup --python-exit-code 1 -P \"$f\" -- \"$PWD/public/models/landmarks\" \"$PWD/docs/art/landmarks\" \"$PWD/data/landmarks/footprints-range-a.json\" > \"$log\" 2>&1 || { cat \"$log\"; echo \"FAIL $f\"; exit 1; }; grep MODEL_OK \"$log\"; done",
+    "models:build": "/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P tools/models/mini_f55.py -- \"$PWD/public/models\" \"$PWD/docs/art/models\""
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "flatbush": "^4.6.2",
+    "lil-gui": "^0.21.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/earcut": "^3.0.0",
+    "@types/node": "^26.6.5",
+    "@types/proj4": "^2.5.6",
+    "@types/three": "^0.186.0",
+    "earcut": "^3.2.4",
+    "playwright-core": "^1.64.0",
+    "proj4": "^2.22.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}
