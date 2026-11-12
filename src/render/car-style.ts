@@ -30,6 +30,11 @@ export function toonMaterial(color: THREE.ColorRepresentation) {
   return new THREE.MeshToonMaterial({ color, gradientMap: gradientMap() });
 }
 
+/** 頂點色的卡通材質(路燈:燈桿 / 燈罩分色,decisions/0020 §9) */
+export function toonVertexColorMaterial() {
+  return new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: gradientMap() });
+}
+
 /** 有底色貼圖的卡通材質(Tripo 街道物件用,decisions/0020) */
 export function toonMapMaterial(map: THREE.Texture | null, color: THREE.ColorRepresentation = 0xffffff) {
   return new THREE.MeshToonMaterial({ map, color: map ? 0xffffff : color, gradientMap: gradientMap() });
@@ -38,10 +43,10 @@ export function toonMapMaterial(map: THREE.Texture | null, color: THREE.ColorRep
 /** 描邊材質:頂點沿法向量往外推,只畫背面。
  *  MeshBasicMaterial 的頂點著色器沒有 objectNormal(沒光照就不算),要直接用頂點屬性 normal;
  *  2026-11-11 第一版用 objectNormal 編譯失敗、描邊根本沒畫出來,tools/shots/car-shots.mjs 現在遇到著色器錯誤會失敗 */
-function outlineMaterial() {
-  const m = new THREE.MeshBasicMaterial({ color: CAR_TOON.outlineColor, side: THREE.BackSide });
+export function outlineMaterial(width = CAR_TOON.outline, color: THREE.ColorRepresentation = CAR_TOON.outlineColor) {
+  const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
   m.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\ntransformed += normalize(normal) * ${CAR_TOON.outline.toFixed(4)};`);
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\ntransformed += normalize(normal) * ${width.toFixed(4)};`);
   };
   return m;
 }

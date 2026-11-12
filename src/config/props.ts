@@ -28,9 +28,21 @@ export const PROP_MODELS = {
 
 export const PROP_KIND = { Tree: 0, Light: 1 } as const;
 
-/** 路燈改成單色卡通(不用 Tripo 貼圖;Cooper 2026-11-12:「還是可以改成單色？淡灰色就好」);null = 用原貼圖 */
-/** 第二版 #9EA7B1(Cooper:「有點太淡了，顏色再深一些，但是不要變髒」→ 中灰、微偏冷，不帶黃褐) */
-export const PROP_LIGHT_COLOR: string | null = '#9EA7B1';
+/**
+ * 路燈卡通造型(方案 A,Cooper 2026-11-12 選定;decisions/0020 §9):
+ * 燈桿深石板藍、燈頭下方發光面暖白、外加和車子同一套的深色描邊。不用 Tripo 貼圖。
+ * 先前試過淡灰 #C8CDD3、中灰 #9EA7B1,Cooper:「感覺用灰色反而變成很像是沒有材質的灰模」。
+ */
+export const PROP_LIGHT_STYLE = {
+  pole: '#3A4658',
+  lens: '#FFF1D2',
+  /** 描邊粗細(公尺;車子 0.022,路燈 8 m 高、燈桿細，稍粗一點遠處才看得到) */
+  outline: 0.035,
+  /** 燈罩判定：高度在最高點的這個比例以上、離燈桿(局部 x)超過 lensMinX 公尺、面朝下(法向量 y < lensNormalY) */
+  lensMinH: 0.8,
+  lensMinX: 1.1,
+  lensNormalY: -0.6,
+};
 
 /** 整組樹的整體大小(Cooper 2026-11-12:「樹的尺寸可以縮小約30%」→ 0.7;整組約寬 6.4 m、深 4.2 m、高 4.9 m) */
 export const PROP_TREE_SIZE = 0.7;

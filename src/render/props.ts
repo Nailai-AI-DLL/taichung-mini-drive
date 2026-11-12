@@ -4,10 +4,55 @@
 // 樣板還沒載入完成時先記下擺放,載入後補畫。
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { PROP_KIND, PROP_LIGHT_COLOR, PROP_MODELS } from '../config/props';
-import { toonMapMaterial, toonMaterial } from './car-style';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { PROP_KIND, PROP_LIGHT_STYLE, PROP_MODELS } from '../config/props';
+import { CAR_TOON, outlineMaterial, toonMapMaterial, toonVertexColorMaterial } from './car-style';
 
-type Variant = { geometry: THREE.BufferGeometry; material: THREE.Material; mesh: THREE.InstancedMesh | null };
+type Variant = {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
+  mesh: THREE.InstancedMesh | null;
+  /** 描邊(背面外擴;和本體共用 instanceMatrix) */
+  outline?: { geometry: THREE.BufferGeometry; material: THREE.Material; mesh: THREE.InstancedMesh | null };
+};
+
+/**
+ * 路燈分色(方案 A):拆成不共用頂點的三角形,依每個面的位置與法向量塗燈桿色或燈罩色(頂點色)。
+ * 燈罩 = 高度 ≥ lensMinH × 最高點、離燈桿 x > lensMinX、面朝下。回傳新幾何與燈罩面數。
+ */
+export function paintLight(src: THREE.BufferGeometry, style = PROP_LIGHT_STYLE) {
+  const g = src.index ? src.toNonIndexed() : src.clone();
+  g.deleteAttribute('uv');
+  const pos = g.getAttribute('position');
+  let top = -Infinity;
+  for (let i = 0; i < pos.count; i++) top = Math.max(top, pos.getY(i));
+  const pole = new THREE.Color(style.pole), lens = new THREE.Color(style.lens);
+  const col = new Float32Array(pos.count * 3);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  let lensFaces = 0;
+  for (let f = 0; f < pos.count; f += 3) {
+    a.fromBufferAttribute(pos, f); b.fromBufferAttribute(pos, f + 1); c.fromBufferAttribute(pos, f + 2);
+    n.subVectors(c, b).cross(b.clone().sub(a)).normalize();
+    const cy = (a.y + b.y + c.y) / 3, cx = (a.x + b.x + c.x) / 3;
+    const isLens = cy >= top * style.lensMinH && cx > style.lensMinX && n.y < style.lensNormalY;
+    if (isLens) lensFaces++;
+    const k = isLens ? lens : pole;
+    for (let v = 0; v < 3; v++) col.set([k.r, k.g, k.b], (f + v) * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return { geometry: g, lensFaces };
+}
+
+/** 描邊用幾何:只留位置、合併重疊頂點後算平滑法向量(否則硬邊處外擴會裂開) */
+function outlineGeometry(src: THREE.BufferGeometry) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', src.getAttribute('position').clone());
+  if (src.index) g.setIndex(src.index.clone());
+  const m = mergeVertices(g, 1e-3);
+  m.computeVertexNormals();
+  return m;
+}
 
 /** 依位置挑樣板(同一點每次都一樣) */
 export function pickVariant(x: number, z: number, n: number) {
@@ -22,7 +67,7 @@ export class PropLayer {
 
   constructor(private readonly scene: THREE.Scene, base: string) {
     const kinds = [PROP_MODELS.tree, PROP_MODELS.light];
-    Promise.all(kinds.map((u, k) => loadVariants(base + u, k === PROP_KIND.Light ? PROP_LIGHT_COLOR : null)))
+    Promise.all(kinds.map((u, k) => loadVariants(base + u, k === PROP_KIND.Light)))
       .then((v) => {
         this.variants = v;
         this.rebuild();
@@ -62,6 +107,10 @@ export class PropLayer {
             this.scene.remove(v.mesh);
             v.mesh.dispose();
           }
+          if (v.outline?.mesh) {
+            this.scene.remove(v.outline.mesh);
+            v.outline.mesh.dispose();
+          }
           let cap = 256;
           while (cap < n) cap *= 2;
           v.mesh = new THREE.InstancedMesh(v.geometry, v.material, cap);
@@ -71,6 +120,14 @@ export class PropLayer {
           v.mesh.receiveShadow = true;
           v.mesh.name = `props-${kind === PROP_KIND.Tree ? 'tree' : 'light'}-${j}`;
           this.scene.add(v.mesh);
+          if (v.outline) {
+            const o = new THREE.InstancedMesh(v.outline.geometry, v.outline.material, cap);
+            o.instanceMatrix = v.mesh.instanceMatrix;
+            o.frustumCulled = false;
+            o.name = v.mesh.name + '-outline';
+            v.outline.mesh = o;
+            this.scene.add(o);
+          }
         }
         v.mesh.count = 0;
       }),
@@ -91,12 +148,17 @@ export class PropLayer {
         m[o + 8] = -sn; m[o + 9] = 0; m[o + 10] = c; m[o + 11] = 0;
         m[o + 12] = p[k + 1]; m[o + 13] = 0; m[o + 14] = p[k + 2]; m[o + 15] = 1;
       }
-    for (const vs of this.variants) for (const v of vs) if (v.mesh) v.mesh.instanceMatrix.needsUpdate = true;
+    for (const vs of this.variants)
+      for (const v of vs)
+        if (v.mesh) {
+          v.mesh.instanceMatrix.needsUpdate = true;
+          if (v.outline?.mesh) v.outline.mesh.count = v.mesh.count;
+        }
   }
 }
 
-/** 一個 GLB 裡的每個網格節點 = 一個樣板(幾何套用節點變換;材質換成卡通材質;給 solid 時不用貼圖、整個塗單色) */
-async function loadVariants(url: string, solid: string | null = null): Promise<Variant[]> {
+/** 一個 GLB 裡的每個網格節點 = 一個樣板(幾何套用節點變換;材質換成卡通材質;light = 路燈方案 A:分色 + 描邊、不用貼圖) */
+async function loadVariants(url: string, light = false): Promise<Variant[]> {
   const gltf = await new GLTFLoader().loadAsync(url);
   gltf.scene.updateMatrixWorld(true);
   const out: Variant[] = [];
@@ -105,7 +167,14 @@ async function loadVariants(url: string, solid: string | null = null): Promise<V
     if (!m.isMesh) return;
     const geometry = m.geometry.clone().applyMatrix4(m.matrixWorld);
     const src = m.material as THREE.MeshStandardMaterial;
-    out.push({ geometry, material: solid ? toonMaterial(solid) : toonMapMaterial(src.map ?? null, src.color), mesh: null });
+    if (light) {
+      out.push({
+        geometry: paintLight(geometry).geometry,
+        material: toonVertexColorMaterial(),
+        mesh: null,
+        outline: { geometry: outlineGeometry(geometry), material: outlineMaterial(PROP_LIGHT_STYLE.outline, CAR_TOON.outlineColor), mesh: null },
+      });
+    } else out.push({ geometry, material: toonMapMaterial(src.map ?? null, src.color), mesh: null });
   });
   return out;
 }

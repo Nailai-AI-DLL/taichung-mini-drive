@@ -42,6 +42,11 @@ export interface StreetResult {
   crosswalks: { p: Pt; v: number; u: number; h: number; way: number; reach: number; sig: boolean }[];
   medians: { pts: Pt[]; ws: number[] }[];
   junctions: Pt[][];
+  /**
+   * 進入路口的方向(畫停止線的地方;路燈減量 + 每個路口放號誌,Cooper 2026-11-12)。
+   * p = 停止線與行車方向右側路緣的交點,dir = 行車方向,half = 路面半寬,highway / name 給號誌篩選用
+   */
+  approaches?: { p: Pt; dir: Pt; half: number; way: number; highway: string; name: string }[];
 }
 
 /** 巷弄、服務道路不畫標線,也不會切斷別條路的標線 */
@@ -195,6 +200,7 @@ export function generateStreet(ways: StreetWay[], crossings: StreetCrossing[]): 
 
   // ---- 縱向標線與停止線 ----
   const strips: StreetResult['strips'] = [];
+  const approaches: NonNullable<StreetResult['approaches']> = [];
   ways.forEach((x, xi) => {
     if (isMinor(x)) return;
     const cum = cums[xi];
@@ -235,6 +241,15 @@ export function generateStreet(ways: StreetWay[], crossings: StreetCrossing[]): 
       // 停止線橫跨行車方向的車道:單行道整個路面,雙向道只有右半邊(台灣靠右行駛)
       if (stopB) stopLine(b + STOP_W / 2, !x.oneway ? 0 : shared !== undefined ? shared - YELLOW_HALF : half - EDGE_INSET, -half + EDGE_INSET);
       if (stopA) stopLine(a - STOP_W / 2, 0, half - EDGE_INSET);
+      // 進入路口的方向:順向在 b(右側 = −左法向量),雙向道的對向在 a(行車方向相反,右側 = +左法向量)
+      const approach = (s: number, fwd: boolean) => {
+        const { p, dir } = pointAt(x.line, cum, s);
+        const n = leftNormal(dir);
+        const k = fwd ? -half : half;
+        approaches.push({ p: [p[0] + n[0] * k, p[1] + n[1] * k], dir: fwd ? dir : [-dir[0], -dir[1]], half, way: x.id, highway: x.highway, name: x.name });
+      };
+      if (stopB) approach(b + STOP_W / 2, true);
+      if (stopA) approach(a - STOP_W / 2, false);
     }
   });
 
@@ -257,7 +272,7 @@ export function generateStreet(ways: StreetWay[], crossings: StreetCrossing[]): 
     ...bands[xi].map((b) => ({ s0: b.s - b.half - MEDIAN_NOSE, s1: b.s + b.half + MEDIAN_NOSE, stop: false })),
   ]);
   const junctions = junctionPatches(ways, cums, hits, bands);
-  return { strips, crosswalks, medians: clipMedians(medians(ways, cums, keepOut, pairs, new SegmentGrid(ways)), junctions), junctions };
+  return { strips, crosswalks, medians: clipMedians(medians(ways, cums, keepOut, pairs, new SegmentGrid(ways)), junctions), junctions, approaches };
 }
 
 /**

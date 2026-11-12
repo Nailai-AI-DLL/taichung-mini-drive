@@ -83,7 +83,7 @@ describe('擺放規則', () => {
     const f = placeFurniture([road(1, [[0, 0], [320, 0]], { width: 20 })], noObstacles, []);
     for (const t of f.trees) for (const l of f.lights) expect(Math.hypot(t[0] - l.p[0], t[1] - l.p[1])).toBeGreaterThanOrEqual(CLEAR_LIGHT - 1e-6);
     // 沿 +x 行駛:leftNormal = (0, -1),右側是 +z
-    const narrow = placeFurniture([road(1, [[0, 0], [320, 0]], { width: 10 })], noObstacles, []);
+    const narrow = placeFurniture([road(1, [[0, 0], [640, 0]], { width: 10 })], noObstacles, []);
     expect(narrow.lights.length).toBeGreaterThan(5);
     for (const l of narrow.lights) expect(l.p[1]).toBeGreaterThan(0);
   });

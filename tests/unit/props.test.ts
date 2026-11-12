@@ -59,14 +59,34 @@ describe('整組樹朝向道路(Cooper 2026-11-12:原檔不拆)', () => {
   });
 });
 
-import { PROP_LIGHT_COLOR } from '../../src/config/props';
-describe('路燈單色(Cooper 2026-11-12:淡灰色)', () => {
-  it('路燈用單一淡灰色,不用 Tripo 貼圖', () => {
-    expect(PROP_LIGHT_COLOR).toMatch(/^#[0-9A-F]{6}$/i);
-    const v = parseInt(PROP_LIGHT_COLOR!.slice(1), 16);
-    const [r, g, b] = [v >> 16, (v >> 8) & 255, v & 255];
-    expect(Math.min(r, g, b)).toBeGreaterThan(140); // 中淺灰，不要太深
-    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(24); // 灰
-    expect(b).toBeGreaterThanOrEqual(r); // 偏冷不偏黃(不髒)
+import * as THREE from 'three';
+import { PROP_LIGHT_STYLE } from '../../src/config/props';
+import { paintLight } from '../../src/render/props';
+describe('路燈方案 A(Cooper 2026-11-12)', () => {
+  it('燈頭下方朝下的面塗燈罩色,燈桿與燈頭上面塗燈桿色', () => {
+    // 燈桿:x=0 的直立面;燈頭:高 8 m、x=2 的朝下面與朝上面
+    const pts = [
+      [0, 0, 0], [0, 8, 0], [0, 0, 1], // 直立(燈桿)
+      [1.5, 8, 0], [2.5, 8, 0], [2, 8, 1], // 朝下或朝上依繞向
+      [1.5, 8, 0], [2, 8, 1], [2.5, 8, 0],
+    ].flat();
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const { geometry, lensFaces } = paintLight(g);
+    expect(lensFaces).toBe(1);
+    const col = geometry.getAttribute('color');
+    const pole = new THREE.Color(PROP_LIGHT_STYLE.pole), lens = new THREE.Color(PROP_LIGHT_STYLE.lens);
+    const faceColor = (f: number) => [col.getX(f * 3), col.getY(f * 3), col.getZ(f * 3)];
+    expect(faceColor(0)[0]).toBeCloseTo(pole.r);
+    const colors = [faceColor(1)[0], faceColor(2)[0]].sort();
+    expect(colors[0]).toBeCloseTo(pole.r);
+    expect(colors[1]).toBeCloseTo(lens.r);
+  });
+
+  it('燈桿是深色、燈罩是亮色(不會變回灰模)', () => {
+    const lum = (h: string) => new THREE.Color(h).getHSL({ h: 0, s: 0, l: 0 }, THREE.SRGBColorSpace).l;
+    expect(lum(PROP_LIGHT_STYLE.pole)).toBeLessThan(0.35);
+    expect(lum(PROP_LIGHT_STYLE.lens)).toBeGreaterThan(0.85);
+    expect(PROP_LIGHT_STYLE.outline).toBeGreaterThan(0);
   });
 });

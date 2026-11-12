@@ -13,7 +13,7 @@ import { areaCentroid, assembleRings, centroid, cleanRing, clipPolygon, clipPoly
 import { defaultWidth, isDrivable, isOneway, resolveWidth, runsAlongside, splitWidth } from './lib/roads';
 import { buildingHeight, buildingKind, hasShopTags, kindHeight, nearWideRoad, touchingCorners, type HeightSource } from './lib/buildings';
 import { KIND, SHOP_KINDS } from '../../src/config/buildings';
-import { placeFurniture, type FurnitureRoad } from './lib/furniture';
+import { intersectionSignals, placeFurniture, type FurnitureRoad } from './lib/furniture';
 import { crossingMarked, generateStreet, type StreetCrossing, type StreetResult, type StreetWay } from './lib/street';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -366,6 +366,7 @@ function main() {
         rings: [...buildings.map((b) => dequantPts(b.rings[0])), ...landmarks.flatMap((l) => l.rings.map((r) => dequantPts(r).map(([x, z]) => [x + l.x, z + l.z] as Pt)))], water: areas.filter((a) => a.k === 2).map((a) => dequantPts(a.ring)) },
       streetRaw.crosswalks.map((c) => ({ p: c.p, v: [Math.cos(c.v), Math.sin(c.v)] as Pt, reach: c.reach, sig: c.sig })),
       busStops,
+      streetRaw.approaches ?? [],
     );
     const ang = (a: number) => Math.round(a * 1000);
     furniture = { trees: [], lights: [], signals: [], scooters: [], signs: [], busStops: [] };
@@ -386,6 +387,10 @@ function main() {
     stats.furnitureLights = furniture.lights.length / 3;
     stats.furnitureSignals = furniture.signals.length / 4;
     stats.signalCrosswalks = streetRaw.crosswalks.filter((c) => c.sig).length;
+    // 每個路口放號誌的篩選過程(Cooper 2026-11-12):進入路口方向 → 主要道路 → 有交叉的主要道路
+    const ap = streetRaw.approaches ?? [];
+    stats.signalApproaches = ap.length;
+    stats.signalAtIntersections = intersectionSignals(ap).length;
   }
 
   // 給 Blender 地標腳本用的外框:原點 = 地標形心,Blender 座標 X = 東、Y = 北(= 世界 -Z),單位公尺

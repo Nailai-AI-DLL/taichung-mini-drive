@@ -8,6 +8,11 @@ import {
   BUS_DEDUPE, BUS_POLE_CURB, BUS_SHELTER_CURB, BUS_SHELTER_D, BUS_SHELTER_L, BUS_SHELTER_MIN_SIDEWALK, BUS_SNAP,
   PALM_MIN_WIDTH, SIGN_COLORS, SIGN_BOTTOM, SIGN_CHANCE, SIGN_DEPTH, SIGN_MAX_H, SIGN_MIN_H, SIGN_ROAD_REACH, SIGN_SPACING, SIGN_TOP_GAP, SIGN_WALL_GAP,
   TREE_SPECIES, TREE_SPECIES_WEIGHTS,
+  SIGNAL_HIGHWAYS,
+  SIGNAL_MIN_WIDTH,
+  SIGNAL_OSM_DEDUPE,
+  SIGNAL_PARTNER_R,
+  SIGNAL_SETBACK,
 } from '../../../src/config/furniture';
 import { hash32, pointInPolygon, signedArea, type Pt } from '../../../src/world/gen/geom';
 import { cumLength, leftNormal, pointAt } from '../../../src/world/gen/polyline';
@@ -25,6 +30,38 @@ export interface FurnitureRoad {
 }
 
 /** 行人穿越道:中心 p(道路中心線上)、穿越方向 v(單位向量)、中心到路緣的距離 reach、有沒有號誌 */
+/** 進入路口的方向(src: tools/map-build/lib/street.ts 的 approaches) */
+export interface FurnitureApproach {
+  p: Pt;
+  dir: Pt;
+  half: number;
+  highway: string;
+  name: string;
+}
+
+/** 每個路口的號誌位置:主要道路進入路口、附近有另一條交叉的主要道路也進入同一路口(純函式,給測試用) */
+export function intersectionSignals(approaches: FurnitureApproach[]) {
+  // 同名道路最寬處(分隔島兩側的單向車道各自很窄,要看整條路)
+  const nameWidth = new Map<string, number>();
+  for (const a of approaches) if (a.name) nameWidth.set(a.name, Math.max(nameWidth.get(a.name) ?? 0, a.half * 2));
+  const isBig = (a: FurnitureApproach) =>
+    (SIGNAL_HIGHWAYS as readonly string[]).includes(a.highway) || (a.name ? nameWidth.get(a.name)! : a.half * 2) >= SIGNAL_MIN_WIDTH;
+  const big = approaches.filter(isBig);
+  const g = new Grid<FurnitureApproach>();
+  for (const a of big) g.add(a.p[0] - SIGNAL_PARTNER_R, a.p[1] - SIGNAL_PARTNER_R, a.p[0] + SIGNAL_PARTNER_R, a.p[1] + SIGNAL_PARTNER_R, a);
+  const out: { p: Pt; a: number; arm: number }[] = [];
+  for (const a of big) {
+    const partner = g.near(a.p).some(
+      (b) => b !== a && (b.name !== a.name || !a.name) && Math.abs(a.dir[0] * b.dir[0] + a.dir[1] * b.dir[1]) < 0.7 && Math.hypot(a.p[0] - b.p[0], a.p[1] - b.p[1]) < SIGNAL_PARTNER_R,
+    );
+    if (!partner) continue;
+    const n = leftNormal(a.dir); // 往路中央(行車方向左側)
+    const p: Pt = [a.p[0] - n[0] * SIGNAL_CURB - a.dir[0] * SIGNAL_SETBACK, a.p[1] - n[1] * SIGNAL_CURB - a.dir[1] * SIGNAL_SETBACK];
+    out.push({ p, a: Math.atan2(n[1], n[0]), arm: Math.min(SIGNAL_ARM_MAX, a.half * 0.7) });
+  }
+  return out;
+}
+
 export interface FurnitureCrossing {
   p: Pt;
   v: Pt;
@@ -145,6 +182,7 @@ export function placeFurniture(
   obstacles: { rings: Pt[][]; water: Pt[][]; shops?: Pt[][]; waterways?: { pts: Pt[]; w: number }[]; junctions?: Pt[][]; shopBuildings?: { ring: Pt[]; h: number; id: number }[] },
   crossings: FurnitureCrossing[],
   busStops: { p: Pt; shelter: boolean }[] = [],
+  approaches: FurnitureApproach[] = [],
 ): Furniture {
   const segs = new Grid<Seg>();
   const pad = (s: Seg) => s.half + CLEAR_ROAD + 1;
@@ -206,12 +244,18 @@ export function placeFurniture(
 
   // ---- 號誌桿:有號誌的穿越道兩端,人行道上靠路緣;懸臂伸向車道 ----
   const sigSpace = new Spacing(SIGNAL_MIN_GAP);
+  // 先放每個路口的號誌(Cooper 2026-11-12),再用 OSM 標了號誌的穿越道補(例如路段中間的行人號誌)
+  for (const s of intersectionSignals(approaches)) {
+    if (!sigSpace.free(s.p) || !ok(s.p, null, POLE_BUILDING_GAP)) continue;
+    sigSpace.add(s.p);
+    out.signals.push(s);
+  }
   for (const c of crossings) {
     if (!c.sig) continue;
     for (const side of [1, -1]) {
       const e = c.reach + SIGNAL_CURB;
       const p: Pt = [c.p[0] + c.v[0] * e * side, c.p[1] + c.v[1] * e * side];
-      if (!sigSpace.free(p) || !ok(p, null, POLE_BUILDING_GAP)) continue;
+      if (!sigSpace.free(p, SIGNAL_OSM_DEDUPE) || !ok(p, null, POLE_BUILDING_GAP)) continue;
       sigSpace.add(p);
       out.signals.push({ p, a: Math.atan2(-c.v[1] * side, -c.v[0] * side), arm: Math.min(SIGNAL_ARM_MAX, c.reach * 0.7) });
     }

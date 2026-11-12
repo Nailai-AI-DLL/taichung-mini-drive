@@ -27,8 +27,11 @@ export const PALM_MIN_WIDTH = 14;
 
 /** 推論:立路燈的道路等級(加上 OSM lit=yes 的道路) */
 export const LIGHT_HIGHWAYS = ['primary', 'secondary', 'tertiary', 'trunk'] as const;
-/** 推論:燈距(公尺);路寬 ≥ LIGHT_BOTH_SIDES 兩側都立(交錯),否則只立行車方向右側 */
-export const LIGHT_SPACING = 32;
+/**
+ * 推論:燈距(公尺);路寬 ≥ LIGHT_BOTH_SIDES 兩側都立(交錯),否則只立行車方向右側。
+ * 32 → 64(Cooper 2026-11-12:「我想減少路燈的數量」;約減半,寬路兩側交錯 = 沿路每 32 m 一支)
+ */
+export const LIGHT_SPACING = 64;
 export const LIGHT_BOTH_SIDES = 16;
 /** 路燈離路緣(公尺) */
 export const LIGHT_CURB = 0.5;
@@ -37,6 +40,20 @@ export const LIGHT_H = 8;
 export const LIGHT_R = 0.1;
 export const LIGHT_ARM = 1.8;
 export const LIGHT_HEAD = 0.7;
+
+/**
+ * 推論:每個路口放號誌(Cooper 2026-11-12:「在每個路口放上紅綠燈」)。
+ * 「路口」= 這條路畫了停止線(進入路口),且 SIGNAL_PARTNER_R 公尺內有另一條方向交叉(夾角 > 約 45°)、
+ * 不同路名的路也在這裡畫停止線;兩條路都要是「大路」:SIGNAL_HIGHWAYS 等級,或同名道路最寬處 ≥ SIGNAL_MIN_WIDTH 公尺
+ * (OSM 把七期很多寬馬路標成 residential,例:惠來路二段 12 m、市政北二路 12 m;只看等級會漏掉)。窄巷口不放。
+ * 號誌立在停止線旁、行車方向右側路緣,往後退 SIGNAL_SETBACK 公尺,懸臂伸向車道。
+ */
+export const SIGNAL_HIGHWAYS = ['trunk', 'primary', 'secondary', 'tertiary'] as const;
+export const SIGNAL_MIN_WIDTH = 10;
+export const SIGNAL_PARTNER_R = 60;
+export const SIGNAL_SETBACK = 1;
+/** OSM 標了號誌的穿越道,離已立的路口號誌 < 此值(公尺)就不再另立 */
+export const SIGNAL_OSM_DEDUPE = 12;
 
 /** 號誌桿離路緣(公尺) */
 export const SIGNAL_CURB = 0.7;
