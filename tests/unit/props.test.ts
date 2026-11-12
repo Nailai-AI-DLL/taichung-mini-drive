@@ -58,3 +58,14 @@ describe('整組樹朝向道路(Cooper 2026-11-12:原檔不拆)', () => {
     expect(Math.cos(b)).toBeCloseTo(1);
   });
 });
+
+import { PROP_LIGHT_COLOR } from '../../src/config/props';
+describe('路燈單色(Cooper 2026-11-12:淡灰色)', () => {
+  it('路燈用單一淡灰色,不用 Tripo 貼圖', () => {
+    expect(PROP_LIGHT_COLOR).toMatch(/^#[0-9A-F]{6}$/i);
+    const v = parseInt(PROP_LIGHT_COLOR!.slice(1), 16);
+    const [r, g, b] = [v >> 16, (v >> 8) & 255, v & 255];
+    expect(Math.min(r, g, b)).toBeGreaterThan(170); // 淡
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(20); // 灰
+  });
+});

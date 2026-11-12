@@ -28,6 +28,9 @@ export const PROP_MODELS = {
 
 export const PROP_KIND = { Tree: 0, Light: 1 } as const;
 
+/** 路燈改成單色卡通(不用 Tripo 貼圖;Cooper 2026-11-12:「還是可以改成單色？淡灰色就好」);null = 用原貼圖 */
+export const PROP_LIGHT_COLOR: string | null = '#C8CDD3';
+
 /** 整組樹的整體大小(Cooper 2026-11-12:「樹的尺寸可以縮小約30%」→ 0.7;整組約寬 6.4 m、深 4.2 m、高 4.9 m) */
 export const PROP_TREE_SIZE = 0.7;
 /** 樹的大小隨機範圍(倍數,依位置雜湊;已乘上 PROP_TREE_SIZE) */

@@ -4,8 +4,8 @@
 // 樣板還沒載入完成時先記下擺放,載入後補畫。
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { PROP_KIND, PROP_MODELS } from '../config/props';
-import { toonMapMaterial } from './car-style';
+import { PROP_KIND, PROP_LIGHT_COLOR, PROP_MODELS } from '../config/props';
+import { toonMapMaterial, toonMaterial } from './car-style';
 
 type Variant = { geometry: THREE.BufferGeometry; material: THREE.Material; mesh: THREE.InstancedMesh | null };
 
@@ -22,7 +22,7 @@ export class PropLayer {
 
   constructor(private readonly scene: THREE.Scene, base: string) {
     const kinds = [PROP_MODELS.tree, PROP_MODELS.light];
-    Promise.all(kinds.map((u) => loadVariants(base + u)))
+    Promise.all(kinds.map((u, k) => loadVariants(base + u, k === PROP_KIND.Light ? PROP_LIGHT_COLOR : null)))
       .then((v) => {
         this.variants = v;
         this.rebuild();
@@ -95,8 +95,8 @@ export class PropLayer {
   }
 }
 
-/** 一個 GLB 裡的每個網格節點 = 一個樣板(幾何套用節點變換;材質換成卡通材質) */
-async function loadVariants(url: string): Promise<Variant[]> {
+/** 一個 GLB 裡的每個網格節點 = 一個樣板(幾何套用節點變換;材質換成卡通材質;給 solid 時不用貼圖、整個塗單色) */
+async function loadVariants(url: string, solid: string | null = null): Promise<Variant[]> {
   const gltf = await new GLTFLoader().loadAsync(url);
   gltf.scene.updateMatrixWorld(true);
   const out: Variant[] = [];
@@ -105,7 +105,7 @@ async function loadVariants(url: string): Promise<Variant[]> {
     if (!m.isMesh) return;
     const geometry = m.geometry.clone().applyMatrix4(m.matrixWorld);
     const src = m.material as THREE.MeshStandardMaterial;
-    out.push({ geometry, material: toonMapMaterial(src.map ?? null, src.color), mesh: null });
+    out.push({ geometry, material: solid ? toonMaterial(solid) : toonMapMaterial(src.map ?? null, src.color), mesh: null });
   });
   return out;
 }
