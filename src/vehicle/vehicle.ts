@@ -130,7 +130,9 @@ export class Vehicle {
     const fade = Math.min(1, kmh / p.steerFadeKmh);
     const maxAngle = p.steerMaxLow + (p.steerMaxHigh - p.steerMaxLow) * fade;
     const target = -input.steer * maxAngle;
-    const k = Math.min(1, p.steerSpeed * dt);
+    // 往外打用 steerSpeed;回正(目標更接近 0 或反向)用 steerReturnSpeed
+    const returning = Math.abs(target) < Math.abs(this.steerAngle) || target * this.steerAngle < 0;
+    const k = Math.min(1, (returning ? p.steerReturnSpeed : p.steerSpeed) * dt);
     this.steerAngle += (target - this.steerAngle) * k;
     for (const i of FRONT) c.setWheelSteering(i, this.steerAngle);
 

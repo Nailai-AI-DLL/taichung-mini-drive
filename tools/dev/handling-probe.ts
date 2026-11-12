@@ -1,4 +1,5 @@
-// 手感量測:在空地上量 0–100 km/h、100–0 煞車距離、最小迴轉半徑、手煞車甩尾角速度。
+// 手感量測:在空地上量 0–60 km/h、60–0 煞車距離、最小迴轉半徑、手煞車甩尾角速度、輕點方向鍵的轉角。
+// 2026-11-12 極速改 60 km/h(市區法規,Cooper),量測從 0–100 改 0–60;另加「輕點」量測(decisions/0017)。
 // 用法:npx tsx tools/dev/handling-probe.ts
 import R from '@dimforge/rapier3d-compat';
 import { createPhysicsWorld, FIXED_DT } from '../../src/physics/world';
@@ -10,9 +11,9 @@ export async function measure() {
   const car = new Vehicle(pw, 0, 0, 90);
   const step = (inp: DriveInput) => { car.update(inp, FIXED_DT); pw.world.step(); };
   for (let i = 0; i < 60; i++) step({ throttle: 0, brake: 0, steer: 0, handbrake: false });
-  // 0-100
+  // 0-60
   let t = 0;
-  while (car.speedKmh() < 100 && t < 30) { step({ throttle: 1, brake: 0, steer: 0, handbrake: false }); t += FIXED_DT; }
+  while (car.speedKmh() < 60 && t < 30) { step({ throttle: 1, brake: 0, steer: 0, handbrake: false }); t += FIXED_DT; }
   const accel = t;
   const p0 = car.position();
   // 煞車
@@ -40,10 +41,23 @@ export async function measure() {
   const hd0 = car.headingDeg();
   for (let i = 0; i < 60; i++) step({ throttle: 0.3, brake: 0, steer: 1, handbrake: true });
   const hd1 = car.headingDeg();
+  // 輕點方向鍵:40 km/h 直線,按右 0.15 秒後放開,滑行 2 秒,量車頭總共轉了幾度(越小越不會「輕輕按一下就過頭」)
+  const tap = async (kmh: number, holdS: number) => {
+    car.reset(0, 0, 90);
+    for (let i = 0; i < 30; i++) step({ throttle: 0, brake: 0, steer: 0, handbrake: false });
+    while (car.speedKmh() < kmh) step({ throttle: 1, brake: 0, steer: 0, handbrake: false });
+    const a = car.headingDeg();
+    const hold = Math.round(holdS / FIXED_DT);
+    for (let i = 0; i < hold; i++) step({ throttle: 0.3, brake: 0, steer: 1, handbrake: false });
+    for (let i = 0; i < Math.round(2 / FIXED_DT); i++) step({ throttle: 0.3, brake: 0, steer: 0, handbrake: false });
+    return +((((car.headingDeg() - a) + 540) % 360) - 180).toFixed(1);
+  };
+  const tap40 = await tap(40, 0.15);
+  const tap20 = await tap(20, 0.15);
   // 最高速
   car.reset(0, 0, 90);
   for (let i = 0; i < 60 * 25; i++) step({ throttle: 1, brake: 0, steer: 0, handbrake: false });
-  return { accel0to100s: +accel.toFixed(2), brake100to0m: +brakeDist.toFixed(1), turnRadius20kmh: +radius.toFixed(1),
+  return { accel0to60s: +accel.toFixed(2), brake60to0m: +brakeDist.toFixed(1), tapYaw40kmh: tap40, tapYaw20kmh: tap20, turnRadius20kmh: +radius.toFixed(1),
     rightTurnHeadingDelta: +(((h1 - h0) + 360) % 360).toFixed(0), handbrakeYawIn1s: +(((hd1 - hd0) + 540) % 360 - 180).toFixed(0),
     topSpeedKmh: +car.speedKmh().toFixed(0), upY: +car.upY().toFixed(2), autoRight: car.autoRightCount };
 }

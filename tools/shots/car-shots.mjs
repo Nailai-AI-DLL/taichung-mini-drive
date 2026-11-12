@@ -25,6 +25,12 @@ try {
   await page.evaluate(() => window.__game.start());
   await page.waitForTimeout(2500);
   await page.screenshot({ path: join(out, 'c00-chase.jpg'), quality: 88 });
+  // 第一人稱(decisions/0017):鏡頭第 3 個模式;起步開一小段讓路面有動態,再停下拍
+  await page.evaluate(() => window.__game.setCamera(2));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: join(out, 'c07-first-person.jpg'), quality: 88 });
+  await page.evaluate(() => window.__game.setCamera(0));
+  await page.waitForTimeout(800);
   const s = await page.evaluate(() => window.__game.state());
   const h = (s.headingDeg * Math.PI) / 180;
   const f = [Math.sin(h), -Math.cos(h)];

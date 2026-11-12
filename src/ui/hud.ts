@@ -1,3 +1,4 @@
+import { DEFAULT_PARAMS } from '../vehicle/params';
 // HUD:路名牌、速度表(數字 + 速度條)、操作說明(按鍵小方塊)、資料來源標示、FPS(除錯)。小地圖在 minimap.ts。
 // 版面與外觀由主題決定(decisions/0016 §10):#hud 上的 class hud-a / hud-b / hud-c,樣式在 src/style.css;網址 ?hud=b 切換。
 export class Hud {
@@ -60,7 +61,8 @@ export class Hud {
 }
 
 /** 速度條滿格的時速 */
-const SPEED_BAR_MAX = 160;
+// 速度條滿格 = 極速(2026-11-12 極速改 60 km/h,原本固定 160)
+const SPEED_BAR_MAX = DEFAULT_PARAMS.maxSpeedKmh;
 
 /** 介面主題(0016 §10):a 深色面板(照參考圖《Six Stars》)、b 明亮毛玻璃、c Q 版賽車;預設 c(Cooper 2026-11-11 選定) */
 export function hudTheme(search: string): 'a' | 'b' | 'c' {

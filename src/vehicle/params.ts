@@ -29,8 +29,10 @@ export interface VehicleParams {
   /** 高速(steerFadeKmh 以上)最大轉向角 */
   steerMaxHigh: number;
   steerFadeKmh: number;
-  /** 轉向輸入的追隨速度(每秒) */
+  /** 打方向時轉向角追上目標的速度(每秒);越小,輕點一下轉得越少 */
   steerSpeed: number;
+  /** 放開 / 回正時的速度(每秒);比 steerSpeed 快,放開後不會繼續轉過頭 */
+  steerReturnSpeed: number;
   /** 手煞車時後輪側向抓地倍率(越小越好甩) */
   handbrakeSideGrip: number;
   handbrakeRearBrake: number;
@@ -59,12 +61,16 @@ export const DEFAULT_PARAMS: VehicleParams = {
   engineForce: 1950,
   reverseForce: 900,
   brakeForce: 55,
-  maxSpeedKmh: 130,
+  // 市區法規,極速先控制在 60 km/h(Cooper 2026-11-12,decisions/0017);原 130
+  maxSpeedKmh: 60,
   maxReverseKmh: 30,
-  steerMaxLow: 0.6,
-  steerMaxHigh: 0.16,
-  steerFadeKmh: 110,
-  steerSpeed: 5,
+  // 轉向收斂(Cooper 2026-11-12:「輕輕按一下就會過頭」,decisions/0017);原 0.6 / 0.16 / 110 / 5、回正同 5
+  // 量測(tools/dev/handling-probe.ts):40 km/h 輕點 0.15 秒車頭轉 19.9° → 5.8°;20 km/h 迴轉半徑 4.2 → 5.7 m
+  steerMaxLow: 0.45,
+  steerMaxHigh: 0.2,
+  steerFadeKmh: 60,
+  steerSpeed: 2.5,
+  steerReturnSpeed: 8,
   handbrakeSideGrip: 0.3,
   handbrakeRearBrake: 18,
   downforce: 5,

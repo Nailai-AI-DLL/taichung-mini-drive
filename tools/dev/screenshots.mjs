@@ -1,4 +1,5 @@
 // 產生風格樣張截圖(真 Chrome、1920×1080)。
+// 鏡頭編號(src/camera/chase-camera.ts MODES):0 追尾、1 近距追尾、2 第一人稱、3 高空俯視(2026-11-12 插入第一人稱後,俯視從 2 改 3)
 // 用法:node tools/dev/screenshots.mjs [輸出資料夾,預設 docs/art/m0-style-sample] [--set m0|range-a-roads]
 //   m0:M0 區域(?area=m0)的風格樣張;range-a-roads:範圍 A 主要道路的路寬比例(decisions/0011)
 import { chromium } from 'playwright-core';
@@ -20,7 +21,7 @@ const M0_SHOTS = [
   { file: '02-opera-front.png', x: 10, z: 120, heading: 350, cam: 0, drive: 0 },
   { file: '03-opera-near.png', x: -20, z: 95, heading: 15, cam: 1, drive: 0 },
   { file: '05-car-near.png', x: 86, z: 58, heading: 120, cam: 1, drive: 0 },
-  { file: '04-top-view.png', x: 120, z: -40, heading: 270, cam: 2, drive: 0 },
+  { file: '04-top-view.png', x: 120, z: -40, heading: 270, cam: 3, drive: 0 },
 ];
 
 // 範圍 A:世界座標原點 = 範圍中心(24.1525, 120.6625);座標取自 public/map/range-a/world.json 的道路折線
@@ -28,9 +29,9 @@ const RANGE_A_ROADS = [
   // x 為 null = 不傳送,停在出生點(惠來路二段,歌劇院旁),所以要排第一張
   { file: '00-huilai-rd-chase.png', x: null, z: null, heading: null, cam: 0, drive: 2.5 },
   { file: '01-taiwan-blvd-chase.png', x: -1318.8, z: -1127.9, heading: 122.8, cam: 0, drive: 0 },
-  { file: '02-taiwan-blvd-top.png', x: -1318.8, z: -1127.9, heading: 122.8, cam: 2, drive: 0 },
+  { file: '02-taiwan-blvd-top.png', x: -1318.8, z: -1127.9, heading: 122.8, cam: 3, drive: 0 },
   { file: '03-wenxin-rd-chase.png', x: -1196.7, z: -1331.6, heading: 209.8, cam: 0, drive: 0 },
-  { file: '04-wenxin-rd-top.png', x: -1196.7, z: -1331.6, heading: 209.8, cam: 2, drive: 0 },
+  { file: '04-wenxin-rd-top.png', x: -1196.7, z: -1331.6, heading: 209.8, cam: 3, drive: 0 },
   { file: '06-zhongqing-rd-chase.png', x: 918.8, z: -2261.1, heading: 166.8, cam: 0, drive: 0 },
 ];
 

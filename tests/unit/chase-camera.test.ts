@@ -138,3 +138,28 @@ describe('鏡頭平滑方式 A/B', () => {
     expect(Math.abs(cam.camera.position.distanceTo(car) - first)).toBeLessThan(0.05);
   });
 });
+
+// 第一人稱(decisions/0017):C 鍵第 3 個視角;眼睛在駕駛座(台灣左駕 → 車子左側)、離地約 1.16 m、看向車頭前方
+describe('第一人稱視角', () => {
+  it('第 3 個模式是第一人稱,眼睛在車子左側、看向前方', () => {
+    const cam = new ChaseCamera(16 / 9);
+    cam.setMode(2);
+    expect(cam.modeName).toBe('第一人稱');
+    expect(cam.isFirstPerson).toBe(true);
+    // 車子在原點、車頭朝 +X(forward = (1, 0));右方 = (-fz, fx) = (0, 1) → 左側是 z < 0
+    cam.update(1 / 60, new THREE.Vector3(0, 0.8, 0), new THREE.Vector2(1, 0), 0);
+    const p = cam.camera.position;
+    expect(p.z).toBeLessThan(-0.2);
+    expect(p.y).toBeCloseTo(0.8 + 0.36, 2);
+    expect(Math.abs(p.x)).toBeLessThan(0.5);
+    const dir = cam.camera.getWorldDirection(new THREE.Vector3());
+    expect(dir.x).toBeGreaterThan(0.95);
+  });
+  it('其他視角不是第一人稱', () => {
+    const cam = new ChaseCamera(16 / 9);
+    for (const i of [0, 1, 3]) {
+      cam.setMode(i);
+      expect(cam.isFirstPerson).toBe(false);
+    }
+  });
+});

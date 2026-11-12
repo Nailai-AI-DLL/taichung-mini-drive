@@ -10,11 +10,13 @@ export function createTuningPanel(vehicle: Vehicle) {
   const f1 = gui.addFolder('動力與煞車');
   f1.add(p, 'engineForce', 500, 4000, 50).name('引擎力/輪 (N)');
   f1.add(p, 'brakeForce', 5, 120, 1).name('煞車力');
-  f1.add(p, 'maxSpeedKmh', 60, 200, 5).name('極速 (km/h)');
+  f1.add(p, 'maxSpeedKmh', 30, 200, 5).name('極速 (km/h)');
   const f2 = gui.addFolder('轉向與甩尾');
   f2.add(p, 'steerMaxLow', 0.2, 0.9, 0.01).name('低速轉向角');
   f2.add(p, 'steerMaxHigh', 0.05, 0.5, 0.01).name('高速轉向角');
   f2.add(p, 'steerSpeed', 1, 15, 0.5).name('轉向反應');
+  f2.add(p, 'steerReturnSpeed', 1, 20, 0.5).name('回正速度');
+  f2.add(p, 'steerFadeKmh', 20, 150, 5).name('轉向角衰減到底的車速 (km/h)');
   f2.add(p, 'handbrakeSideGrip', 0.05, 1, 0.01).name('手煞車後輪抓地');
   f2.add(p, 'sideFriction', 0.5, 4, 0.05).name('側向抓地').onChange(apply);
   f2.add(p, 'frictionSlip', 0.5, 6, 0.1).name('輪胎摩擦').onChange(apply);
