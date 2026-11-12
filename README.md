@@ -1,63 +1,74 @@
-# 台中 MINI 兜風(工作名稱)
+# Taichung MINI Drive
 
-three.js 網頁開車遊戲:開 Q 版 MINI Cooper F55 在依 OpenStreetMap 資料生成的台中市區兜風。
-規劃與決策文件見 [docs/README.md](docs/README.md)。
+A browser driving game built with three.js: cruise a cartoon-style MINI hatchback through downtown Taichung, Taiwan. The city (roads, buildings, street furniture) is generated from OpenStreetMap data, and the distant skyline follows the real terrain.
 
-目前進度:**M0 技術驗證**(臺中國家歌劇院周邊 1 km²,灰色方塊車)。結果見 [docs/milestones/M0-report.md](docs/milestones/M0-report.md)。
+Status: milestone M1 in progress. The playable area ("range A") runs from Taichung Station to the Seventh Redevelopment Zone.
 
-## 開始
+## Getting started
 
-需求:Node.js 22、Python 3、Google Chrome(瀏覽器測試用)。
+Requirements: Node.js 22, Python 3, and Google Chrome (only for browser tests and screenshot tools).
 
 ```bash
 npm install
 npm run dev
 ```
 
-開啟 http://localhost:5173 ,按任意鍵開始。
+Open http://localhost:5173 and press any key to start.
 
-| 按鍵 | 動作 |
+| Key | Action |
 |---|---|
-| W / ↑ | 油門 |
-| S / ↓ | 煞車,停住後倒車 |
-| A D / ← → | 轉向 |
-| 空白鍵 | 手煞車(甩尾) |
-| R | 回到最近的路面 |
-| C | 切換視角(追尾 / 近距追尾 / 高空俯視) |
-| ` | 手感調參面板 |
-| Esc | 暫停 |
+| W / ↑ | Throttle |
+| S / ↓ | Brake, then reverse |
+| A D / ← → | Steer |
+| Space | Handbrake (drift) |
+| R | Reset to the nearest road |
+| C | Cycle camera: chase / close chase / first person / top-down |
+| M | Toggle minimap |
+| ` | Handling tuning panel |
+| Esc | Pause |
 
-網址加 `?fps` 會顯示幀率。
+URL options:
 
-## 地圖資料
-
-```bash
-npm run map:fetch:m0   # 從 Overpass 下載 OSM 原始資料(只在要更新資料時執行)
-npm run map:build:m0   # 轉成 public/map/m0/map.json + map.bin
-```
-
-地圖資料 © OpenStreetMap contributors(ODbL)。
-
-## 測試
-
-```bash
-npm test               # 單元測試:投影、路名查詢、建置檢查、車輛手感、5 分鐘物理模擬
-npm run test:e2e       # 瀏覽器冒煙 + 60 秒效能(會開 Chrome 視窗)
-```
-
-```bash
-npm run test:e2e -- --seconds 300
-```
-
-## 目錄
-
-| 路徑 | 內容 |
+| Option | Effect |
 |---|---|
-| `src/` | 遊戲執行端(地圖、物理、車輛、鏡頭、HUD) |
-| `tools/map-build/` | 地圖建置管線 |
-| `tools/research/` | 資料調查與測試點產生腳本(Python) |
-| `tools/dev/` | 手感量測、截圖等開發工具 |
-| `data/osm/raw/` | OSM 原始資料(不打包進遊戲) |
-| `data/overrides/` | 人工覆寫(路寬等) |
-| `tests/` | 單元測試與瀏覽器測試 |
-| `docs/` | 規劃書、研究、決策、里程碑報告 |
+| `?fps` | Show the frame rate |
+| `?props=gen` | Use the procedural trees and street lights instead of the 3D models |
+| `?car=gen` | Use the procedural car |
+| `?carstyle=pbr` | Use realistic car materials instead of the toon style |
+| `?hud=a` / `?hud=b` | Alternative HUD themes |
+
+## Map data
+
+The built map for range A (`public/map/range-a/`) is committed, so the game runs without downloading anything. To rebuild it, use the scripts below. They download the raw data into `data/`, which is not version-controlled.
+
+```bash
+npm run map:fetch:range-a    # download raw OSM data from Overpass
+npm run map:build:range-a    # build public/map/range-a/world.json
+npm run map:skyline:range-a  # build the distant mountain skyline from the 20 m DTM
+```
+
+## Tests
+
+```bash
+npm test           # unit tests (vitest)
+npm run test:e2e   # browser smoke and performance test (opens Chrome)
+```
+
+## Project layout
+
+| Path | Contents |
+|---|---|
+| `src/` | Game runtime: map streaming, physics (Rapier), vehicle, camera, rendering, HUD |
+| `tools/map-build/` | Map build pipeline (OSM to game data) |
+| `tools/models/` | Blender scripts for preparing 3D models |
+| `tools/shots/`, `tools/dev/` | Screenshot and handling measurement tools |
+| `tests/` | Unit and end-to-end tests |
+| `docs/` | Design decisions and milestone reports (Traditional Chinese) |
+
+## Credits
+
+- Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL.
+- Terrain: Taiwan Ministry of the Interior 20 m DTM (Open Government Data License, version 1.0).
+- The car, tree and street light models were generated with Tripo AI.
+
+This is a fan project. It is not affiliated with or endorsed by BMW or MINI.

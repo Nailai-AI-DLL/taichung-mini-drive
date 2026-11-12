@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "台中 MINI 兜風(工作名稱):three.js 網頁開車遊戲",
+  "description": "Taichung MINI Drive: a three.js browser driving game set in Taichung, Taiwan",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
