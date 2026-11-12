@@ -3,7 +3,7 @@
 import {
   ANTI_PARALLEL, BAR_LEN, MEDIAN_NOSE, CENTER_MIN_W, CONTINUE_SIN, CROSSWALK_MAX_H, DOUBLE_GAP, EDGE_INSET, EDGE_W, PAVE_BAND_REACH,
   JUNCTION_PAD, PAVE_MAX_GAP, PAVE_OVERLAP, PAVE_STEP,
-  LANE, LINE_W, MARK_MIN_W, MEDIAN_MAX, MEDIAN_MIN, MEDIAN_PROBE, MIN_SIN, PAIR_BREAK, PAIR_STEP, SLOW_LANE_MIN,
+  LANE, LINE_W, MARK_MIN_W, MEDIAN_MAX, MEDIAN_MIN, MEDIAN_PROBE, MIN_SIN, PAIR_BREAK, PAIR_STEP, SLOW_LANE_MIN, YELLOW_SIMPLIFY, YELLOW_SMOOTH,
   STOP_CLEAR, STOP_END_MIN, STOP_MIN_W, STOP_W, STRIP_MIN_LEN, ZONE_MAX, ZONE_MERGE,
 } from '../../../src/config/street';
 import { pointInPolygon, type Pt } from '../../../src/world/gen/geom';
@@ -488,7 +488,7 @@ function pairYellow(x: StreetWay, ps: PairSample[]): StreetResult['strips'] {
   let run: Pt[] = [];
   let lastS = -Infinity;
   const flush = () => {
-    if (run.length >= 2) out.push({ pts: run, m, way: x.id });
+    if (run.length >= 2) out.push({ pts: simplifyLine(smoothLine(run, Math.round(YELLOW_SMOOTH / PAIR_STEP)), YELLOW_SIMPLIFY), m, way: x.id });
     run = [];
   };
   for (const p of ps) {
@@ -500,6 +500,49 @@ function pairYellow(x: StreetWay, ps: PairSample[]): StreetResult['strips'] {
   }
   flush();
   return out;
+}
+
+/** 移動平均:每點取前後各 half 點的平均(靠近兩端時視窗跟著縮,兩端點不動) */
+export function smoothLine(pts: Pt[], half: number): Pt[] {
+  const n = pts.length;
+  return pts.map((_, i) => {
+    const h = Math.min(half, i, n - 1 - i);
+    let x = 0;
+    let z = 0;
+    for (let j = i - h; j <= i + h; j++) {
+      x += pts[j][0];
+      z += pts[j][1];
+    }
+    return [x / (2 * h + 1), z / (2 * h + 1)];
+  });
+}
+
+/** Douglas–Peucker 簡化:保留頭尾,刪掉偏差 < tol 公尺的中間點 */
+export function simplifyLine(pts: Pt[], tol: number): Pt[] {
+  if (pts.length < 3) return pts;
+  const keep = new Uint8Array(pts.length);
+  keep[0] = keep[pts.length - 1] = 1;
+  const stack: [number, number][] = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    const ex = pts[b][0] - pts[a][0];
+    const ez = pts[b][1] - pts[a][1];
+    const l = Math.hypot(ex, ez) || 1;
+    let best = -1;
+    let bi = -1;
+    for (let i = a + 1; i < b; i++) {
+      const d = Math.abs((pts[i][0] - pts[a][0]) * ez - (pts[i][1] - pts[a][1]) * ex) / l;
+      if (d > best) {
+        best = d;
+        bi = i;
+      }
+    }
+    if (best > tol) {
+      keep[bi] = 1;
+      stack.push([a, bi], [bi, b]);
+    }
+  }
+  return pts.filter((_, i) => keep[i]);
 }
 
 interface PairSample {

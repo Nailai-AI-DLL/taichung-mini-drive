@@ -25,6 +25,11 @@ function gradientMap() {
   return gradient;
 }
 
+/** 卡通材質(和車子同一套明暗三階);給第一人稱引擎蓋等另外做的零件用 */
+export function toonMaterial(color: THREE.ColorRepresentation) {
+  return new THREE.MeshToonMaterial({ color, gradientMap: gradientMap() });
+}
+
 /** 描邊材質:頂點沿法向量往外推,只畫背面。
  *  MeshBasicMaterial 的頂點著色器沒有 objectNormal(沒光照就不算),要直接用頂點屬性 normal;
  *  2026-11-11 第一版用 objectNormal 編譯失敗、描邊根本沒畫出來,tools/shots/car-shots.mjs 現在遇到著色器錯誤會失敗 */

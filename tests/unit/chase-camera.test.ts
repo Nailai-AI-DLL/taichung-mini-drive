@@ -163,3 +163,24 @@ describe('第一人稱視角', () => {
     }
   });
 });
+
+// 第一人稱引擎蓋(decisions/0018):從眼睛看出去,引擎蓋在畫面下半部、不擋到地平線
+import { createFpHood, HOOD } from '../../src/render/fp-hood';
+describe('第一人稱引擎蓋', () => {
+  it('引擎蓋與儀表板都在眼睛下方、視野內(畫面下半),上緣不超過地平線', () => {
+    const cam = new ChaseCamera(16 / 9);
+    cam.setMode(2);
+    cam.update(1 / 60, new THREE.Vector3(0, 0.8, 0), new THREE.Vector2(1, 0), 0);
+    cam.camera.updateMatrixWorld();
+    const hood = createFpHood();
+    hood.position.set(0, 0.8, 0);
+    hood.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(hood);
+    expect(box.max.y).toBeLessThan(cam.camera.position.y);
+    // 引擎蓋前緣中點投影到畫面:在畫面內、下半部
+    const nose = new THREE.Vector3(HOOD.x1, 0.8 + HOOD.y1, 0).project(cam.camera);
+    expect(nose.y).toBeLessThan(0);
+    expect(nose.y).toBeGreaterThan(-1);
+    expect(Math.abs(nose.x)).toBeLessThan(1);
+  });
+});

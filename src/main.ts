@@ -14,6 +14,7 @@ import { addChunkFurniture, addChunkMeshes, addLandmark, CarMesh, createRenderer
 import { fxFromUrl, PostFx } from './render/post';
 import { createMiniCar } from './render/mini-car';
 import { toonifyCar } from './render/car-style';
+import { createFpHood } from './render/fp-hood';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FX_NAMES, type FxName } from './config/look';
 import { Hud } from './ui/hud';
@@ -110,6 +111,9 @@ async function boot() {
       }
     });
   const cam = new ChaseCamera(window.innerWidth / window.innerHeight);
+  // 第一人稱用的簡單引擎蓋(decisions/0018),跟著車子姿態
+  const fpHood = createFpHood();
+  scene.add(fpHood);
   // 第一人稱時整台車藏起來:AI 模型只有外殼,從車內看引擎蓋是破洞、後照鏡背面一團、描邊(背面外擴殼)亂線(2026-11-12 樣張,decisions/0017)
   const hud = new Hud(document.getElementById('hud')!);
   const minimap = new Minimap(prepareMapData(world.json, world.roads));
@@ -270,6 +274,11 @@ async function boot() {
     car.sync(p, q, [0, 1, 2, 3].map((i) => vehicle.wheelState(i)));
     cam.update(dt, carPos, fwd, vehicle.speedKmh());
     car.group.visible = !cam.isFirstPerson || !!inspectView;
+    fpHood.visible = !car.group.visible;
+    if (fpHood.visible) {
+      fpHood.position.copy(p);
+      fpHood.quaternion.set(q.x, q.y, q.z, q.w);
+    }
     const tStream = performance.now();
     const built = streamer.totalBuildMs;
     if (inspectView) {

@@ -65,6 +65,13 @@ export const MEDIAN_MAX = 15;
 export const PAIR_STEP = 1;
 /** 取樣點相隔超過 PAIR_STEP × 這個倍數就視為中斷(中間有點被略過) */
 export const PAIR_BREAK = 1.5;
+/**
+ * 配對雙黃線(兩條對向單行道中點)的平滑:前後各 YELLOW_SMOOTH 公尺取平均(6 m 時半徑 80 m 的彎道會往內縮 8.8 cm,4 m 約 4 cm),再簡化到偏差 YELLOW_SIMPLIFY 公尺以內。
+ * 原因(decisions/0018):中點每 1 m 一點,最近點投影在對向道路的頂點處會卡住跳動,寫檔又量化到 10 cm,
+ * 黃線看起來歪歪扭扭(每公尺側向偏移中位數 1.3 cm、p95 5.4 cm;雙向道路自己的雙黃線是 0)。
+ */
+export const YELLOW_SMOOTH = 4;
+export const YELLOW_SIMPLIFY = 0.03;
 /** 推論:兩條路的方向餘弦 < 此值才算「對向平行」(約 145° 以上) */
 export const ANTI_PARALLEL = -0.8;
 /** 推論:檢查分隔島中間有沒有夾別條路時,在空隙中央與兩側 1/3 處各取一點 */
