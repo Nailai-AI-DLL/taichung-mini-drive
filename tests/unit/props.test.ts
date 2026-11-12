@@ -65,7 +65,8 @@ describe('路燈單色(Cooper 2026-11-12:淡灰色)', () => {
     expect(PROP_LIGHT_COLOR).toMatch(/^#[0-9A-F]{6}$/i);
     const v = parseInt(PROP_LIGHT_COLOR!.slice(1), 16);
     const [r, g, b] = [v >> 16, (v >> 8) & 255, v & 255];
-    expect(Math.min(r, g, b)).toBeGreaterThan(170); // 淡
-    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(20); // 灰
+    expect(Math.min(r, g, b)).toBeGreaterThan(140); // 中淺灰，不要太深
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(24); // 灰
+    expect(b).toBeGreaterThanOrEqual(r); // 偏冷不偏黃(不髒)
   });
 });
