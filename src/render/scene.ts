@@ -6,6 +6,7 @@ import type { MeshArrays } from '../map/types';
 import type { ChunkMeshes, FurnitureMeshes } from '../world/chunks';
 import type { VehicleParams } from '../vehicle/params';
 import { createBuildingMaterial } from './building-material';
+import { buildingLookFromSearch } from '../config/buildings';
 import { createClouds } from './clouds';
 import type { MiniCar } from './mini-car';
 import { LOOK_LIGHT, LOOK_LIGHT_OLD } from '../config/look';
@@ -190,7 +191,7 @@ function concatArrays(a: MeshArrays, b: MeshArrays): MeshArrays {
 /** 一格地圖的場景物件:地面類 1 個網格、建築(含屋頂附加物、街道傢俱)1 個網格(共用材質) */
 export function addChunkMeshes(scene: THREE.Scene, m: ChunkMeshes): THREE.Object3D[] {
   groundMat ??= createGroundMaterial();
-  buildingMat ??= createBuildingMaterial();
+  buildingMat ??= createBuildingMaterial(buildingLookFromSearch(globalThis.location?.search ?? ''));
   const out: THREE.Object3D[] = [];
   if (m.ground.index.length) {
     const ground = new THREE.Mesh(toGeometry(m.ground), groundMat);
@@ -247,7 +248,7 @@ function addProps(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Array
  * objects = 第一段 addChunkMeshes 回傳的陣列(會被加入新物件,卸載時一起移除)。
  */
 export function addChunkFurniture(scene: THREE.Scene, objects: THREE.Object3D[], f: FurnitureMeshes) {
-  buildingMat ??= createBuildingMaterial();
+  buildingMat ??= createBuildingMaterial(buildingLookFromSearch(globalThis.location?.search ?? ''));
   if (f.furniture.index.length) {
     const add = toGeometry(f.furniture);
     const mesh = objects.find((o) => o.userData.solid) as THREE.Mesh | undefined;
@@ -329,7 +330,7 @@ function loadLandmarkModel(url: string): Promise<THREE.Object3D | null> {
  * 回傳的陣列會在模型載入後被更新,卸載時整個傳給 removeChunkMeshes。
  */
 export function addLandmark(scene: THREE.Scene, lm: { model: string; x: number; z: number }, solid: MeshArrays): THREE.Object3D[] {
-  buildingMat ??= createBuildingMaterial();
+  buildingMat ??= createBuildingMaterial(buildingLookFromSearch(globalThis.location?.search ?? ''));
   const fallback = new THREE.Mesh(toGeometry(solid), buildingMat);
   fallback.castShadow = fallback.receiveShadow = true;
   scene.add(fallback);

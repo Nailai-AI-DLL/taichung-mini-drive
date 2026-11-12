@@ -29,17 +29,57 @@ export const KIND_COUNT = 8;
 /**
  * 推論:窗格樣式,依細分類 [橫向週期, 窗寬, 窗下緣, 窗上緣](公尺;上下緣是離該層樓板的高度,層高 3.2 m)。
  * 窗寬 0 = 不畫窗。透天一層一扇大窗;大樓窗較密;商辦近似帶狀玻璃;學校是走廊式長窗。
+ * 0023:參考台中七期 FPS 專案的立面,窗洞放大(窗牆比約 0.5 → 0.65–0.85),牆面讀起來像整齊的玻璃格子。
  */
 export const WINDOW_STYLE: readonly (readonly [number, number, number, number])[] = [
-  [3.2, 1.8, 1.0, 2.3], // Generic
-  [4.0, 2.4, 0.9, 2.4], // House
-  [3.0, 1.6, 1.0, 2.3], // Apartment
-  [1.8, 1.5, 0.8, 2.7], // Commercial
-  [3.6, 2.8, 1.0, 2.4], // School
+  [3.2, 2.4, 0.8, 2.6], // Generic
+  [4.0, 3.0, 0.8, 2.6], // House
+  [3.0, 2.2, 0.8, 2.6], // Apartment
+  [1.8, 1.6, 0.4, 2.9], // Commercial(近似帷幕牆)
+  [3.6, 3.0, 0.9, 2.6], // School
   [1, 0, 0, 0], // Temple
   [1, 0, 0, 0], // Low
-  [3.0, 2.0, 1.0, 2.4], // Public
+  [3.0, 2.4, 0.8, 2.7], // Public
 ];
+/** 0023 之前的窗格(?bld=old 對照用) */
+export const WINDOW_STYLE_OLD: readonly (readonly [number, number, number, number])[] = [
+  [3.2, 1.8, 1.0, 2.3],
+  [4.0, 2.4, 0.9, 2.4],
+  [3.0, 1.6, 1.0, 2.3],
+  [1.8, 1.5, 0.8, 2.7],
+  [3.6, 2.8, 1.0, 2.4],
+  [1, 0, 0, 0],
+  [1, 0, 0, 0],
+  [3.0, 2.0, 1.0, 2.4],
+];
+/**
+ * 推論(0023,參考 FPS 專案):每類建築的立面細節 [窗台線, 玻璃反光]。
+ * 窗台線 = 窗下一條淺色水平線(住宅類才有,1 = 有);玻璃反光 = 窗洞上方 WINDOW_GLINT_FRAC 的部分往白色混的比例。
+ */
+export const FACADE_DETAIL: readonly (readonly [number, number])[] = [
+  [1, 0.14], // Generic
+  [1, 0.12], // House
+  [1, 0.14], // Apartment
+  [0, 0.2], // Commercial
+  [1, 0.12], // School
+  [0, 0], // Temple
+  [0, 0], // Low
+  [0, 0.16], // Public
+];
+/** 玻璃反光佔窗洞高度的比例(FPS 專案:上方 35%) */
+export const WINDOW_GLINT_FRAC = 0.35;
+/** 窗台線:窗下緣往下 SILL_DROP 公尺起、厚 SILL_H 公尺;比窗洞左右各寬 SILL_OVERHANG 公尺 */
+export const SILL_DROP = 0.05;
+export const SILL_H = 0.16;
+export const SILL_OVERHANG = 0.15;
+/** 窗台線顏色 = 牆色往白色混的比例 */
+export const SILL_LIGHTEN = 0.45;
+
+export type BuildingLook = 'fps' | 'old';
+/** 網址 ?bld=old 換回 0023 之前的建築外觀(前後對照用);預設新外觀 */
+export function buildingLookFromSearch(search: string): BuildingLook {
+  return new URLSearchParams(search).get('bld') === 'old' ? 'old' : 'fps';
+}
 
 /** 推論:每扇窗的玻璃明暗(0 = 最暗、1 = 最亮)在這個範圍內依窗、樓層、建築隨機,畫面上有的窗亮、有的窗暗 */
 export const WINDOW_TONE_MIN = 0;

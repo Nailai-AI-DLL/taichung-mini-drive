@@ -349,3 +349,40 @@ describe('範圍 A 實際資料', () => {
     expect(m.buildings.wall!.length).toBe((m.buildings.position.length / 3) * 2);
   });
 });
+
+// 0023:參考台中七期 FPS 專案的立面(窗放大、窗台線、玻璃反光);?bld=old 換回舊外觀
+import { FACADE_DETAIL, KIND_COUNT as KC, WINDOW_STYLE as WS, WINDOW_STYLE_OLD, buildingLookFromSearch } from '../../src/config/buildings';
+
+describe('建築立面 0023(參考 FPS 專案)', () => {
+  it('網址預設新外觀,?bld=old 換回舊外觀', () => {
+    expect(buildingLookFromSearch('')).toBe('fps');
+    expect(buildingLookFromSearch('?bld=old')).toBe('old');
+  });
+
+  it('每個細分類都有窗格、舊窗格與立面細節;窗不超出週期、上緣不超過層高', () => {
+    for (const t of [WS, WINDOW_STYLE_OLD, FACADE_DETAIL]) expect(t.length).toBe(KC);
+    for (const [p, w, lo, hi] of WS.filter(([, w]) => w > 0)) {
+      expect(w).toBeLessThan(p);
+      expect(hi).toBeLessThanOrEqual(3.2);
+      expect(lo).toBeLessThan(hi);
+    }
+  });
+
+  it('有窗的類別窗牆比都比舊版大;不畫窗的類別不畫窗台線和反光', () => {
+    WS.forEach(([p, w, lo, hi], k) => {
+      const [op, ow, olo, ohi] = WINDOW_STYLE_OLD[k];
+      if (w === 0) {
+        expect(FACADE_DETAIL[k]).toEqual([0, 0]);
+        return;
+      }
+      expect((w / p) * (hi - lo)).toBeGreaterThan((ow / op) * (ohi - olo));
+    });
+    expect(FACADE_DETAIL[KIND.Commercial][0]).toBe(0); // 帷幕牆沒有窗台線
+  });
+
+  it('著色器有用到窗台線與反光的 uniform', () => {
+    expect(FRAGMENT).toContain('vec2 det = uDetail[kind];');
+    expect(FRAGMENT).toContain('uGlintFrac');
+    expect(FRAGMENT).toContain('uSill');
+  });
+});
