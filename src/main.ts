@@ -15,6 +15,7 @@ import { fxFromUrl, PostFx } from './render/post';
 import { createMiniCar } from './render/mini-car';
 import { toonifyCar } from './render/car-style';
 import { createFpHood } from './render/fp-hood';
+import { createMountains, followMountains, loadSkyline } from './render/mountains';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FX_NAMES, type FxName } from './config/look';
 import { Hud } from './ui/hud';
@@ -28,7 +29,7 @@ const AREA = new URLSearchParams(location.search).get('area') ?? 'range-a';
 async function boot() {
   const status = document.getElementById('status')!;
   const overlay = document.getElementById('overlay')!;
-  const [world] = await Promise.all([fetchWorld(AREA), R.init()]);
+  const [world, skyline] = await Promise.all([fetchWorld(AREA), loadSkyline(AREA), R.init()]);
 
   const pw = createPhysicsWorld(R, world.json.meta.bounds);
   const spawn = world.json.spawn;
@@ -40,6 +41,9 @@ async function boot() {
   const renderer = createRenderer(canvas);
   const world3d = createScene(world.json.meta.bounds);
   const { scene, sun } = world3d;
+  // 遠景山脈(decisions/0019):依實際地形;沒有 skyline.json 的區域(m0)就不畫;?fx=mountains:0 可關
+  const mountains = skyline ? createMountains(skyline) : null;
+  if (mountains) scene.add(mountains);
   // 分塊:車子周圍的格子才生成網格與碰撞體
   const live = new Map<string, { objects: THREE.Object3D[][]; bodies: ReturnType<typeof addStaticTrimesh>[] }>();
   /** 單幀耗時分項(毫秒),找偶發卡頓用:__game.perf() 回傳最慢的幾幀與它們「前一幀」做了什麼 */
@@ -197,6 +201,7 @@ async function boot() {
     post.setFx(fx);
     if (fx.light !== undefined) setLook(world3d, fx.light);
     if (fx.clouds !== undefined) world3d.clouds.visible = fx.clouds;
+    if (fx.mountains !== undefined && mountains) mountains.visible = fx.mountains;
   };
   setFx(fxFromUrl(location.search, FX_NAMES));
 
@@ -307,6 +312,7 @@ async function boot() {
 
     const tRender = performance.now();
     renderer.info.reset();
+    if (mountains) followMountains(mountains, cam.camera);
     post.render();
     frameWork.render = performance.now() - tRender;
     prevWork = { ...frameWork };

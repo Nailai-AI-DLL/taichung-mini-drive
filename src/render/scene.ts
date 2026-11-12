@@ -29,7 +29,7 @@ export interface World3D {
   scene: THREE.Scene;
   sun: THREE.DirectionalLight;
   hemi: THREE.HemisphereLight;
-  clouds: THREE.Mesh;
+  clouds: THREE.Object3D;
 }
 
 /** 太陽相對車子的位置(followSun 用;setLook 切換新舊光照時一起換) */

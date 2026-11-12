@@ -62,6 +62,37 @@ export const LOOK_GRADE = { saturation: 1.15, contrast: 0.14, warm: 0.03, vignet
 /** 雲:低多邊形的白色蓬鬆雲團(參考圖二),浮在 minY–maxY,散在整個區域 */
 export const LOOK_CLOUDS = { count: 70, minY: 110, maxY: 230, minSize: 60, maxSize: 120, color: '#ffffff', shade: '#dbe8f5' };
 
+/**
+ * 雲的種類(decisions/0019,Cooper 2026-11-12:「雲的話我希望外觀能更多樣化一些」)。
+ * weight 是出現比例;y 高度範圍(公尺)、size 大小範圍;其他欄位見 clouds.ts 各種類的說明。
+ */
+export const CLOUD_KINDS = {
+  /** 積雲:一排扁球,中間大、兩端小(原本唯一的一種) */
+  cumulus: { weight: 30, y: [110, 230], size: [60, 120] },
+  /** 濃積雲:底部一排、上面再疊一兩層,高高隆起 */
+  tower: { weight: 10, y: [120, 200], size: [70, 110] },
+  /** 小碎雲:兩三顆小球一群 */
+  puff: { weight: 25, y: [100, 200], size: [18, 40] },
+  /** 層雲:很寬很扁的一大片 */
+  sheet: { weight: 12, y: [240, 320], size: [110, 180] },
+  /** 卷雲:高空細長條,薄;放很高,才不會近看像一塊木板 */
+  streak: { weight: 13, y: [480, 600], size: [160, 280] },
+} as const;
+export const CLOUD_COUNT = 110;
+
+/**
+ * 遠景山脈(decisions/0019):依實際地形(tools/map-build/skyline.py 從內政部 DTM 算出各方位仰角),
+ * 近 / 中 / 遠三圈山影跟著鏡頭。半徑要小於鏡頭遠裁切 1500 m;顏色越遠越接近天空(空氣透視)。
+ * exaggerate:仰角放大倍數(真實仰角只有 2–4°,遊戲畫面 FOV 60° 下很矮,放大一點比較看得出來;1 = 照實)。
+ */
+export const LOOK_MOUNTAINS = {
+  radius: [1240, 1320, 1400],
+  color: ['#7fa6a0', '#93b1c4', '#b3c9de'],
+  /** 山腳(地平線附近)混入天空地平線色的比例 */
+  haze: [0.35, 0.5, 0.65],
+  exaggerate: 1.6,
+};
+
 /** 可單獨開關的效果名稱 */
-export const FX_NAMES = ['light', 'gtao', 'bloom', 'grade', 'smaa', 'clouds'] as const;
+export const FX_NAMES = ['light', 'gtao', 'bloom', 'grade', 'smaa', 'clouds', 'mountains'] as const;
 export type FxName = (typeof FX_NAMES)[number];
