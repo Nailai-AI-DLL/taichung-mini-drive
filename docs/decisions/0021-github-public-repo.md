@@ -21,11 +21,16 @@
    - 作者與提交者換成 Nailai-AI-DLL。
    - 從所有 commit 拿掉 `docs/art/mini-3view/overlay.png`。
 3. 改寫前的歷史留在本機分支 `backup/pre-english-history`,不推上去。
-4. 這個 repo 的本機 git 設定：
-   - `user.name` / `user.email` 設為 Nailai-AI-DLL。
-   - `credential.https://github.com.username` 設為 Nailai-AI-DLL。
+4. 這個 repo 的本機 git 設定：`user.name` / `user.email` 設為 Nailai-AI-DLL。
+5. push 時，先把 gh 切到 Nailai-AI-DLL,推完再切回 Cooperfu615-Desinger:
 
-   這樣之後 push 會用 Nailai-AI-DLL,不用切換 gh 目前使用中的帳號(目前使用中的仍是 Cooperfu615-Desinger)。
+   ```
+   gh auth switch -h github.com -u Nailai-AI-DLL
+   git push
+   gh auth switch -h github.com -u Cooperfu615-Desinger
+   ```
+
+   試過另一種做法：在本機 git 設定 `credential.https://github.com.username`,讓它自動選帳號。實測沒有用，因為 gh 的憑證程式只認目前使用中的帳號，所以放棄。
 
 ## 為什麼拿掉 overlay.png
 
