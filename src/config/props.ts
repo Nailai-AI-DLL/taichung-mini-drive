@@ -20,11 +20,15 @@ export function propsModeFromSearch(search: string): PropsMode {
 
 /** 樣板檔(tools/models/prop_normalize.py 產生;單位公尺、原點在立地點、路燈懸臂朝 +x) */
 export const PROP_MODELS = {
-  tree: 'models/prop_pines.glb',
+  // 整組樹(3 棵松樹 + 灌木,Tripo 原檔不拆;Cooper 2026-11-12:「把原本的 glb 直接放上去不用拆成三顆」)
+  // 寬 9.1 m、深 6 m、高 7 m;原點在灌木那側的前緣中點,前緣朝 +z(遊戲端轉向最近的車道)
+  tree: 'models/prop_tree_group.glb',
   light: 'models/prop_streetlight.glb',
 } as const;
 
 export const PROP_KIND = { Tree: 0, Light: 1 } as const;
 
-/** 樹的大小隨機範圍(倍數,依位置雜湊) */
-export const PROP_TREE_SCALE: [number, number] = [0.85, 1.15];
+/** 整組樹的整體大小(Cooper 2026-11-12:「樹的尺寸可以縮小約30%」→ 0.7;整組約寬 6.4 m、深 4.2 m、高 4.9 m) */
+export const PROP_TREE_SIZE = 0.7;
+/** 樹的大小隨機範圍(倍數,依位置雜湊;已乘上 PROP_TREE_SIZE) */
+export const PROP_TREE_SCALE: [number, number] = [0.9 * PROP_TREE_SIZE, 1.05 * PROP_TREE_SIZE];

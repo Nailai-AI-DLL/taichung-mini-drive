@@ -11,6 +11,9 @@
 用法:
   Blender -b --factory-startup -P tools/models/prop_normalize.py -- light <輸入.glb> <輸出.glb> <高度公尺>
   Blender -b --factory-startup -P tools/models/prop_normalize.py -- trees <輸入.glb> <輸出.glb> <最高那棵的高度公尺>
+  Blender -b --factory-startup -P tools/models/prop_normalize.py -- group <輸入.glb> <輸出.glb> <最高點高度公尺>
+    group:整組原樣保留(不拆),原點 = 前緣中點(Blender −Y 那一側;Tripo 樹組的灌木在這側),
+          輸出後在 three.js 裡前緣朝 +z;遊戲端把 +z 轉向車道
 最後一行印 PROP_DONE {...}(每個節點的面數、外框)。
 """
 import sys, json, math
@@ -147,6 +150,16 @@ elif mode == "trees":
     for o, t in zip(objs, trunks):
         z0 = min(v.co.z for v in o.data.vertices)
         o.data.transform(Matrix.Scale(s, 4) @ Matrix.Translation(Vector((-t.x, -t.y, -z0))))
+elif mode == "group":
+    from mathutils import Matrix
+    objs = [obj]
+    obj.name = "group"
+    vs = [v.co for v in obj.data.vertices]
+    cx = (min(v.x for v in vs) + max(v.x for v in vs)) / 2
+    y0 = min(v.y for v in vs)
+    z0 = min(v.z for v in vs); z1 = max(v.z for v in vs)
+    s = target_h / (z1 - z0)
+    obj.data.transform(Matrix.Scale(s, 4) @ Matrix.Translation(Vector((-cx, -y0, -z0))))
 else:
     raise SystemExit(f"未知模式 {mode}")
 

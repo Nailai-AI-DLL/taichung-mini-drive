@@ -433,13 +433,17 @@ function quad(mb: MeshBuilder, q: [number, number, number][], nrm: [number, numb
 
 /**
  * Tripo 樣板物件的擺放(decisions/0020):每個 5 個數 [種類 PROP_KIND, x, z, 朝向, 大小倍數]。
- * 樹:朝向與大小由位置雜湊決定(樣板編號由執行端依位置挑);路燈:朝向 = 懸臂朝向、大小 1。
+ * 樹(整組樣板):樣板前緣朝 +z,轉成朝向最近的道路(roads 為這一格的道路折線);找不到道路就用位置雜湊的朝向。
+ * 路燈:朝向 = 懸臂朝向、大小 1。
  */
-export function propPoses(trees: readonly Pt[], lights: readonly { p: Pt; a: number }[], treeScale: [number, number]): Float32Array {
+export function propPoses(trees: readonly Pt[], lights: readonly { p: Pt; a: number }[], treeScale: [number, number], roads: readonly Pt[][] = []): Float32Array {
   const out = new Float32Array((trees.length + lights.length) * 5);
   let o = 0;
   for (const p of trees) {
-    out.set([0, p[0], p[1], rnd(p, 4) * Math.PI * 2, treeScale[0] + rnd(p, 1) * (treeScale[1] - treeScale[0])], o);
+    const q = nearestOnLines(p, roads);
+    // 局部 +z 轉到世界 (−sin a, cos a);要它指向道路 (dx, dz) → a = atan2(−dx, dz)
+    const a = q ? Math.atan2(-(q[0] - p[0]), q[1] - p[1]) : rnd(p, 4) * Math.PI * 2;
+    out.set([0, p[0], p[1], a, treeScale[0] + rnd(p, 1) * (treeScale[1] - treeScale[0])], o);
     o += 5;
   }
   for (const l of lights) {
@@ -447,4 +451,24 @@ export function propPoses(trees: readonly Pt[], lights: readonly { p: Pt; a: num
     o += 5;
   }
   return out;
+}
+
+/** 折線群上離 p 最近的點(沒有折線或 p 就在線上時回傳 null) */
+export function nearestOnLines(p: Pt, lines: readonly Pt[][]): Pt | null {
+  let best: Pt | null = null;
+  let bd = Infinity;
+  for (const l of lines)
+    for (let i = 0; i + 1 < l.length; i++) {
+      const [ax, az] = l[i], [bx, bz] = l[i + 1];
+      const dx = bx - ax, dz = bz - az;
+      const L = dx * dx + dz * dz;
+      const t = L ? Math.max(0, Math.min(1, ((p[0] - ax) * dx + (p[1] - az) * dz) / L)) : 0;
+      const x = ax + dx * t, z = az + dz * t;
+      const d = (x - p[0]) ** 2 + (z - p[1]) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = [x, z];
+      }
+    }
+  return best && bd > 1e-6 ? best : null;
 }

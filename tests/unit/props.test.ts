@@ -45,3 +45,16 @@ describe('Tripo 街道物件', () => {
     expect(seen.size).toBe(3);
   });
 });
+
+describe('整組樹朝向道路(Cooper 2026-11-12:原檔不拆)', () => {
+  it('樣板前緣(局部 +z)轉向最近的道路', () => {
+    // 道路沿 x 軸(z = 0),樹在 z = 5 → 前緣要朝 −z
+    const p = propPoses([[3, 5]], [], [1, 1], [[[-50, 0], [50, 0]]]);
+    const a = p[3];
+    expect(-Math.sin(a)).toBeCloseTo(0);
+    expect(Math.cos(a)).toBeCloseTo(-1);
+    // 樹在 z = −5 → 朝 +z
+    const b = propPoses([[3, -5]], [], [1, 1], [[[-50, 0], [50, 0]]])[3];
+    expect(Math.cos(b)).toBeCloseTo(1);
+  });
+});
