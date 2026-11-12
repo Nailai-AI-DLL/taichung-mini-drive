@@ -430,3 +430,21 @@ function quad(mb: MeshBuilder, q: [number, number, number][], nrm: [number, numb
     mb.tri(i[0], i[3], i[2]);
   }
 }
+
+/**
+ * Tripo 樣板物件的擺放(decisions/0020):每個 5 個數 [種類 PROP_KIND, x, z, 朝向, 大小倍數]。
+ * 樹:朝向與大小由位置雜湊決定(樣板編號由執行端依位置挑);路燈:朝向 = 懸臂朝向、大小 1。
+ */
+export function propPoses(trees: readonly Pt[], lights: readonly { p: Pt; a: number }[], treeScale: [number, number]): Float32Array {
+  const out = new Float32Array((trees.length + lights.length) * 5);
+  let o = 0;
+  for (const p of trees) {
+    out.set([0, p[0], p[1], rnd(p, 4) * Math.PI * 2, treeScale[0] + rnd(p, 1) * (treeScale[1] - treeScale[0])], o);
+    o += 5;
+  }
+  for (const l of lights) {
+    out.set([1, l.p[0], l.p[1], l.a, 1], o);
+    o += 5;
+  }
+  return out;
+}

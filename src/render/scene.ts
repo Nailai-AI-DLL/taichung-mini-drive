@@ -10,6 +10,7 @@ import { createClouds } from './clouds';
 import type { MiniCar } from './mini-car';
 import { LOOK_LIGHT, LOOK_LIGHT_OLD } from '../config/look';
 import { ScooterLayer } from './scooters';
+import { PropLayer } from './props';
 import { scooterTemplate } from '../world/gen/furniture';
 import { hexToRgb } from '../config/palette';
 
@@ -157,6 +158,12 @@ function createGroundMaterial(): THREE.MeshLambertMaterial {
 let groundMat: THREE.Material | null = null;
 let buildingMat: THREE.Material | null = null;
 let scooters: ScooterLayer | null = null;
+let props: PropLayer | null = null;
+
+/** Tripo 街道物件圖層(除錯 / 測試讀數量用) */
+export function propLayer() {
+  return props;
+}
 
 /** 兩組網格接成一組(建築 + 屋頂附加物 + 街道傢俱:同材質畫成一個 draw call,碰撞體只用建築) */
 function concatArrays(a: MeshArrays, b: MeshArrays): MeshArrays {
@@ -194,6 +201,7 @@ export function addChunkMeshes(scene: THREE.Scene, m: ChunkMeshes): THREE.Object
   if (solid.index.length) out.push(solidMesh(toGeometry(solid)));
   scene.add(...out);
   addScooters(scene, out, m.scooters);
+  addProps(scene, out, m.props);
   return out;
 }
 
@@ -222,6 +230,17 @@ function addScooters(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Ar
   out.push(tag);
 }
 
+/** Tripo 樣板物件(樹、路燈):和機車一樣用空物件當這一格的代號 */
+function addProps(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Array) {
+  if (!poses.length) return;
+  props ??= new PropLayer(scene, import.meta.env.BASE_URL);
+  const tag = new THREE.Object3D();
+  tag.userData.props = true;
+  props.set(tag, poses);
+  scene.add(tag);
+  out.push(tag);
+}
+
 /**
  * 兩段生成的第二段(src/world/streamer.ts 的 onFurniture):街道傢俱接到這一格建築網格的後面,
  * 換一個 geometry(draw call 不增加;只轉換新加的頂點);機車加進共用的 InstancedMesh。
@@ -244,6 +263,7 @@ export function addChunkFurniture(scene: THREE.Scene, objects: THREE.Object3D[],
     }
   }
   addScooters(scene, objects, f.scooters);
+  addProps(scene, objects, f.props);
 }
 
 /** 兩個 geometry(屬性相同)接成一個;頂點色已在 toGeometry 轉成線性,不用再轉 */
@@ -270,6 +290,7 @@ export function removeChunkMeshes(scene: THREE.Scene, meshes: THREE.Object3D[]) 
   for (const m of meshes) {
     scene.remove(m);
     if (m.userData.scooters) scooters?.delete(m);
+    if (m.userData.props) props?.delete(m);
     // 地標模型的 geometry 由快取共用,不在這裡釋放
     if ((m as THREE.Mesh).isMesh && !m.userData.shared) (m as THREE.Mesh).geometry.dispose();
   }

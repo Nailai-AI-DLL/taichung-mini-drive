@@ -9,7 +9,8 @@ import { MeshBuilder, packBuildingCode } from './gen/mesh';
 import { addRibbon } from './gen/ribbon';
 import { extrude, PLAIN_CODE } from './gen/extrude';
 import { addRoofProps } from './gen/roof-props';
-import { addBusStop, addSign, addSignal, addStreetLight, addTree, scooterPoses, type FurnitureColors } from './gen/furniture';
+import { addBusStop, addSign, addSignal, addStreetLight, addTree, propPoses, scooterPoses, type FurnitureColors } from './gen/furniture';
+import { PROP_TREE_SCALE, propsMode } from '../config/props';
 import { BUS_POLE_HIT_R, BUS_SHELTER_D, BUS_SHELTER_H, BUS_SHELTER_L, LIGHT_HIT_R, POST_HIT_H, SCOOTER_H, SCOOTER_LEN, SCOOTER_SLOT, SIGNAL_HIT_R, TREE_HIT_R } from '../config/furniture';
 import type { FurnitureCollision } from '../physics/world';
 import { FLOOR_HEIGHT, KIND, type BuildingKind } from '../config/buildings';
@@ -92,6 +93,8 @@ export interface ChunkMeshes {
   furniture: MeshArrays;
   /** 機車:每台 [x, z, 車頭朝向, 車身色編號];執行端用一個共用的 InstancedMesh 畫(src/render/scooters.ts) */
   scooters: Float32Array;
+  /** Tripo 樣板物件(樹、路燈;?props=gen 時為空):每個 [種類, x, z, 朝向, 大小];執行端用 src/render/props.ts 畫 */
+  props: Float32Array;
   /** 每個地標外框擠出的量體(世界座標,順序同 ChunkSrc.landmarks):一律當碰撞體;模型載入失敗時拿來顯示 */
   landmarkSolids: MeshArrays[];
 }
@@ -387,10 +390,10 @@ export function buildChunk(c: ChunkSrc, withFurniture = true): ChunkMeshes {
     return l.toArrays();
   });
   const base = { ground: g.toArrays(), buildings: b.toArrays(), roofProps: props.toArrays(), landmarkSolids };
-  return { ...base, ...(withFurniture ? buildFurniture(c) : { furniture: new MeshBuilder({ wall: true }).toArrays(), scooters: new Float32Array() }) };
+  return { ...base, ...(withFurniture ? buildFurniture(c) : { furniture: new MeshBuilder({ wall: true }).toArrays(), scooters: new Float32Array(), props: new Float32Array() }) };
 }
 
-export type FurnitureMeshes = Pick<ChunkMeshes, 'furniture' | 'scooters'>;
+export type FurnitureMeshes = Pick<ChunkMeshes, 'furniture' | 'scooters' | 'props'>;
 
 /**
  * 一格的街道傢俱網格與機車擺放。和 buildChunk 分開,串流時可以放到下一幀做(0015 §11.10:
@@ -415,10 +418,13 @@ export function buildFurniture(c: ChunkSrc): FurnitureMeshes {
     busRoof: hexToRgb(PALETTE.busRoof),
     busGlass: hexToRgb(PALETTE.busGlass),
   };
-  c.furniture.trees.forEach((p, i) => addTree(fm, p, fc, c.furniture.treeKinds[i]));
+  const tripo = propsMode() === 'tripo';
+  if (!tripo) c.furniture.trees.forEach((p, i) => addTree(fm, p, fc, c.furniture.treeKinds[i]));
   for (const s of c.furniture.signs) addSign(fm, s.p, s.a, s.y0, s.y1, s.c, fc);
   for (const b of c.furniture.busStops) addBusStop(fm, b.p, b.a, b.shelter, fc);
-  for (const l of c.furniture.lights) addStreetLight(fm, l.p, l.a, fc);
+  if (!tripo) for (const l of c.furniture.lights) addStreetLight(fm, l.p, l.a, fc);
   for (const s of c.furniture.signals) addSignal(fm, s.p, s.a, s.arm, fc);
-  return { furniture: fm.toArrays(), scooters: scooterPoses(c.furniture.scooters, PALETTE.scooterBody.length) };
+  return { furniture: fm.toArrays(), scooters: scooterPoses(c.furniture.scooters, PALETTE.scooterBody.length),
+    props: tripo ? propPoses(c.furniture.trees, c.furniture.lights, PROP_TREE_SCALE) : new Float32Array(),
+  };
 }
