@@ -176,3 +176,137 @@ export function touchingCorners(rings: Pt[][]): number[][] {
     return out;
   });
 }
+
+// ---------------------------------------------------------------------------------------------
+// 建築不壓到車道(decisions/0026,Cooper 2026-11-13:「這棟建築物蓋到道路上了」)。
+// 路寬用政府實測值,常比 OSM 上建築之間留的空隙寬,建築外框就伸進車道。處理:
+//   路從旁邊經過 → 沿「車道邊緣 + ROAD_CLEAR_MARGIN」把伸進來的部分切掉(半平面裁切);
+//   切完剩不到 ROAD_CLEAR_MIN_KEEP 的原面積,或一般道路的中心線直接穿過建築 → 整棟拿掉(不然路被擋住);
+//   服務道路(停車場出入口等)穿過建築 → 不動。高架橋(bridge)不算。
+/** 推論:建築離車道邊緣至少留這麼多(公尺) */
+export const ROAD_CLEAR_MARGIN = 0.3;
+/** 推論:切完面積剩不到原來的這個比例就整棟拿掉 */
+export const ROAD_CLEAR_MIN_KEEP = 0.4;
+
+export interface ClearRoad {
+  pts: Pt[];
+  width: number;
+  highway: string;
+  bridge?: boolean;
+}
+export type ClearResult = { ring: Pt[]; status: 'ok' | 'clipped' | 'removed' | 'through-service' };
+
+const ringArea = (r: Pt[]) => {
+  let a = 0;
+  for (let i = 0; i < r.length; i++) {
+    const p = r[i], q = r[(i + 1) % r.length];
+    a += p[0] * q[1] - q[0] * p[1];
+  }
+  return Math.abs(a) / 2;
+};
+const inRing = (p: Pt, ring: Pt[]) => {
+  let c = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i], b = ring[j];
+    if (a[1] > p[1] !== b[1] > p[1] && p[0] < ((b[0] - a[0]) * (p[1] - a[1])) / (b[1] - a[1]) + a[0]) c = !c;
+  }
+  return c;
+};
+const segCross = (a: Pt, b: Pt, c: Pt, e: Pt) => {
+  const o = (p: Pt, q: Pt, r: Pt) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  return o(a, b, c) * o(a, b, e) < 0 && o(c, e, a) * o(c, e, b) < 0;
+};
+
+/** 保留 f(p) ≥ 0 的那一側(Sutherland–Hodgman,單一直線) */
+function clipHalfPlane(ring: Pt[], f: (p: Pt) => number): Pt[] {
+  const out: Pt[] = [];
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length];
+    const fa = f(a), fb = f(b);
+    if (fa >= 0) out.push(a);
+    if (fa >= 0 !== fb >= 0) {
+      const t = fa / (fa - fb);
+      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    }
+  }
+  return out;
+}
+
+export function clearBuildingsOffRoads(rings: Pt[][], roads: ClearRoad[]): ClearResult[] {
+  const CELL = 50;
+  type Seg = { a: Pt; b: Pt; half: number; service: boolean; dir: Pt; len: number };
+  const grid = new Map<string, Seg[]>();
+  for (const r of roads) {
+    if (r.bridge) continue;
+    const half = r.width / 2;
+    for (let i = 0; i + 1 < r.pts.length; i++) {
+      const a = r.pts[i], b = r.pts[i + 1];
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (len < 1e-6) continue;
+      const s: Seg = { a, b, half, service: r.highway === 'service', dir: [(b[0] - a[0]) / len, (b[1] - a[1]) / len], len };
+      const m = half + ROAD_CLEAR_MARGIN;
+      for (let gx = Math.floor((Math.min(a[0], b[0]) - m) / CELL); gx <= Math.floor((Math.max(a[0], b[0]) + m) / CELL); gx++)
+        for (let gz = Math.floor((Math.min(a[1], b[1]) - m) / CELL); gz <= Math.floor((Math.max(a[1], b[1]) + m) / CELL); gz++) {
+          const k = gx + ',' + gz;
+          let l = grid.get(k);
+          if (!l) grid.set(k, (l = []));
+          l.push(s);
+        }
+    }
+  }
+  return rings.map((ring0): ClearResult => {
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const [x, z] of ring0) {
+      x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z);
+    }
+    const segs = new Set<Seg>();
+    for (let gx = Math.floor(x0 / CELL); gx <= Math.floor(x1 / CELL); gx++)
+      for (let gz = Math.floor(z0 / CELL); gz <= Math.floor(z1 / CELL); gz++) for (const s of grid.get(gx + ',' + gz) ?? []) segs.add(s);
+    if (!segs.size) return { ring: ring0, status: 'ok' };
+    // 中心線穿過建築?
+    let through = false, throughService = false;
+    for (const s of segs) {
+      const hit = inRing(s.a, ring0) || inRing(s.b, ring0) || ring0.some((p, i) => segCross(s.a, s.b, p, ring0[(i + 1) % ring0.length]));
+      if (!hit) continue;
+      if (s.service) throughService = true;
+      else through = true;
+    }
+    if (through) return { ring: ring0, status: 'removed' };
+    if (throughService) return { ring: ring0, status: 'through-service' };
+    let ring = ring0;
+    let clipped = false;
+    for (const s of segs) {
+      const lat = (p: Pt) => (p[0] - s.a[0]) * -s.dir[1] + (p[1] - s.a[1]) * s.dir[0];
+      const along = (p: Pt) => (p[0] - s.a[0]) * s.dir[0] + (p[1] - s.a[1]) * s.dir[1];
+      const lim = s.half + ROAD_CLEAR_MARGIN;
+      // 外框(頂點 + 每 1 m 取樣)有沒有落在這段車道裡;端點外的圓頭不算(交給相鄰的線段)
+      let side = 0, hit = false;
+      for (let i = 0; i < ring.length && !hit; i++) {
+        const a = ring[i], b = ring[(i + 1) % ring.length];
+        const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1])));
+        for (let k = 0; k < n; k++) {
+          const p: Pt = [a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n];
+          const t = along(p), d = lat(p);
+          if (t >= 0 && t <= s.len && Math.abs(d) < lim - 0.05) {
+            hit = true;
+            break;
+          }
+        }
+      }
+      if (!hit) continue;
+      // 建築在哪一側:看面積重心
+      let cx = 0, cz = 0;
+      for (const p of ring) {
+        cx += p[0]; cz += p[1];
+      }
+      side = lat([cx / ring.length, cz / ring.length]) >= 0 ? 1 : -1;
+      const next = clipHalfPlane(ring, (p) => side * lat(p) - lim);
+      if (next.length < 3) return { ring: ring0, status: 'removed' };
+      ring = next;
+      clipped = true;
+    }
+    if (!clipped) return { ring: ring0, status: 'ok' };
+    if (ringArea(ring) < ringArea(ring0) * ROAD_CLEAR_MIN_KEEP) return { ring: ring0, status: 'removed' };
+    return { ring, status: 'clipped' };
+  });
+}

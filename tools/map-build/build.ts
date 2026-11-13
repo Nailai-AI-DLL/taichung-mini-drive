@@ -11,7 +11,7 @@ import { lonLatToTm2, lonLatToWorld, type Origin } from '../../src/map/projectio
 import { QUANT, type WorldArea, type WorldBuilding, type WorldFurniture, type WorldJson, type WorldLandmark, type WorldRoad, type WorldStreet, type WorldWaterway } from '../../src/map/types';
 import { areaCentroid, assembleRings, centroid, cleanRing, clipPolygon, clipPolyline, inRect, pointInPolygon, signedArea, type Pt, type Rect } from '../../src/world/gen/geom';
 import { defaultWidth, isDrivable, isOneway, resolveWidth, runsAlongside, splitWidth } from './lib/roads';
-import { buildingHeight, buildingKind, hasShopTags, kindHeight, nearWideRoad, touchingCorners, type HeightSource } from './lib/buildings';
+import { buildingHeight, buildingKind, clearBuildingsOffRoads, hasShopTags, kindHeight, nearWideRoad, touchingCorners, type HeightSource } from './lib/buildings';
 import { KIND, SHOP_KINDS } from '../../src/config/buildings';
 import { intersectionSignals, placeFurniture, type FurnitureRoad } from './lib/furniture';
 import { crossingMarked, generateStreet, type StreetCrossing, type StreetResult, type StreetWay } from './lib/street';
@@ -323,6 +323,32 @@ function main() {
         inc('buildingsRemovedUnderLandmarks');
         inc('buildings', -1);
       }
+    }
+  }
+
+  // ---- 建築不壓到車道(decisions/0026):伸進車道的部分切掉;路穿過建築(非服務道路)或切完剩太少就整棟拿掉 ----
+  {
+    const res = clearBuildingsOffRoads(
+      buildings.map((b) => dequantPts(b.rings[0])),
+      roads.map((r) => ({ pts: dequantPts(r.pts), width: r.width, highway: r.highway, bridge: roadExtra.get(r.osmId)?.bridge })),
+    );
+    for (let i = buildings.length - 1; i >= 0; i--) {
+      const r = res[i];
+      if (r.status === 'clipped') {
+        const ring = cleanRing(dequantPts(qPts(r.ring)));
+        if (ring.length >= 3) {
+          buildings[i].rings[0] = qPts(ring);
+          inc('buildingsClippedOffRoad');
+          continue;
+        }
+        r.status = 'removed';
+      }
+      if (r.status === 'removed') {
+        inc(`buildingKind_${Object.keys(KIND)[buildings[i].t]}`, -1);
+        buildings.splice(i, 1);
+        inc('buildingsRemovedOnRoad');
+        inc('buildings', -1);
+      } else if (r.status === 'through-service') inc('buildingsOverServiceRoad');
     }
   }
 

@@ -134,3 +134,18 @@ export const BUS_POLE_HIT_R = 0.15;
 export const CLEAR_ROAD = 1;
 export const CLEAR_CROSSWALK = 4;
 export const CLEAR_LIGHT = 3;
+
+/**
+ * 行道樹、機車排要不要出現(畫面 + 碰撞一起)。Cooper 2026-11-13:「場景中的摩托車、樹木先都移除」(decisions/0025)。
+ * 資料還留在 world.json;模組預設都顯示(單元測試不受影響),main.ts 依網址設定:預設都不顯示,
+ * 網址 ?trees=on / ?scooters=on 加回來。
+ */
+export const furnitureShow = { trees: true, scooters: true };
+export function furnitureShowFromSearch(search: string) {
+  const q = new URLSearchParams(search);
+  return { trees: q.get('trees') === 'on', scooters: q.get('scooters') === 'on' };
+}
+export function setFurnitureShow(v: { trees: boolean; scooters: boolean }) {
+  furnitureShow.trees = v.trees;
+  furnitureShow.scooters = v.scooters;
+}

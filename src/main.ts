@@ -23,6 +23,7 @@ import { Minimap } from './ui/minimap';
 import { MINIMAP_MODE_NAME, prepareMapData, type MinimapMode } from './ui/minimap-core';
 import { createTuningPanel } from './debug/tuning-panel';
 import { propsModeFromSearch, setPropsMode } from './config/props';
+import { furnitureShowFromSearch, setFurnitureShow } from './config/furniture';
 
 // 地圖區域:預設範圍 A;?area=m0 可切回 M0 小區域(測試用)
 const AREA = new URLSearchParams(location.search).get('area') ?? 'range-a';
@@ -30,6 +31,7 @@ const AREA = new URLSearchParams(location.search).get('area') ?? 'range-a';
 async function boot() {
   // 行道樹、路燈:預設 Tripo 模型,?props=gen 換回程式生成(decisions/0020);要在第一格生成前設好
   setPropsMode(propsModeFromSearch(location.search));
+  setFurnitureShow(furnitureShowFromSearch(location.search));
   const status = document.getElementById('status')!;
   const overlay = document.getElementById('overlay')!;
   const [world, skyline] = await Promise.all([fetchWorld(AREA), loadSkyline(AREA), R.init()]);

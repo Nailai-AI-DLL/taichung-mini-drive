@@ -11,7 +11,7 @@ import { extrude, PLAIN_CODE } from './gen/extrude';
 import { addRoofProps } from './gen/roof-props';
 import { addBusStop, addSign, addSignal, addStreetLight, addTree, propPoses, scooterPoses, type FurnitureColors } from './gen/furniture';
 import { PROP_TREE_SCALE, propsMode } from '../config/props';
-import { BUS_POLE_HIT_R, BUS_SHELTER_D, BUS_SHELTER_H, BUS_SHELTER_L, LIGHT_HIT_R, POST_HIT_H, SCOOTER_H, SCOOTER_LEN, SCOOTER_SLOT, SIGNAL_HIT_R, TREE_HIT_R } from '../config/furniture';
+import { BUS_POLE_HIT_R, BUS_SHELTER_D, BUS_SHELTER_H, BUS_SHELTER_L, LIGHT_HIT_R, POST_HIT_H, SCOOTER_H, SCOOTER_LEN, SCOOTER_SLOT, SIGNAL_HIT_R, TREE_HIT_R, furnitureShow } from '../config/furniture';
 import type { FurnitureCollision } from '../physics/world';
 import { FLOOR_HEIGHT, KIND, type BuildingKind } from '../config/buildings';
 
@@ -322,16 +322,18 @@ export function colliderMeshes(m: ChunkMeshes): MeshArrays[] {
 /** 街道傢俱的碰撞形狀(世界座標):樹幹、路燈、號誌桿各一個圓柱,一排機車一個長方體;物理端用 addStaticFurniture 加入 */
 export function furnitureCollision(c: ChunkSrc): FurnitureCollision {
   const f = c.furniture;
+  const trees = furnitureShow.trees ? f.trees : [];
+  const scooters = furnitureShow.scooters ? f.scooters : [];
   return {
     posts: [
-      ...f.trees.map((p) => ({ x: p[0], z: p[1], r: TREE_HIT_R })),
+      ...trees.map((p) => ({ x: p[0], z: p[1], r: TREE_HIT_R })),
       ...f.lights.map((l) => ({ x: l.p[0], z: l.p[1], r: LIGHT_HIT_R })),
       ...f.signals.map((s) => ({ x: s.p[0], z: s.p[1], r: SIGNAL_HIT_R })),
       ...f.busStops.filter((b) => !b.shelter).map((b) => ({ x: b.p[0], z: b.p[1], r: BUS_POLE_HIT_R })),
     ],
     postH: POST_HIT_H,
     boxes: [
-      ...f.scooters.map((s) => {
+      ...scooters.map((s) => {
         const k = ((s.n - 1) * SCOOTER_SLOT) / 2;
         return { x: s.p[0] + Math.cos(s.a) * k, z: s.p[1] + Math.sin(s.a) * k, a: s.a, hx: (s.n * SCOOTER_SLOT) / 2, hz: SCOOTER_LEN / 2, h: SCOOTER_H };
       }),
@@ -419,12 +421,13 @@ export function buildFurniture(c: ChunkSrc): FurnitureMeshes {
     busGlass: hexToRgb(PALETTE.busGlass),
   };
   const tripo = propsMode() === 'tripo';
-  if (!tripo) c.furniture.trees.forEach((p, i) => addTree(fm, p, fc, c.furniture.treeKinds[i]));
+  const trees = furnitureShow.trees ? c.furniture.trees : [];
+  if (!tripo) trees.forEach((p, i) => addTree(fm, p, fc, c.furniture.treeKinds[i]));
   for (const s of c.furniture.signs) addSign(fm, s.p, s.a, s.y0, s.y1, s.c, fc);
   for (const b of c.furniture.busStops) addBusStop(fm, b.p, b.a, b.shelter, fc);
   if (!tripo) for (const l of c.furniture.lights) addStreetLight(fm, l.p, l.a, fc);
   for (const s of c.furniture.signals) addSignal(fm, s.p, s.a, s.arm, fc);
-  return { furniture: fm.toArrays(), scooters: scooterPoses(c.furniture.scooters, PALETTE.scooterBody.length),
-    props: tripo ? propPoses(c.furniture.trees, c.furniture.lights, PROP_TREE_SCALE, c.roads?.map((r) => r.pts)) : new Float32Array(),
+  return { furniture: fm.toArrays(), scooters: scooterPoses(furnitureShow.scooters ? c.furniture.scooters : [], PALETTE.scooterBody.length),
+    props: tripo ? propPoses(trees, c.furniture.lights, PROP_TREE_SCALE, c.roads?.map((r) => r.pts)) : new Float32Array(),
   };
 }

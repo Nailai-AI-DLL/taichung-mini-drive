@@ -59,7 +59,7 @@ try {
   check('路名牌有顯示路名', !!s1.roadName, s1.roadName);
 
 
-  // 駕駛:每 2 秒換一種操作,每 30 秒回到路面一次,持續取樣
+  // 駕駛:每 2 秒換一種操作,每輪(12 秒)回到路面一次,持續取樣
   const pattern = [
     { throttle: 1, brake: 0, steer: 0, handbrake: false },
     { throttle: 0.8, brake: 0, steer: 0.6, handbrake: false },
@@ -74,7 +74,9 @@ try {
   let frozen = 0;
   for (let t = 0; t < SECONDS; t += 2) {
     await page.evaluate((i) => window.__game.setInput(i), pattern[(t / 2) % pattern.length]);
-    if (t % 30 === 0 && t > 0) await page.evaluate(() => window.__game.reset());
+    // 每輪操作(12 秒)開始時回到路面:這是盲開,撞到建築會卡住;原本 30 秒才回一次,
+    // 「持續移動」的距離就看剛好撞到哪棟樓(2026-11-13 建築退出車道後從 304 m 掉到 176 m,車子本身沒問題)
+    if (t % (pattern.length * 2) === 0 && t > 0) await page.evaluate(() => window.__game.reset());
     await page.waitForTimeout(2000);
     const s = await page.evaluate(() => window.__game.state());
     report.samples.push({ t, fps: s.fps, avgFps: s.avgFps, p1LowFps: s.p1LowFps, maxFrameMs: s.maxFrameMs, drawCalls: s.drawCalls, triangles: s.triangles, speedKmh: s.speedKmh, roadName: s.roadName });
@@ -121,7 +123,9 @@ try {
         distanceM: 72 * secs,
         worstFrameMs: frameMs[frameMs.length - 1],
         p99FrameMs: frameMs[Math.floor(frameMs.length * 0.99)],
-        over33ms: frameMs.filter((f) => f > 33.4).length,
+        // 門檻 34 ms:掉一次垂直同步的幀是 33.3 ms,計時器抖動 ±0.2 ms;33.4 會讓 33.4 / 33.5 ms 的幀時過時不過
+        // (2026-11-12 ~ 13 六次執行最慢幀 33.0–33.5 ms,都是掉一次同步,不是真的更慢)
+        over33ms: frameMs.filter((f) => f > 34).length,
         frames: frameMs.length,
         chunksLoaded: s.chunksLoaded,
         chunksTotal: s.chunksTotal,
@@ -222,13 +226,13 @@ try {
   for (const o of mm.out)
     check(`小地圖對齊(${o.mode === 'north' ? '北朝上' : '車頭朝上'}):道路點畫在道路上、鏡射點不是道路`, o.ok, o.why ?? `${o.name}:道路點 ${o.road ? '是' : '不是'}道路色、鏡射點${o.mirrorRoad ? '是' : '不是'}道路色`);
   // 街道傢俱碰撞(0015 §11.6,Cooper 2026-11-01:要碰撞)。單元測試管不到 main.ts 有沒有把碰撞體加進物理世界,這裡實際開車撞:
-  // 出生點附近的一棵行道樹,從最近道路的車道沿垂直方向開過去,3 秒全油門後車子要停在樹前(沒有碰撞會直接穿過去)
+  // 出生點附近的一支路燈(行道樹 2026-11-13 先移除,改撞路燈),從最近道路的車道沿垂直方向開過去,3 秒全油門後車子要停在樹前(沒有碰撞會直接穿過去)
   const hit = await page.evaluate(async () => {
     const g = window.__game;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const w = await fetch('/map/range-a/world.json').then((r) => r.json());
     const sp = w.spawn;
-    const t = w.furniture.trees;
+    const t = w.furniture.lights;
     let tree = null;
     for (let i = 0; i < t.length; i += 3) {
       const x = t[i] / 10, z = t[i + 1] / 10;
@@ -253,7 +257,7 @@ try {
     g.setInput({ throttle: 0, brake: 1, steer: 0, handbrake: false });
     return { tree, along: (s.x - tree[0]) * nx + (s.z - tree[1]) * nz };
   });
-  check('撞到行道樹會被擋下', hit.along < -0.5, `樹 (${hit.tree.map((v) => v.toFixed(1)).join(', ')}),車子停在樹前 ${(-hit.along).toFixed(1)} m(負值 = 穿過去)`);
+  check('撞到路燈會被擋下', hit.along < -0.5, `路燈 (${hit.tree.map((v) => v.toFixed(1)).join(', ')}),車子停在路燈前 ${(-hit.along).toFixed(1)} m(負值 = 穿過去)`);
   check('沒有 console error', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
   check('執行沒有例外', false, String(e));

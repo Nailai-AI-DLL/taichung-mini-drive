@@ -90,3 +90,32 @@ describe('路燈方案 A(Cooper 2026-11-12)', () => {
     expect(PROP_LIGHT_STYLE.outline).toBeGreaterThan(0);
   });
 });
+
+import { furnitureCollision } from '../../src/world/chunks';
+import { furnitureShow, furnitureShowFromSearch, setFurnitureShow } from '../../src/config/furniture';
+describe('行道樹、機車先移除(Cooper 2026-11-13)', () => {
+  afterEach(() => setFurnitureShow({ trees: true, scooters: true }));
+
+  it('網址預設都不顯示,?trees=on / ?scooters=on 加回來', () => {
+    expect(furnitureShowFromSearch('')).toEqual({ trees: false, scooters: false });
+    expect(furnitureShowFromSearch('?trees=on&scooters=on')).toEqual({ trees: true, scooters: true });
+  });
+
+  it('關掉後:沒有樹和機車的畫面資料,也沒有它們的碰撞;路燈照舊', () => {
+    const c = src([[1, 2], [10, 2]], [[5, 5]]);
+    (c.furniture.scooters as unknown[]).push({ p: [20, 3], a: 0, n: 4, f: 1.57 });
+    setPropsMode('tripo');
+    const on = { poses: buildFurniture(c), hit: furnitureCollision(c) };
+    expect(on.poses.props.length).toBe(3 * 5);
+    expect(on.poses.scooters.length).toBeGreaterThan(0);
+    expect(on.hit.posts.length).toBe(3);
+    expect(on.hit.boxes.length).toBe(1);
+    setFurnitureShow({ trees: false, scooters: false });
+    expect(furnitureShow.trees).toBe(false);
+    const off = { poses: buildFurniture(c), hit: furnitureCollision(c) };
+    expect(off.poses.props.length).toBe(1 * 5); // 只剩路燈
+    expect(off.poses.scooters.length).toBe(0);
+    expect(off.hit.posts.length).toBe(1);
+    expect(off.hit.boxes.length).toBe(0);
+  });
+});
