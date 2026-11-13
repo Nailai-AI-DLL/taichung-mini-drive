@@ -258,6 +258,25 @@ try {
     return { tree, along: (s.x - tree[0]) * nx + (s.z - tree[1]) * nz };
   });
   check('撞到路燈會被擋下', hit.along < -0.5, `路燈 (${hit.tree.map((v) => v.toFixed(1)).join(', ')}),車子停在路燈前 ${(-hit.along).toFixed(1)} m(負值 = 穿過去)`);
+  // 「接送慈慈」(decisions/0029)與其他車輛(0028):單元測試管不到 main.ts 有沒有把邏輯接上,這裡實際跑一局
+  const pk = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    g.setInput({ throttle: 0, brake: 1, steer: 0, handbrake: false });
+    // 等目前這一局是「去接」狀態(前面的盲開可能剛好失敗在結算畫面)
+    for (let i = 0; i < 40 && g.state().pickup.phase !== 'pickup'; i++) await sleep(250);
+    const a = g.state().pickup;
+    g.teleport(a.target.x, a.target.z, 0);
+    await sleep(1500);
+    const b = g.state().pickup;
+    g.teleport(b.target.x, b.target.z, 0);
+    await sleep(1500);
+    const c = g.state().pickup;
+    return { a, b, c, cars: g.state().trafficCars };
+  });
+  check('接送:停在慈慈旁邊就接到,不耐煩值降一半以下、換成目的地', pk.b.phase === 'dropoff' && pk.b.impatience <= pk.a.impatience * 0.5 + 5 && pk.b.target.label !== undefined, `${pk.a.phase} → ${pk.b.phase},不耐煩 ${pk.a.impatience.toFixed(0)}% → ${pk.b.impatience.toFixed(0)}%,目的地 ${pk.b.target?.label}`);
+  check('接送:停在目的地就成功,尊敬 +1', pk.c.phase === 'success' && pk.c.respect === pk.b.respect + 1, `${pk.c.phase},尊敬 ${pk.b.respect} → ${pk.c.respect}`);
+  check('路上有其他車輛', pk.cars >= 10, `${pk.cars} 輛`);
   check('沒有 console error', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
   check('執行沒有例外', false, String(e));

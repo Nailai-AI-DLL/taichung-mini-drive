@@ -1,6 +1,6 @@
 # Taichung MINI Drive
 
-A browser driving game built with three.js: cruise a cartoon-style MINI hatchback through downtown Taichung, Taiwan. The city (roads, buildings, street furniture) is generated from OpenStreetMap data, and the distant skyline follows the real terrain.
+A browser driving game built with three.js: drive a cartoon-style MINI hatchback through downtown Taichung, Taiwan, picking up a passenger and getting her to her destination before she runs out of patience. The roads and street furniture are generated from OpenStreetMap data, and the distant skyline follows the real terrain.
 
 Status: milestone M1 in progress. The playable area ("range A") runs from Taichung Station to the Seventh Redevelopment Zone.
 
@@ -14,6 +14,15 @@ npm run dev
 ```
 
 Open http://localhost:5173 and press any key to start.
+
+## How to play
+
+Each round, Cici appears somewhere on the map and asks for a ride. Follow the arrow and the minimap marker, and stop next to her to pick her up. She then names a destination; stop there to finish the round.
+
+- Her impatience rises over time. If it reaches 100%, the round fails.
+- Picking her up halves her impatience.
+- Hitting other cars, walls or poles adds impatience.
+- A successful round earns respect, which makes her impatience rise more slowly in later rounds. A failed round costs a little respect.
 
 | Key | Action |
 |---|---|
@@ -32,6 +41,10 @@ URL options:
 | Option | Effect |
 |---|---|
 | `?fps` | Show the frame rate |
+| `?mode=free` | Free drive, without the pick-up game |
+| `?traffic=off` | No other cars on the road |
+| `?trees=on` / `?scooters=on` | Bring back street trees / parked scooters (hidden by default) |
+| `?bld=old` | Previous building facade style |
 | `?props=gen` | Use the procedural trees and street lights instead of the 3D models |
 | `?car=gen` | Use the procedural car |
 | `?carstyle=pbr` | Use realistic car materials instead of the toon style |
@@ -67,7 +80,7 @@ npm run test:e2e   # browser smoke and performance test (opens Chrome)
 
 ## Credits
 
-- Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL.
+- Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL. OpenStreetMap has few building footprints for Taichung, so most roadside buildings are generated placeholders, not the real ones.
 - Terrain: Taiwan Ministry of the Interior 20 m DTM (Open Government Data License, version 1.0).
 - The car, tree and street light models were generated with Tripo AI.
 

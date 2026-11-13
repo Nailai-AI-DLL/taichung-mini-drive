@@ -60,6 +60,8 @@ export class Minimap {
   private labels: PlacedLabel[] = [];
   private frame = 0;
   private north = document.createElement('div');
+  /** 目標標記(接送點;decisions/0029):在圓內畫圓點,超出範圍時貼在圓邊;null = 不畫 */
+  target: { x: number; z: number; color: string } | null = null;
   /** 測試用:關掉路名，讓 e2e 取樣畫面上的道路色時不被路名底框擋住 */
   showLabels = true;
 
@@ -168,6 +170,18 @@ export class Minimap {
       g.fillStyle = C.car;
       g.font = `700 11px ${FAMILY}`;
       g.fillText(landmarkGlyph(lm.id, lm.name), mx, my + 0.5);
+    }
+    if (this.target) {
+      let [mx, my] = toMap(this.target.x, this.target.z);
+      const dist = Math.hypot(mx, my), edge = R - 12;
+      if (dist > edge) [mx, my] = [(mx / dist) * edge, (my / dist) * edge];
+      g.beginPath();
+      g.arc(mx, my, dist > edge ? 6 : 8, 0, Math.PI * 2);
+      g.fillStyle = this.target.color;
+      g.fill();
+      g.lineWidth = 3;
+      g.strokeStyle = '#fff';
+      g.stroke();
     }
     // 車子箭頭：車頭朝上模式永遠朝上;北朝上模式跟著車頭轉
     g.rotate(arrowRotation(this.mode, hx, hz));

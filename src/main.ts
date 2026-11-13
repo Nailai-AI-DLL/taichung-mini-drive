@@ -24,6 +24,13 @@ import { MINIMAP_MODE_NAME, prepareMapData, type MinimapMode } from './ui/minima
 import { createTuningPanel } from './debug/tuning-panel';
 import { propsModeFromSearch, setPropsMode } from './config/props';
 import { furnitureShowFromSearch, setFurnitureShow } from './config/furniture';
+import { Traffic } from './traffic/traffic';
+import { TrafficLayer } from './render/traffic';
+import { TRAFFIC } from './config/traffic';
+import { ImpactDetector, PickupGame, pickSpot, type PickupEvent } from './game/pickup';
+import { PICKUP } from './config/pickup';
+import { PickupHud } from './ui/pickup-hud';
+import { Beacon, createCici, MARKER_COLORS } from './render/pickup-markers';
 
 // 地圖區域:預設範圍 A;?area=m0 可切回 M0 小區域(測試用)
 const AREA = new URLSearchParams(location.search).get('area') ?? 'range-a';
@@ -131,6 +138,84 @@ async function boot() {
   const keyboard = new Keyboard();
   const gui = createTuningPanel(vehicle);
 
+  // 其他車輛(decisions/0028):邏輯在 Traffic,畫面是 TrafficLayer,碰撞是每台一個運動學剛體(玩家撞得到、推不動它)
+  // 網址 ?traffic=off 關掉
+  const trafficOn = new URLSearchParams(location.search).get('traffic') !== 'off';
+  const traffic = new Traffic(world.roads);
+  const trafficLayer = new TrafficLayer(scene);
+  const trafficBodies = new Map<number, R.RigidBody>();
+  const stepTraffic = (px: number, pz: number) => {
+    if (!trafficOn) return;
+    for (const id of traffic.update(FIXED_DT, { x: px, z: pz })) {
+      const b = trafficBodies.get(id);
+      if (b) pw.world.removeRigidBody(b);
+      trafficBodies.delete(id);
+    }
+    const [bl, bh, bw] = TRAFFIC.body;
+    const y = TRAFFIC.clearance + (bh + TRAFFIC.cabin[1]) / 2;
+    for (const c of traffic.cars) {
+      let b = trafficBodies.get(c.id);
+      const rot = { x: 0, y: Math.sin(-c.heading / 2), z: 0, w: Math.cos(-c.heading / 2) };
+      if (!b) {
+        b = pw.world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(c.x, y, c.z).setRotation(rot));
+        pw.world.createCollider(R.ColliderDesc.cuboid(bl / 2, (bh + TRAFFIC.cabin[1]) / 2, bw / 2).setFriction(0.4).setRestitution(0.2), b);
+        trafficBodies.set(c.id, b);
+      } else {
+        b.setNextKinematicTranslation({ x: c.x, y, z: c.z });
+        b.setNextKinematicRotation(rot);
+      }
+    }
+  };
+
+  // 「接送慈慈」(decisions/0029):邏輯在 PickupGame;這裡接畫面(人形、光柱、HUD、小地圖標記)與撞擊判定。
+  // 網址 ?mode=free = 自由兜風(不玩接送)。尊敬存在瀏覽器(localStorage),下次開還在。
+  const pickupOn = new URLSearchParams(location.search).get('mode') !== 'free';
+  const loadRespect = () => {
+    try {
+      return Number(localStorage.getItem('cici-respect')) || 0;
+    } catch {
+      return 0;
+    }
+  };
+  const saveRespect = (v: number) => {
+    try {
+      localStorage.setItem('cici-respect', String(v));
+    } catch {
+      /* 無痕模式等存不了就算了 */
+    }
+  };
+  const landmarkSpots = (world.json.landmarks ?? []).map((l) => ({ name: l.name, x: l.x, z: l.z }));
+  const game = new PickupGame((from) => pickSpot(world.roads, from, Math.random, landmarkSpots), Math.random, loadRespect());
+  const impact = new ImpactDetector();
+  const pickupHud = new PickupHud(document.getElementById('hud')!);
+  pickupHud.setVisible(pickupOn);
+  const cici = createCici();
+  cici.visible = false;
+  const beacon = new Beacon(PICKUP.arriveDist);
+  scene.add(cici, beacon.group);
+  const onPickupEvents = (events: PickupEvent[]) => {
+    for (const e of events) {
+      if (e.type === 'round') {
+        cici.position.set(e.spot.x, 0, e.spot.z);
+        cici.visible = true;
+        beacon.set(e.spot.x, e.spot.z, 'pickup');
+        minimap.target = { x: e.spot.x, z: e.spot.z, color: MARKER_COLORS.pickup };
+      } else if (e.type === 'picked') {
+        cici.visible = false;
+        beacon.set(e.spot.x, e.spot.z, 'dropoff');
+        minimap.target = { x: e.spot.x, z: e.spot.z, color: MARKER_COLORS.dropoff };
+      } else if (e.type === 'delivered' || e.type === 'failed') {
+        cici.visible = false;
+        beacon.hide();
+        minimap.target = null;
+        saveRespect(e.respect);
+        if (e.type === 'delivered') pickupHud.showBanner('win', '接送成功', `尊敬 +${PICKUP.respectWin}(目前 ${e.respect});下一局${PICKUP.name}會比較有耐心`, PICKUP.resultSeconds);
+        else pickupHud.showBanner('lose', '接送失敗', `${PICKUP.name}等到不耐煩了;尊敬 ${e.respect}。重新來一局`, PICKUP.resultSeconds);
+      } else if (e.type === 'hit') hud.showToast(`${e.kind === 'car' ? '撞到車' : '撞到東西'}!不耐煩 +${e.add}%`);
+      else if (e.type === 'say') pickupHud.say(e.text);
+    }
+  };
+
   let paused = false;
   let started = false;
   let showFps = new URLSearchParams(location.search).has('fps');
@@ -141,6 +226,7 @@ async function boot() {
   /** 瞬間移動車子:物理、畫面插值、鏡頭一起重設 */
   const teleport = (x: number, z: number, headingDeg: number) => {
     vehicle.reset(x, z, headingDeg);
+    impact.reset();
     pose.snap(vehicle.position(), vehicle.body.rotation());
     cam.snap();
   };
@@ -194,6 +280,10 @@ async function boot() {
     if (started) return;
     started = true;
     overlay.classList.add('hidden');
+    if (pickupOn) {
+      const p = vehicle.position();
+      onPickupEvents(game.start({ x: p.x, z: p.z }));
+    }
   };
   window.addEventListener('keydown', start, { once: true });
   window.addEventListener('pointerdown', start, { once: true });
@@ -209,6 +299,13 @@ async function boot() {
     if (fx.mountains !== undefined && mountains) mountains.visible = fx.mountains;
   };
   setFx(fxFromUrl(location.search, FX_NAMES));
+  // 先把「之後才出現」的物件(慈慈、光柱、其他車輛)的著色器編譯好;不然第一次出現的那一幀會卡(2026-11-13 e2e 量到 99 ms)
+  {
+    const hidden = [cici, beacon.group].filter((o) => !o.visible);
+    for (const o of hidden) o.visible = true;
+    renderer.compile(scene, cam.camera);
+    for (const o of hidden) o.visible = false;
+  }
 
   window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -265,10 +362,23 @@ async function boot() {
       while (acc >= FIXED_DT && steps < 5) {
         const autoRight = vehicle.autoRightCount;
         vehicle.update(input, FIXED_DT);
+        const vp = vehicle.position();
+        stepTraffic(vp.x, vp.z);
         pw.world.step();
         // 自動扶正是瞬間移動,不要在翻車與扶正兩個姿態之間插值
-        if (vehicle.autoRightCount !== autoRight) pose.snap(vehicle.position(), vehicle.body.rotation());
-        else pose.push(vehicle.position(), vehicle.body.rotation());
+        if (vehicle.autoRightCount !== autoRight) {
+          pose.snap(vehicle.position(), vehicle.body.rotation());
+          impact.reset();
+        } else pose.push(vehicle.position(), vehicle.body.rotation());
+        if (pickupOn) {
+          const np = vehicle.position();
+          const lv = vehicle.body.linvel();
+          if (impact.step(lv.x, lv.z)) {
+            const nearCar = traffic.cars.some((c) => Math.hypot(c.x - np.x, c.z - np.z) < PICKUP.hitCarRange);
+            onPickupEvents(game.hit(nearCar ? 'car' : 'wall'));
+          }
+          onPickupEvents(game.update(FIXED_DT, { x: np.x, z: np.z, speedKmh: vehicle.speedKmh() }));
+        }
         acc -= FIXED_DT;
         steps++;
       }
@@ -282,6 +392,17 @@ async function boot() {
     carPos.copy(p);
     fwd.set(hx, hz);
     car.sync(p, q, [0, 1, 2, 3].map((i) => vehicle.wheelState(i)));
+    trafficLayer.sync(traffic.cars);
+    if (pickupOn) {
+      beacon.update(dt);
+      const tg = game.target;
+      if (tg) {
+        // 人形面向車子
+        if (cici.visible) cici.rotation.y = -Math.atan2(p.z - tg.z, p.x - tg.x);
+        const tx = tg.x - p.x, tz = tg.z - p.z;
+        pickupHud.update(game.impatience, game.phase, tg.label, Math.hypot(tx, tz), Math.atan2(tx * -hz + tz * hx, tx * hx + tz * hz), game.respect);
+      }
+    }
     cam.update(dt, carPos, fwd, vehicle.speedKmh());
     car.group.visible = !cam.isFirstPerson || !!inspectView;
     fpHood.visible = !car.group.visible;
@@ -357,6 +478,8 @@ async function boot() {
         autoRight: vehicle.autoRightCount,
         carModelLoaded,
         area: AREA,
+        trafficCars: traffic.cars.length,
+        pickup: { on: pickupOn, phase: game.phase, impatience: game.impatience, respect: game.respect, rate: game.rate, target: game.target, line: game.line },
         chunksLoaded: streamer.loaded.size,
         chunksTotal: world.chunks.size,
         chunkMaxMs: streamer.maxChunkMs,
