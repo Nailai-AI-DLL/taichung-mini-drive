@@ -1,4 +1,4 @@
-// 其他車輛的畫面(decisions/0028):兩個方塊(車身 + 車廂),各一個 InstancedMesh,卡通材質、每台一個顏色。
+// 其他車輛的畫面(decisions/0028):兩個方塊(車身 + 車廂),各一個 InstancedMesh,卡通材質;每台一個顏色,上下同色。
 import * as THREE from 'three';
 import { TRAFFIC } from '../config/traffic';
 import type { TrafficCar } from '../traffic/traffic';
@@ -18,7 +18,7 @@ export class TrafficLayer {
     const [bl, bh, bw] = TRAFFIC.body, [cl, ch, cw] = TRAFFIC.cabin;
     // 局部 +x = 車頭
     this.body = new THREE.InstancedMesh(new THREE.BoxGeometry(bl, bh, bw), toonMaterial(0xffffff), max);
-    this.cabin = new THREE.InstancedMesh(new THREE.BoxGeometry(cl, ch, cw), toonMaterial(TRAFFIC.cabinColor), max);
+    this.cabin = new THREE.InstancedMesh(new THREE.BoxGeometry(cl, ch, cw), toonMaterial(0xffffff), max);
     for (const mesh of [this.body, this.cabin]) {
       mesh.count = 0;
       mesh.frustumCulled = false;
@@ -43,9 +43,11 @@ export class TrafficLayer {
       // 車廂稍微靠後
       this.p.set(c.x - Math.cos(c.heading) * 0.25, TRAFFIC.clearance + bh + ch / 2, c.z - Math.sin(c.heading) * 0.25);
       this.cabin.setMatrixAt(i, this.m.compose(this.p, this.q, this.one));
+      this.cabin.setColorAt(i, this.colors[c.color % this.colors.length]);
     }
     this.body.count = this.cabin.count = n;
     this.body.instanceMatrix.needsUpdate = this.cabin.instanceMatrix.needsUpdate = true;
     if (this.body.instanceColor) this.body.instanceColor.needsUpdate = true;
+    if (this.cabin.instanceColor) this.cabin.instanceColor.needsUpdate = true;
   }
 }

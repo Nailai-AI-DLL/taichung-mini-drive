@@ -34,5 +34,5 @@ export const TRAFFIC = {
   /** 車身離地 */
   clearance: 0.3,
   colors: ['#F2F2EC', '#2B2F36', '#C9342B', '#2F6FD0', '#F2B632', '#8E9AA6', '#3FA36B', '#F28A2E'] as readonly string[],
-  cabinColor: '#22303F',
+  /** 車廂和車身同色(Cooper 2026-11-13:「其他汽車我想改成上下方塊相同顏色」) */
 };

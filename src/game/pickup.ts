@@ -17,7 +17,7 @@ export type PickupEvent =
   | { type: 'picked'; spot: Spot }
   | { type: 'delivered'; respect: number }
   | { type: 'failed'; respect: number }
-  | { type: 'hit'; kind: 'car' | 'wall'; add: number }
+  | { type: 'hit'; kind: 'car' | 'wall' | 'reset'; add: number }
   | { type: 'say'; key: LineKey; text: string };
 
 /** 每秒漲多少百分點:直線距離 dist 公尺的一段路,尊敬 respect */
@@ -111,15 +111,22 @@ export class PickupGame {
     return [{ type: 'round', phase: 'pickup', spot: s }, this.say('call', s.label)];
   }
 
-  /** 撞到東西(由物理端判定);回傳事件 */
-  hit(kind: 'car' | 'wall'): PickupEvent[] {
-    if ((this.phase !== 'pickup' && this.phase !== 'dropoff') || this.hitLeft > 0) return [];
-    this.hitLeft = this.cfg.hitCooldown;
-    const add = kind === 'car' ? this.cfg.hitCar : this.cfg.hitWall;
+  /**
+   * 沒好好開:撞到東西(car / wall,由物理端判定;被其他車撞也算,Cooper 2026-11-13 拍板)、按 R 回到路面(reset)。
+   * 撞擊有冷卻時間;按 R 每次都算。回傳事件。
+   */
+  hit(kind: 'car' | 'wall' | 'reset'): PickupEvent[] {
+    if (this.phase !== 'pickup' && this.phase !== 'dropoff') return [];
+    if (kind !== 'reset') {
+      if (this.hitLeft > 0) return [];
+      this.hitLeft = this.cfg.hitCooldown;
+    }
+    const add = kind === 'car' ? this.cfg.hitCar : kind === 'wall' ? this.cfg.hitWall : this.cfg.resetPenalty;
     this.impatience = Math.min(100, this.impatience + add);
     const ev: PickupEvent[] = [{ type: 'hit', kind, add }];
-    // 車上有人才會唸
-    if (this.phase === 'dropoff') ev.push(this.say(kind === 'car' ? 'hitCar' : 'hitWall'));
+    // 撞到東西:車上有人才會唸;危險駕駛(按 R):她不在車上也會唸(拍板)
+    if (kind === 'reset') ev.push(this.say('reset'));
+    else if (this.phase === 'dropoff') ev.push(this.say(kind === 'car' ? 'hitCar' : 'hitWall'));
     return ev;
   }
 

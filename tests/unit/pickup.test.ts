@@ -108,6 +108,20 @@ describe('一局的流程', () => {
     expect(g.hit('car')).toEqual([]);
   });
 
+  it('拍板:按 R 回到路面加不耐煩值、被念危險駕駛(她不在車上也念);每次都算,沒有冷卻', () => {
+    const g = game();
+    g.start(far);
+    const ev = g.hit('reset');
+    expect(g.impatience).toBeCloseTo(PICKUP.resetPenalty);
+    const said = ev.find((e) => e.type === 'say');
+    expect(said && said.type === 'say' && said.key === 'reset' && said.text.includes('危險駕駛')).toBe(true);
+    g.hit('reset');
+    expect(g.impatience).toBeCloseTo(PICKUP.resetPenalty * 2);
+    // 按到滿:下一步就失敗
+    for (let i = 0; i < 20; i++) g.hit('reset');
+    expect(g.update(1 / 60, far).some((e) => e.type === 'failed')).toBe(true);
+  });
+
   it('台詞:開局叫車帶地點;50% 和 80% 各催一次', () => {
     const g = game();
     const ev = g.start(far);

@@ -224,7 +224,7 @@ async function boot() {
         saveRespect(e.respect);
         if (e.type === 'delivered') pickupHud.showBanner('win', '接送成功', `尊敬 +${PICKUP.respectWin}(目前 ${e.respect});下一局${PICKUP.name}會比較有耐心`, PICKUP.resultSeconds);
         else pickupHud.showBanner('lose', '接送失敗', `${PICKUP.name}等到不耐煩了;尊敬 ${e.respect}。重新來一局`, PICKUP.resultSeconds);
-      } else if (e.type === 'hit') hud.showToast(`${e.kind === 'car' ? '撞到車' : '撞到東西'}!不耐煩 +${e.add}%`);
+      } else if (e.type === 'hit') hud.showToast(`${e.kind === 'car' ? '撞到車' : e.kind === 'wall' ? '撞到東西' : '危險駕駛'}!不耐煩 +${e.add}%`);
       else if (e.type === 'say') pickupHud.say(e.text);
     }
   };
@@ -259,7 +259,11 @@ async function boot() {
   };
 
   const onAction = (a: string) => {
-    if (a === 'reset') resetToRoad();
+    if (a === 'reset') {
+      resetToRoad();
+      // 玩家自己按 R(或選單的回到路面)才算危險駕駛;自動測試用的 __game.reset / teleport 不算
+      if (pickupOn && started) onPickupEvents(game.hit('reset'));
+    }
     if (a === 'camera') {
       cam.next();
       hud.showToast(`視角:${cam.modeName}`);
