@@ -13,6 +13,7 @@ import { areaCentroid, assembleRings, centroid, cleanRing, clipPolygon, clipPoly
 import { defaultWidth, isDrivable, isOneway, resolveWidth, runsAlongside, splitWidth } from './lib/roads';
 import { buildingHeight, buildingKind, clearBuildingsOffRoads, hasShopTags, kindHeight, nearWideRoad, touchingCorners, type HeightSource } from './lib/buildings';
 import { KIND, SHOP_KINDS } from '../../src/config/buildings';
+import { fillBuildings } from './lib/fill-buildings';
 import { intersectionSignals, placeFurniture, type FurnitureRoad } from './lib/furniture';
 import { crossingMarked, generateStreet, type StreetCrossing, type StreetResult, type StreetWay } from './lib/street';
 
@@ -33,6 +34,8 @@ interface AreaConfig {
   govWidths?: string;
   /** 街道細節(標線、分隔島、路緣)的範圍:'all' = 整個區域,或中心經緯度與半寬(公尺);沒有就不產生(decisions/0015) */
   detail?: 'all' | { center: [number, number]; half: number };
+  /** false = 不補虛構建築(decisions/0027);預設補 */
+  fill?: boolean;
 }
 
 const OPERA_HOUSE: [number, number] = [24.16293, 120.64052];
@@ -352,6 +355,26 @@ function main() {
     }
   }
 
+  // ---- 補虛構建築(decisions/0027):沿道路兩側,沒有建築的地方排上長方形建築 ----
+  if (cfg.fill !== false) {
+    const solid = [...buildings.map((b) => dequantPts(b.rings[0])), ...landmarks.flatMap((l) => l.rings.map((r) => dequantPts(r).map(([x, z]) => [x + l.x, z + l.z] as Pt)))];
+    const fills = fillBuildings(
+      roads.map((r) => ({ id: r.osmId, pts: dequantPts(r.pts), width: r.width, sidewalk: r.sidewalk, highway: r.highway, bridge: roadExtra.get(r.osmId)?.bridge })),
+      { solid, keepOut: areas.map((a) => dequantPts(a.ring)), waterways: waterways.map((w) => ({ pts: dequantPts(w.pts), w: w.w })), heights: buildings.map((b) => b.h / 10) },
+      [rect.minX, rect.minZ, rect.maxX, rect.maxZ],
+    );
+    // 繞向和 OSM 建築一致
+    const sign = Math.sign(signedArea(dequantPts(buildings[0]?.rings[0] ?? [0, 0, 1, 0, 1, 1])));
+    fills.forEach((f, i) => {
+      const ring = Math.sign(signedArea(f.ring)) === sign ? f.ring : [...f.ring].reverse();
+      buildings.push({ id: 9_000_000_000 + i, h: Math.round(f.h * 10), t: f.kind, f: 1, rings: [qPts(ring)] });
+      inc('buildings');
+      inc('buildingsFilled');
+      inc(`buildingsFilled_${f.tier}`);
+      inc(`buildingKind_${Object.keys(KIND)[f.kind]}`);
+    });
+  }
+
   // ---- 一樓店面:臨大路(人行道外緣 SHOP_REACH 內)的建築,一樓畫店面(decisions/0015 第三批) ----
   const nearRoad = nearWideRoad(
     buildings.map((b) => dequantPts(b.rings[0])),
@@ -366,6 +389,8 @@ function main() {
       inc('buildingCornersSharp', touch[i].length);
     }
   });
+  // 補的建築一律方角(省三角形;外框本來就是長方形)
+  for (const b of buildings) if (b.f) b.c = [0, 1, 2, 3];
   buildings.forEach((b, i) => {
     if (nearRoad[i] && SHOP_KINDS.includes(b.t as (typeof SHOP_KINDS)[number])) b.s = 1;
     if (b.s) inc('buildingShopfront');

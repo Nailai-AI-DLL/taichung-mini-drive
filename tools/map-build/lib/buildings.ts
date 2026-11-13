@@ -182,7 +182,7 @@ export function touchingCorners(rings: Pt[][]): number[][] {
 // 路寬用政府實測值,常比 OSM 上建築之間留的空隙寬,建築外框就伸進車道。處理:
 //   路從旁邊經過 → 沿「車道邊緣 + ROAD_CLEAR_MARGIN」把伸進來的部分切掉(半平面裁切);
 //   切完剩不到 ROAD_CLEAR_MIN_KEEP 的原面積,或一般道路的中心線直接穿過建築 → 整棟拿掉(不然路被擋住);
-//   服務道路(停車場出入口等)穿過建築 → 不動。高架橋(bridge)不算。
+//   服務道路(停車場出入口等)穿過建築 → 不動。高架橋(bridge)照樣處理:遊戲世界是平的,高架路段也畫在地面。
 /** 推論:建築離車道邊緣至少留這麼多(公尺) */
 export const ROAD_CLEAR_MARGIN = 0.3;
 /** 推論:切完面積剩不到原來的這個比例就整棟拿掉 */
@@ -237,7 +237,6 @@ export function clearBuildingsOffRoads(rings: Pt[][], roads: ClearRoad[]): Clear
   type Seg = { a: Pt; b: Pt; half: number; service: boolean; dir: Pt; len: number };
   const grid = new Map<string, Seg[]>();
   for (const r of roads) {
-    if (r.bridge) continue;
     const half = r.width / 2;
     for (let i = 0; i + 1 < r.pts.length; i++) {
       const a = r.pts[i], b = r.pts[i + 1];

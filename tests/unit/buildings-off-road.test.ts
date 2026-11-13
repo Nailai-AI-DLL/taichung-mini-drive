@@ -17,9 +17,9 @@ describe('建築不壓到車道', () => {
     expect(Math.max(...zs)).toBeCloseTo(20);
   });
 
-  it('沒壓到的建築原樣;高架橋下的建築不切', () => {
+  it('沒壓到的建築原樣;高架橋(遊戲裡畫在地面)一樣要切', () => {
     expect(clearBuildingsOffRoads([box(-10, 8, 10, 20)], [road()])[0].status).toBe('ok');
-    expect(clearBuildingsOffRoads([box(-10, 4, 10, 20)], [road('primary', true)])[0].status).toBe('ok');
+    expect(clearBuildingsOffRoads([box(-10, 4, 10, 20)], [road('primary', true)])[0].status).toBe('clipped');
   });
 
   it('一般道路直接穿過建築 → 整棟拿掉;服務道路穿過 → 不動', () => {

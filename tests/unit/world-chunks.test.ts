@@ -32,8 +32,13 @@ describe('範圍 A 資料', () => {
   });
 
   it('建築數量合理(OSM 實查約 12,500 棟)', () => {
-    expect(world.json.buildings.length).toBeGreaterThan(11000);
-    expect(world.json.buildings.length).toBeLessThan(15000);
+    // f = 1 是建置時補的虛構建築(decisions/0027),分開算
+    const osm = world.json.buildings.filter((b) => !b.f).length;
+    expect(osm).toBeGreaterThan(11000);
+    expect(osm).toBeLessThan(15000);
+    const fill = world.json.buildings.length - osm;
+    expect(fill).toBeGreaterThan(15000);
+    expect(fill).toBeLessThan(40000);
   });
 
   it('道路最大連通分量 ≥ 95%(M1 驗收條件)', () => {

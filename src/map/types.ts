@@ -30,6 +30,8 @@ export interface WorldBuilding {
   s?: 1;
   /** 和隔壁建築相接、不做圓角的外環頂點索引(對應 rings[0]);沒有這個欄位 = 全部做圓角 */
   c?: number[];
+  /** 1 = 建置時補的虛構建築(不是 OSM 的實際建築;decisions/0027) */
+  f?: 1;
   /** rings[0] 外環,其餘為中庭(內環);座標量化同道路 */
   rings: number[][];
 }
