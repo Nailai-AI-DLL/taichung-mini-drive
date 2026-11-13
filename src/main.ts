@@ -5,7 +5,7 @@ import { fetchWorld } from './map/load';
 import { RoadIndex, RoadNameTracker } from './map/road-index';
 import { addStaticFurniture, addStaticTrimesh, createPhysicsWorld, FIXED_DT, removeBody } from './physics/world';
 import { ChunkStreamer } from './world/streamer';
-import { colliderMeshes, furnitureCollision } from './world/chunks';
+import { chunkKey, colliderMeshes, furnitureCollision } from './world/chunks';
 import { Vehicle, headingOf, type DriveInput } from './vehicle/vehicle';
 import { Keyboard } from './input/keyboard';
 import { ChaseCamera, type Smoothing } from './camera/chase-camera';
@@ -27,7 +27,8 @@ import { furnitureShowFromSearch, setFurnitureShow } from './config/furniture';
 import { Traffic } from './traffic/traffic';
 import { TrafficLayer } from './render/traffic';
 import { TRAFFIC } from './config/traffic';
-import { ImpactDetector, PickupGame, pickSpot, type PickupEvent } from './game/pickup';
+import { ImpactDetector, PickupGame, pickSpotWithFallback, type PickupEvent } from './game/pickup';
+import { pointInPolygon } from './world/gen/geom';
 import { PICKUP } from './config/pickup';
 import { PickupHud } from './ui/pickup-hud';
 import { Beacon, createCici, MARKER_COLORS } from './render/pickup-markers';
@@ -185,7 +186,19 @@ async function boot() {
     }
   };
   const landmarkSpots = (world.json.landmarks ?? []).map((l) => ({ name: l.name, x: l.x, z: l.z }));
-  const game = new PickupGame((from) => pickSpot(world.roads, from, Math.random, landmarkSpots), Math.random, loadRespect());
+  // 接送點要站得了人:在地圖內(離邊界 20 m)、不在任何道路的路面上、不在建築裡(驗收量到沒檢查時 24% 在路面、3.5% 在建築內)
+  const [bx0, bz0, bx1, bz1] = world.json.meta.bounds;
+  const spotValid = (x: number, z: number) => {
+    if (x < bx0 + 20 || z < bz0 + 20 || x > bx1 - 20 || z > bz1 - 20) return false;
+    if (roadIndex.near(x, z, 40).some((h) => h.distance < h.way.width / 2 + 0.3)) return false;
+    const size = world.json.meta.chunkSize;
+    // 建築依形心分格,大建築可能掛在隔壁格 → 往外多看 80 m
+    for (let gx = Math.floor((x - 80) / size); gx <= Math.floor((x + 80) / size); gx++)
+      for (let gz = Math.floor((z - 80) / size); gz <= Math.floor((z + 80) / size); gz++)
+        for (const b of world.chunks.get(chunkKey(gx, gz))?.buildings ?? []) if (pointInPolygon([x, z], b.rings[0])) return false;
+    return true;
+  };
+  const game = new PickupGame((from) => pickSpotWithFallback(world.roads, from, Math.random, landmarkSpots, PICKUP, spotValid), Math.random, loadRespect());
   const impact = new ImpactDetector();
   const pickupHud = new PickupHud(document.getElementById('hud')!);
   pickupHud.setVisible(pickupOn);

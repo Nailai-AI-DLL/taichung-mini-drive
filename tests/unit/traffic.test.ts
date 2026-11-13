@@ -14,7 +14,12 @@ const run = (t: Traffic, seconds: number, player = { x: 0, z: 0 }) => {
 describe('其他車輛', () => {
   it('會補到定額,都生成在離玩家夠遠的路上', () => {
     const t = new Traffic(cross(), mulberry32(1));
-    run(t, 2);
+    // 只跑一步:剛生成、還沒移動,位置就是生成位置
+    for (let i = 0; i < 40; i++) {
+      const before = new Set(t.cars.map((c) => c.id));
+      t.update(1 / 60, { x: 0, z: 0 });
+      for (const c of t.cars) if (!before.has(c.id)) expect(Math.hypot(c.x, c.z)).toBeGreaterThanOrEqual(TRAFFIC.spawnMin * 0.8 - 1);
+    }
     expect(t.cars.length).toBeGreaterThan(8);
     expect(t.cars.length).toBeLessThanOrEqual(TRAFFIC.count);
   });
@@ -69,11 +74,13 @@ describe('其他車輛', () => {
     }
     const me = t.cars.find((o) => o.id === c.id)!;
     expect(me.speed).toBeLessThan(0.1);
-    expect(minGap).toBeGreaterThan(3);
+    // 中心距:兩台車各長約 4 m,要大於 4.5 m 車身才沒有重疊
+    expect(minGap).toBeGreaterThan(4.5);
   });
 
   it('到路口會轉到別條路;不開進服務道路', () => {
-    const ways = [...cross(), way(3, [200, 0, 200, 300], { highway: 'service' })];
+    // 服務道路和主路共用折點 (200, 0):車子經過這個路口也不能轉進去
+    const ways = [way(1, [-400, 0, 0, 0, 200, 0, 400, 0]), way(2, [0, -400, 0, 0, 0, 400]), way(3, [200, 0, 200, 300], { highway: 'service' })];
     const t = new Traffic(ways, mulberry32(6));
     const visited = new Set<number>();
     const turned = new Set<number>();

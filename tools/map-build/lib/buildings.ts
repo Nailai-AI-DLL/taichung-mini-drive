@@ -271,10 +271,12 @@ export function clearBuildingsOffRoads(rings: Pt[][], roads: ClearRoad[]): Clear
       else through = true;
     }
     if (through) return { ring: ring0, status: 'removed' };
-    if (throughService) return { ring: ring0, status: 'through-service' };
     let ring = ring0;
     let clipped = false;
     for (const s of segs) {
+      // 服務道路穿過的建築:服務道路那邊不動,但旁邊的一般道路照樣要切
+      // (驗收抓到:原本一遇到服務道路穿過就整棟跳過,旁邊壓到市政路 4.7 m 的也沒切)
+      if (throughService && s.service) continue;
       const lat = (p: Pt) => (p[0] - s.a[0]) * -s.dir[1] + (p[1] - s.a[1]) * s.dir[0];
       const along = (p: Pt) => (p[0] - s.a[0]) * s.dir[0] + (p[1] - s.a[1]) * s.dir[1];
       const lim = s.half + ROAD_CLEAR_MARGIN;
@@ -304,7 +306,7 @@ export function clearBuildingsOffRoads(rings: Pt[][], roads: ClearRoad[]): Clear
       ring = next;
       clipped = true;
     }
-    if (!clipped) return { ring: ring0, status: 'ok' };
+    if (!clipped) return { ring: ring0, status: throughService ? 'through-service' : 'ok' };
     if (ringArea(ring) < ringArea(ring0) * ROAD_CLEAR_MIN_KEEP) return { ring: ring0, status: 'removed' };
     return { ring, status: 'clipped' };
   });

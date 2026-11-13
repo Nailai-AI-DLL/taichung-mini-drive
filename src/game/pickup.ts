@@ -36,6 +36,9 @@ export function pickSpot(
   rand: Rand,
   landmarks: { name: string; x: number; z: number }[] = [],
   cfg = PICKUP,
+  /** 位置能不能站人(不在路面上、不在建築裡、在地圖內);main.ts 用實際地圖檢查 */
+  valid: (x: number, z: number) => boolean = () => true,
+  range: readonly [number, number] = cfg.range,
 ): Spot | null {
   for (let tries = 0; tries < 400; tries++) {
     const w = ways[Math.floor(rand() * ways.length)];
@@ -51,11 +54,18 @@ export function pickSpot(
     const off = (w.width / 2 + cfg.curbOffset) * side;
     const x = ax + (bx - ax) * t - dz * off, z = az + (bz - az) * t + dx * off;
     const d = Math.hypot(x - from.x, z - from.z);
-    if (d < cfg.range[0] || d > cfg.range[1]) continue;
+    if (d < range[0] || d > range[1]) continue;
+    if (!valid(x, z)) continue;
     const lm = landmarks.find((l) => Math.hypot(l.x - x, l.z - z) < 150);
     return { x, z, label: lm ? lm.name : w.name };
   }
   return null;
+}
+
+/** 先照正常距離挑;挑不到(例如在地圖角落)就放寬距離再挑,避免卡住 */
+export function pickSpotWithFallback(...a: Parameters<typeof pickSpot>): Spot | null {
+  const cfg = a[4] ?? PICKUP;
+  return pickSpot(...a) ?? pickSpot(a[0], a[1], a[2], a[3], cfg, a[5], [cfg.range[0] * 0.5, cfg.range[1] * 2]);
 }
 
 export class PickupGame {

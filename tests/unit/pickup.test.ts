@@ -1,6 +1,6 @@
 // 「接送慈慈」(decisions/0029):Cooper 2026-11-13 拍板的規則都要有測試
 import { describe, expect, it } from 'vitest';
-import { ImpactDetector, PickupGame, impatienceRate, pickSpot, type Spot } from '../../src/game/pickup';
+import { ImpactDetector, PickupGame, impatienceRate, pickSpot, pickSpotWithFallback, type Spot } from '../../src/game/pickup';
 import { PICKUP } from '../../src/config/pickup';
 import { mulberry32 } from '../../src/traffic/traffic';
 import type { RoadWay } from '../../src/map/types';
@@ -120,6 +120,31 @@ describe('一局的流程', () => {
   });
 });
 
+describe('挑不到地點', () => {
+  it('開局挑不到:不會當掉,之後每步重試,挑到就開始', () => {
+    let ok = false;
+    const g = new PickupGame(() => (ok ? A : null), mulberry32(1));
+    expect(g.start(far)).toEqual([]);
+    expect(tick(g, 1)).toEqual([]);
+    expect(g.impatience).toBe(0);
+    ok = true;
+    expect(tick(g, 0.1).some((e) => e.type === 'round')).toBe(true);
+  });
+
+  it('上一局成功後,下一局實際漲得比較慢', () => {
+    const g = game();
+    g.start(far);
+    const r0 = g.rate;
+    g.update(1 / 60, { x: A.x, z: A.z, speedKmh: 0 });
+    g.update(1 / 60, { x: B.x, z: B.z, speedKmh: 0 });
+    expect(g.phase).toBe('success');
+    // 下一局的接人點又是 A(測試用的輪流清單),從同一個位置出發 → 距離一樣,漲速應該變慢
+    tick(g, PICKUP.resultSeconds + 0.1, far);
+    expect(g.phase).toBe('pickup');
+    expect(g.rate).toBeCloseTo(r0 * (1 - PICKUP.respectSlow));
+  });
+});
+
 describe('接送點', () => {
   const way = (name: string, points: number[], o: Partial<RoadWay> = {}): RoadWay => ({ osmId: 1, name, nameEn: '', highway: 'residential', oneway: false, width: 12, points, ...o });
   const ways = [way('大路', [-1000, 0, 1000, 0]), way('', [0, -1000, 0, 1000]), way('停車場', [0, 300, 600, 300], { highway: 'service' }), way('小巷', [0, -300, 600, -300], { width: 4 })];
@@ -135,6 +160,19 @@ describe('接送點', () => {
       expect(s.label).toBe('大路');
       expect(Math.abs(s.z)).toBeCloseTo(12 / 2 + PICKUP.curbOffset);
     }
+  });
+
+  it('位置檢查沒過的點不選;正常距離挑不到時放寬距離再挑(驗收 2026-11-13)', () => {
+    // 只接受 z > 0 那一側
+    const rand = mulberry32(5);
+    for (let i = 0; i < 30; i++) expect(pickSpot(ways, { x: 0, z: 0 }, rand, [], PICKUP, (_x, z) => z > 0)!.z).toBeGreaterThan(0);
+    expect(pickSpot(ways, { x: 0, z: 0 }, rand, [], PICKUP, () => false)).toBeNull();
+    // 路只有 200 m 長:正常距離(300–650 m)挑不到,放寬後(150–1300 m)挑得到
+    const short = [way('短路', [0, 0, 200, 0])];
+    expect(pickSpot(short, { x: 0, z: 0 }, mulberry32(6))).toBeNull();
+    const s = pickSpotWithFallback(short, { x: 0, z: 0 }, mulberry32(6));
+    expect(s).toBeTruthy();
+    expect(Math.hypot(s!.x, s!.z)).toBeGreaterThanOrEqual(PICKUP.range[0] * 0.5);
   });
 
   it('附近有地標就用地標名稱;沒有合適的路回傳 null', () => {

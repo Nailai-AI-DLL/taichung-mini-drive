@@ -27,6 +27,13 @@ describe('建築不壓到車道', () => {
     expect(clearBuildingsOffRoads([box(-10, -10, 10, 10)], [road('service')])[0].status).toBe('through-service');
   });
 
+  it('服務道路穿過的建築:旁邊壓到一般道路的部分照樣要切(驗收 2026-11-13 抓到的漏洞)', () => {
+    const svc = { pts: [[0, 0], [0, 40]] as Pt[], width: 4, highway: 'service' };
+    const [r] = clearBuildingsOffRoads([box(-10, 4, 10, 20)], [road(), svc]);
+    expect(r.status).toBe('clipped');
+    expect(Math.min(...r.ring.map((p) => p[1]))).toBeCloseTo(6 + ROAD_CLEAR_MARGIN);
+  });
+
   it('大半都在車道裡的小建築整棟拿掉', () => {
     expect(clearBuildingsOffRoads([box(-3, 1, 3, 7)], [road()])[0].status).toBe('removed');
   });
