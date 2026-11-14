@@ -14,6 +14,7 @@ import { defaultWidth, isDrivable, isOneway, resolveWidth, runsAlongside, splitW
 import { buildingHeight, buildingKind, clearBuildingsOffRoads, hasShopTags, kindHeight, nearWideRoad, touchingCorners, type HeightSource } from './lib/buildings';
 import { KIND, SHOP_KINDS } from '../../src/config/buildings';
 import { fillBuildings } from './lib/fill-buildings';
+import { buildViaduct } from './lib/rail';
 import { intersectionSignals, placeFurniture, type FurnitureRoad } from './lib/furniture';
 import { crossingMarked, generateStreet, type StreetCrossing, type StreetResult, type StreetWay } from './lib/street';
 
@@ -36,6 +37,8 @@ interface AreaConfig {
   detail?: 'all' | { center: [number, number]; half: number };
   /** false = 不補虛構建築(decisions/0027);預設補 */
   fill?: boolean;
+  /** 捷運軌道與車站的 OSM 原始檔(選用;decisions/0030) */
+  rail?: string;
 }
 
 const OPERA_HOUSE: [number, number] = [24.16293, 120.64052];
@@ -47,6 +50,7 @@ const AREAS: Record<string, AreaConfig> = {
   'range-a': {
     raw: 'data/osm/raw/range-a/range-a_area.json',
     nodes: 'data/osm/raw/range-a/range-a_nodes.json',
+    rail: 'data/osm/raw/range-a/range-a_rail.json',
     center: [24.1525, 120.6625],
     halfX: 3300,
     halfZ: 2490,
@@ -473,6 +477,24 @@ function main() {
   const near = toW({ lat: cfg.spawnNear[0], lon: cfg.spawnNear[1] });
   const spawn = pickSpawn(roads, cfg.spawnRoad, near);
 
+  // ---- 高架捷運(decisions/0030):主線軌道(有路線名稱、不是機廠 / 側線)→ 橋中心線、墩柱、車站 ----
+  let viaduct: WorldJson['viaduct'];
+  if (cfg.rail && existsSync(join(ROOT, cfg.rail))) {
+    const els: OsmEl[] = JSON.parse(readFileSync(join(ROOT, cfg.rail), 'utf8')).elements;
+    const tracks = els.filter((e) => e.type === 'way' && e.tags?.railway && !e.tags.service && e.geometry).map((e) => e.geometry!.map(toW));
+    const stops = els.filter((e) => e.type === 'node' && e.tags?.railway === 'station' && e.lat !== undefined).map((e) => ({ name: e.tags!.name ?? '', p: toW({ lat: e.lat!, lon: e.lon! }) }));
+    const v = buildViaduct(tracks, stops, roads.map((r) => ({ pts: dequantPts(r.pts), width: r.width })), [rect.minX, rect.minZ, rect.maxX, rect.maxZ]);
+    viaduct = {
+      lines: v.lines.map(qPts),
+      piers: v.piers.flatMap((p) => [q(p.p[0]), q(p.p[1]), Math.round(p.a * 1000)]),
+      stations: v.stations.map((s) => ({ name: s.name, x: round2(s.p[0]), z: round2(s.p[1]), a: Math.round(s.a * 1000) })),
+    };
+    stats.viaductLengthM = v.lines.reduce((t, l) => t + l.slice(1).reduce((u, p, i) => u + Math.hypot(p[0] - l[i][0], p[1] - l[i][1]), 0), 0);
+    stats.viaductPiers = v.piers.length;
+    stats.viaductPierSlots = v.pierSlots;
+    stats.viaductPiersSkipped = v.pierSkipped;
+    stats.viaductStations = v.stations.length;
+  }
   for (const k of Object.keys(stats)) stats[k] = round2(stats[k]);
   const json: WorldJson = {
     version: 2,
@@ -495,6 +517,7 @@ function main() {
     landmarks,
     ...(street && { street }),
     ...(furniture && { furniture }),
+    ...(viaduct && { viaduct }),
   };
   const outDir = join(ROOT, 'public/map', areaName);
   mkdirSync(outDir, { recursive: true });

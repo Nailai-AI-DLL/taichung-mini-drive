@@ -404,7 +404,7 @@ function addCylinder(mb: MeshBuilder, c: Pt, r: number, y0: number, y1: number, 
 }
 
 /** 長方體:中心 c、長軸 d(水平單位向量)方向半長 ha、垂直於 d 的半寬 hb、高度 y0–y1;每面各自的頂點(硬邊);bottom = false 不畫底面 */
-function addBox(mb: MeshBuilder, c: Pt, d: Pt, ha: number, hb: number, y0: number, y1: number, rgb: Rgb, bottom = true) {
+export function addBox(mb: MeshBuilder, c: Pt, d: Pt, ha: number, hb: number, y0: number, y1: number, rgb: Rgb, bottom = true) {
   const n: Pt = [-d[1], d[0]];
   const P = (sa: number, sb: number, y: number): [number, number, number] => [c[0] + d[0] * ha * sa + n[0] * hb * sb, y, c[1] + d[1] * ha * sa + n[1] * hb * sb];
   quad(mb, [P(1, -1, y0), P(1, 1, y0), P(1, 1, y1), P(1, -1, y1)], [d[0], 0, d[1]], rgb);

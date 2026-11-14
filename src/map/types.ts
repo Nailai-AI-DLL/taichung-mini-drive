@@ -128,6 +128,17 @@ export interface WorldJson {
   landmarks: WorldLandmark[];
   street?: WorldStreet;
   furniture?: WorldFurniture;
+  viaduct?: WorldViaduct;
+}
+
+/**
+ * 高架捷運(decisions/0030):橋中心線(座標量化同道路,可能有好幾段)、
+ * 墩柱 [x, z, 橋的方向(毫弧度), ...]、車站(位置在中心線上,a = 橋的方向,毫弧度)。
+ */
+export interface WorldViaduct {
+  lines: number[][];
+  piers: number[];
+  stations: { name: string; x: number; z: number; a: number }[];
 }
 
 /** 路名索引用的道路(座標為公尺) */

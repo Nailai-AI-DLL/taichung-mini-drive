@@ -11,6 +11,7 @@ import { extrude, PLAIN_CODE } from './gen/extrude';
 import { addRoofProps } from './gen/roof-props';
 import { addBusStop, addSign, addSignal, addStreetLight, addTree, propPoses, scooterPoses, type FurnitureColors } from './gen/furniture';
 import { PROP_TREE_SCALE, propsMode } from '../config/props';
+import { addViaduct, viaductCollision, viaductSpans, type ViaductSrc } from './gen/viaduct';
 import { BUS_POLE_HIT_R, BUS_SHELTER_D, BUS_SHELTER_H, BUS_SHELTER_L, LIGHT_HIT_R, POST_HIT_H, SCOOTER_H, SCOOTER_LEN, SCOOTER_SLOT, SIGNAL_HIT_R, TREE_HIT_R, furnitureShow } from '../config/furniture';
 import type { FurnitureCollision } from '../physics/world';
 import { FLOOR_HEIGHT, KIND, type BuildingKind } from '../config/buildings';
@@ -79,6 +80,8 @@ export interface ChunkSrc {
     signs: { p: Pt; a: number; y0: number; y1: number; c: number }[];
     /** 公車站:a = 朝向車道 */
     busStops: { p: Pt; a: number; shelter: boolean }[];
+    /** 高架捷運經過這一格的部分(decisions/0030);沒有就沒有這個欄位 */
+    viaduct?: ViaductSrc;
   };
 }
 
@@ -180,6 +183,17 @@ export function decodeWorld(json: WorldJson): World {
   for (const l of json.landmarks ?? []) {
     get(Math.floor(l.x / size), Math.floor(l.z / size)).landmarks.push({ id: l.id, name: l.name, model: l.model, x: l.x, z: l.z, h: l.h / 10, rings: l.rings.map(toPts) });
   }
+  // 高架捷運:橋面小段依中點、墩柱與車站依位置分格
+  if (json.viaduct) {
+    const vd = (p: Pt) => (at(p).furniture.viaduct ??= { spans: [], piers: [], stations: [] });
+    for (const l of json.viaduct.lines) for (const sp of viaductSpans(toPts(l))) vd([(sp[0][0] + sp[1][0]) / 2, (sp[0][1] + sp[1][1]) / 2]).spans.push(sp);
+    const ps = json.viaduct.piers;
+    for (let i = 0; i + 2 < ps.length; i += 3) {
+      const p: Pt = [ps[i] / QUANT, ps[i + 1] / QUANT];
+      vd(p).piers.push({ p, a: ps[i + 2] / 1000 });
+    }
+    for (const st of json.viaduct.stations) vd([st.x, st.z]).stations.push({ name: st.name, p: [st.x, st.z], a: st.a / 1000 });
+  }
   const fu = json.furniture;
   if (fu) {
     for (let i = 0; i + 2 < fu.trees.length; i += 3) {
@@ -212,7 +226,7 @@ export function decodeWorld(json: WorldJson): World {
   }
   // 沒有任何內容的格子不保留
   for (const [k, c] of chunks)
-    if (!c.roads.length && !c.waterways.length && !c.areas.length && !c.buildings.length && !c.landmarks.length && !c.street.strips.length && !c.street.crosswalks.length && !c.street.medians.length && !c.street.junctions.length && !c.furniture.trees.length && !c.furniture.lights.length && !c.furniture.signals.length && !c.furniture.scooters.length && !c.furniture.signs.length && !c.furniture.busStops.length) chunks.delete(k);
+    if (!c.roads.length && !c.waterways.length && !c.areas.length && !c.buildings.length && !c.landmarks.length && !c.street.strips.length && !c.street.crosswalks.length && !c.street.medians.length && !c.street.junctions.length && !c.furniture.trees.length && !c.furniture.lights.length && !c.furniture.signals.length && !c.furniture.scooters.length && !c.furniture.signs.length && !c.furniture.busStops.length && !c.furniture.viaduct) chunks.delete(k);
   return { json, roads: json.roads.map(roadWayOf), chunkSize: size, chunks };
 }
 
@@ -339,6 +353,7 @@ export function furnitureCollision(c: ChunkSrc): FurnitureCollision {
       }),
       // 候車亭:長邊沿道路(朝向車道 a 轉 90°)
       ...f.busStops.filter((b) => b.shelter).map((b) => ({ x: b.p[0], z: b.p[1], a: b.a + Math.PI / 2, hx: BUS_SHELTER_L / 2, hz: BUS_SHELTER_D / 2, h: BUS_SHELTER_H })),
+      ...(f.viaduct ? viaductCollision(f.viaduct) : []),
     ],
   };
 }
@@ -427,6 +442,7 @@ export function buildFurniture(c: ChunkSrc): FurnitureMeshes {
   for (const b of c.furniture.busStops) addBusStop(fm, b.p, b.a, b.shelter, fc);
   if (!tripo) for (const l of c.furniture.lights) addStreetLight(fm, l.p, l.a, fc);
   for (const s of c.furniture.signals) addSignal(fm, s.p, s.a, s.arm, fc);
+  if (c.furniture.viaduct) addViaduct(fm, c.furniture.viaduct);
   return { furniture: fm.toArrays(), scooters: scooterPoses(furnitureShow.scooters ? c.furniture.scooters : [], PALETTE.scooterBody.length),
     props: tripo ? propPoses(trees, c.furniture.lights, PROP_TREE_SCALE, c.roads?.map((r) => r.pts)) : new Float32Array(),
   };

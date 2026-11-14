@@ -488,11 +488,12 @@ describe('範圍 A 實際資料', () => {
       const fc = furnitureCollision(c);
       const shelters = c.furniture.busStops.filter((b) => b.shelter).length;
       expect(fc.posts.length).toBe(c.furniture.trees.length + c.furniture.lights.length + c.furniture.signals.length + c.furniture.busStops.length - shelters);
-      expect(fc.boxes.length).toBe(c.furniture.scooters.length + shelters);
+      expect(fc.boxes.length).toBe(c.furniture.scooters.length + shelters + (c.furniture.viaduct?.piers.length ?? 0));
       expect(c.furniture.treeKinds.length).toBe(c.furniture.trees.length);
       total += fc.posts.length + fc.boxes.length;
     }
-    expect(total).toBe(fu.trees.length / 3 + fu.lights.length / 3 + fu.signals.length / 4 + fu.scooters.length / 5 + fu.busStops.length / 4);
+    // 高架捷運的墩柱也是長方體碰撞(decisions/0030)
+    expect(total).toBe(fu.trees.length / 3 + fu.lights.length / 3 + fu.signals.length / 4 + fu.scooters.length / 5 + fu.busStops.length / 4 + (world.json.viaduct?.piers.length ?? 0) / 3);
   });
 
   it('傢俱網格:代碼全是 PLAIN_CODE(不畫窗),不進三角網格碰撞體(碰撞改用圓柱)', () => {
