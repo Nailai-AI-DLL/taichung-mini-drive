@@ -18,7 +18,8 @@ export interface PlaceRoad {
 }
 
 /** farSide = 地點在路中間(捷運站在分隔島上):接送點一律取馬路對面(外側路邊),不取地點那一側 */
-export function placePickup(anchor: Pt, roads: PlaceRoad[], solids: Pt[][], farSide = false): { p: Pt; road: string } | null {
+/** preferRoad = 優先用這條路(路名開頭符合;例:百貨的正門在臺灣大道,不是離形心最近的後巷) */
+export function placePickup(anchor: Pt, roads: PlaceRoad[], solids: Pt[][], farSide = false, preferRoad = ''): { p: Pt; road: string } | null {
   type Cand = { d: number; q: Pt; dir: Pt; r: PlaceRoad };
   const cands: Cand[] = [];
   const all: { a: Pt; b: Pt; half: number }[] = [];
@@ -37,7 +38,8 @@ export function placePickup(anchor: Pt, roads: PlaceRoad[], solids: Pt[][], farS
       const l = Math.sqrt(l2);
       if (d <= PLACE_REACH) cands.push({ d, q, dir: [dx / l, dz / l], r });
     }
-  cands.sort((x, y) => x.d - y.d);
+  const pref = (c: Cand) => (preferRoad && c.r.name.startsWith(preferRoad) ? 0 : 1);
+  cands.sort((x, y) => pref(x) - pref(y) || x.d - y.d);
   const near = solids.filter((s) => Math.abs(s[0][0] - anchor[0]) < PLACE_REACH + 300 && Math.abs(s[0][1] - anchor[1]) < PLACE_REACH + 300);
   const segDist = (p: Pt, a: Pt, b: Pt) => {
     const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz;

@@ -137,7 +137,7 @@ export interface WorldJson {
 /**
  * 知名地點(decisions/0031):(x, z) = 地點本身(建築或公園的形心、捷運站位);(px, pz) = 接送點(路邊);road = 接送點所在路名。
  * b = 對應的建築 id(有才有;執行端用 color 調外牆色、在樓頂立招牌);h = 那棟建築的高度(公尺);
- * landmark = 已有專屬模型的地標 id(不立招牌)。
+ * landmark = 已有專屬模型的地標 id(外框與高度從地標取);sign = 0 表示不立招牌(歌劇院等不需要寫名字的)。
  */
 export interface WorldPlace {
   id: string;
@@ -152,6 +152,7 @@ export interface WorldPlace {
   b?: number;
   h?: number;
   landmark?: string;
+  sign?: 0;
 }
 
 /**

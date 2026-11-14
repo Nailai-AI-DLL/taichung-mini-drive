@@ -512,7 +512,7 @@ function main() {
   // ---- 知名地點(decisions/0031):位置、接送點、對應的建築 ----
   const places: NonNullable<WorldJson['places']> = [];
   {
-    const cfgPlaces: { id: string; name: string; glyph?: string; color: string; osm?: number; landmark?: string; station?: string; at?: [number, number] }[] =
+    const cfgPlaces: { id: string; name: string; glyph?: string; color: string; osm?: number; landmark?: string; station?: string; at?: [number, number]; sign?: boolean; road?: string }[] =
       JSON.parse(readFileSync(join(ROOT, 'data/landmarks/places.json'), 'utf8')).places;
     const rawById = new Map<number, OsmEl>(raw.elements.map((e: OsmEl) => [e.id, e]));
     const solids = [...buildings.map((b) => dequantPts(b.rings[0])), ...landmarks.flatMap((l) => l.rings.map((r) => dequantPts(r).map(([x, z]) => [x + l.x, z + l.z] as Pt)))];
@@ -545,7 +545,7 @@ function main() {
         console.warn(`知名地點找不到位置:${c.id} ${c.name}`);
         continue;
       }
-      const pick = placePickup(anchor, placeRoads, solids, !!c.station);
+      const pick = placePickup(anchor, placeRoads, solids, !!c.station, c.road ?? '');
       if (!pick) {
         inc('placesMissing');
         console.warn(`知名地點找不到接送點:${c.id} ${c.name}`);
@@ -555,7 +555,7 @@ function main() {
       places.push({
         id: c.id, name: c.name, glyph: c.glyph ?? c.name.slice(0, 1), color: c.color,
         x: round2(anchor[0]), z: round2(anchor[1]), px: round2(pick.p[0]), pz: round2(pick.p[1]), road: pick.road,
-        ...(b && { b: b.id, h: b.h / 10 }), ...(lm && { landmark: lm }),
+        ...(b && { b: b.id, h: b.h / 10 }), ...(lm && { landmark: lm, h: landmarks.find((x) => x.id === lm)!.h / 10 }), ...(c.sign === false && { sign: 0 as const }),
       });
       inc('places');
     }

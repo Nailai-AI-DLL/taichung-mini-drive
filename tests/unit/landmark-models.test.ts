@@ -78,6 +78,10 @@ const SIDE_FEATURES: Record<string, { what: string; color: string; bearing: numb
   'station-old': { what: '鐘塔帽頂在 1917 本體(西段)', color: '565c63', bearing: 247 },
   'city-hall': { what: '深色方框在正面(北北東)', color: '4e5257', bearing: 31 },
   council: { what: '方洞空中花園偏西北', color: 'a9c29a', bearing: 302 },
+  // 百貨(decisions/0032;依據 docs/art/dept-stores-reference.md:兩棟正面都朝東北的臺灣大道)
+  'shin-kong': { what: '圓筒頂的光環在正面(東北)', color: 'c6ccd1', bearing: 32 },
+  'top-city': { what: '淡綠條紋玻璃在正面(東北)', color: 'a9cfc2', bearing: 32 },
+  'tiger-city': { what: '藍色招牌在靠河南路的轉角(東)', color: '2d7fc4', bearing: 90 },
 };
 
 async function featureCentroid(file: string, color: string) {

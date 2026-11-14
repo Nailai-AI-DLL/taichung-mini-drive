@@ -149,7 +149,8 @@ describe('範圍 A 資料', () => {
   it('道路、水道、綠地、地標都整理進來，主要道路有等級', () => {
     expect(data.roads.length).toBe(world.roads.length);
     expect(data.areas.length).toBe(world.json.areas.length);
-    expect(data.landmarks.map((l) => l.id).sort()).toEqual(['city-hall', 'council', 'opera', 'station-new', 'station-old']);
+    // 原本的 5 個 P0 地標 + 做了專屬造型的知名地點(decisions/0032:三棟百貨)
+    expect(data.landmarks.map((l) => l.id).sort()).toEqual(['city-hall', 'council', 'opera', 'shin-kong', 'station-new', 'station-old', 'tiger-city', 'top-city']);
     expect(data.roads.find((r) => r.name === '臺灣大道二段')!.rank).toBeGreaterThan(0);
   });
 

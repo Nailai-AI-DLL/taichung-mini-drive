@@ -1,9 +1,9 @@
 {
-  "說明": "知名地點(decisions/0031,Cooper 2026-11-14:17 個全做 + 蔦屋書店;先掛名,之後每棟分階段做專屬造型)。當成慈慈的接送點、小地圖圖示、樓頂招牌。位置來源擇一:osm = OSM 建築或公園的 way / relation id(取外框形心);landmark = landmarks.json 的地標 id(已有專屬模型,不立招牌);station = 捷運站名(取高架橋上的站位);at = [lat, lon](開在樓裡的店,OSM 記成點)。color = 招牌底色與外牆色調(我選的代表色,只用文字、不用商標圖案);glyph = 小地圖上的一個字。model = 專屬造型做好後填 GLB 路徑(目前都還沒有)。",
+  "說明": "知名地點(decisions/0031,Cooper 2026-11-14:17 個全做 + 蔦屋書店;先掛名,之後每棟分階段做專屬造型)。當成慈慈的接送點、小地圖圖示、樓頂招牌。位置來源擇一:osm = OSM 建築或公園的 way / relation id(取外框形心);landmark = landmarks.json 的地標 id(已有專屬模型;加 \"sign\": false 就不立招牌);station = 捷運站名(取高架橋上的站位);at = [lat, lon](開在樓裡的店,OSM 記成點)。color = 招牌底色與外牆色調(我選的代表色,只用文字、不用商標圖案);glyph = 小地圖上的一個字。road = 接送點優先用這條路(路名開頭;正門那一側)。model = 專屬造型做好後填 GLB 路徑(目前都還沒有)。",
   "places": [
-    { "id": "shin-kong", "name": "新光三越", "glyph": "新", "color": "#C8102E", "osm": 148849083 },
-    { "id": "top-city", "name": "大遠百", "glyph": "遠", "color": "#7B4FA3", "osm": 224955652 },
-    { "id": "tiger-city", "name": "老虎城", "glyph": "虎", "color": "#E08A00", "osm": 150999799 },
+    { "id": "shin-kong", "name": "新光三越", "glyph": "新", "color": "#C8102E", "landmark": "shin-kong", "road": "臺灣大道" },
+    { "id": "top-city", "name": "大遠百", "glyph": "遠", "color": "#7B4FA3", "landmark": "top-city", "road": "臺灣大道" },
+    { "id": "tiger-city", "name": "老虎城", "glyph": "虎", "color": "#E08A00", "landmark": "tiger-city" },
     { "id": "golden-jaguar", "name": "金錢豹", "glyph": "豹", "color": "#B8860B", "osm": 233938828 },
     { "id": "mcdonalds-wenxin", "name": "麥當勞", "glyph": "麥", "color": "#D8362A", "osm": 479357752 },
     { "id": "tsutaya", "name": "蔦屋書店", "glyph": "蔦", "color": "#1F3A5F", "at": [24.1605104, 120.6429264], "src": "OSM node 7963491957(shop=books, brand=TSUTAYA);Cooper 給的地址:市政北二路18之1號" },
@@ -16,8 +16,8 @@
     { "id": "chaoma-sports", "name": "朝馬運動中心", "glyph": "運", "color": "#F28A2E", "osm": 544051984 },
     { "id": "ikea", "name": "IKEA", "glyph": "家", "color": "#1F5FBF", "osm": 281241347 },
     { "id": "wenxin-forest-park", "name": "文心森林公園", "glyph": "森", "color": "#3C9A5F", "osm": 3403543 },
-    { "id": "opera", "name": "國家歌劇院", "landmark": "opera", "color": "#8E9AA6" },
-    { "id": "city-hall", "name": "市政府", "landmark": "city-hall", "color": "#8E9AA6" },
-    { "id": "council", "name": "市議會", "landmark": "council", "color": "#8E9AA6" }
+    { "id": "opera", "name": "國家歌劇院", "landmark": "opera", "color": "#8E9AA6", "sign": false },
+    { "id": "city-hall", "name": "市政府", "landmark": "city-hall", "color": "#8E9AA6", "sign": false },
+    { "id": "council", "name": "市議會", "landmark": "council", "color": "#8E9AA6", "sign": false }
   ]
 }

@@ -211,10 +211,12 @@ async function boot() {
   );
   // 招牌:有建築的立在樓頂靠接送點那一側(從接送點往建築走,進到外框內 4 m 處);沒有建築的立在接送點旁、面向行車方向
   for (const pl of places) {
-    if (pl.landmark) continue;
+    if (pl.sign === 0) continue;
     const dx = pl.x - pl.px, dz = pl.z - pl.pz, dist = Math.hypot(dx, dz) || 1;
     let ring: [number, number][] | null = null;
     if (pl.b !== undefined) for (const c of world.chunks.values()) ring ??= c.buildings.find((b) => b.id === pl.b)?.rings[0] ?? null;
+    // 已做專屬造型的地點:外框從地標取(地標外框是相對於地標中心的座標)
+    if (pl.landmark) for (const c of world.chunks.values()) ring ??= c.landmarks.find((l) => l.id === pl.landmark)?.rings[0].map(([x, z]) => [x + pl.x, z + pl.z] as [number, number]) ?? null;
     if (ring && pl.h !== undefined) {
       let t = dist;
       for (let s = 0; s <= dist; s += 1)
@@ -229,6 +231,7 @@ async function boot() {
       scene.add(createPlaceSign({ name: pl.name, color: pl.color, x: pl.px + (ox / ol) * 1.6, z: pl.pz + (oz / ol) * 1.6, facing: hit ? Math.atan2(hit.dirZ, hit.dirX) : 0 }));
     }
   }
+  // 已是地標的地點,小地圖圖示由地標那一層畫
   minimap.places = places.filter((pl) => !pl.landmark).map((pl) => ({ x: pl.x, z: pl.z, glyph: pl.glyph, color: pl.color }));
   const impact = new ImpactDetector();
   const pickupHud = new PickupHud(document.getElementById('hud')!);
