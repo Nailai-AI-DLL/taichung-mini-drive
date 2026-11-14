@@ -27,7 +27,8 @@ import { furnitureShowFromSearch, setFurnitureShow } from './config/furniture';
 import { Traffic } from './traffic/traffic';
 import { TrafficLayer } from './render/traffic';
 import { TRAFFIC } from './config/traffic';
-import { ImpactDetector, PickupGame, pickSpotWithFallback, type PickupEvent } from './game/pickup';
+import { ImpactDetector, PickupGame, pickPlace, pickSpotWithFallback, type PickupEvent } from './game/pickup';
+import { createPlaceSign } from './render/place-signs';
 import { pointInPolygon } from './world/gen/geom';
 import { PICKUP } from './config/pickup';
 import { PickupHud } from './ui/pickup-hud';
@@ -198,7 +199,37 @@ async function boot() {
         for (const b of world.chunks.get(chunkKey(gx, gz))?.buildings ?? []) if (pointInPolygon([x, z], b.rings[0])) return false;
     return true;
   };
-  const game = new PickupGame((from) => pickSpotWithFallback(world.roads, from, Math.random, landmarkSpots, PICKUP, spotValid), Math.random, loadRespect());
+  // 知名地點(decisions/0031):七成從知名地點挑(距離範圍內有的話),其餘 / 挑不到時用一般路邊
+  const places = world.json.places ?? [];
+  const game = new PickupGame(
+    (from) =>
+      (Math.random() < PICKUP.placeShare ? pickPlace(places, from, Math.random) : null) ??
+      pickSpotWithFallback(world.roads, from, Math.random, landmarkSpots, PICKUP, spotValid) ??
+      pickPlace(places, from, Math.random, [PICKUP.range[0] * 0.5, PICKUP.range[1] * 3]),
+    Math.random,
+    loadRespect(),
+  );
+  // 招牌:有建築的立在樓頂靠接送點那一側(從接送點往建築走,進到外框內 4 m 處);沒有建築的立在接送點旁、面向行車方向
+  for (const pl of places) {
+    if (pl.landmark) continue;
+    const dx = pl.x - pl.px, dz = pl.z - pl.pz, dist = Math.hypot(dx, dz) || 1;
+    let ring: [number, number][] | null = null;
+    if (pl.b !== undefined) for (const c of world.chunks.values()) ring ??= c.buildings.find((b) => b.id === pl.b)?.rings[0] ?? null;
+    if (ring && pl.h !== undefined) {
+      let t = dist;
+      for (let s = 0; s <= dist; s += 1)
+        if (pointInPolygon([pl.px + (dx / dist) * s, pl.pz + (dz / dist) * s], ring)) {
+          t = Math.min(dist, s + 4);
+          break;
+        }
+      scene.add(createPlaceSign({ name: pl.name, color: pl.color, x: pl.px + (dx / dist) * t, z: pl.pz + (dz / dist) * t, facing: Math.atan2(-dz, -dx), roofY: pl.h }));
+    } else {
+      const hit = roadIndex.nearest(pl.px, pl.pz, 60);
+      const ox = hit ? pl.px - hit.x : 0, oz = hit ? pl.pz - hit.z : 0, ol = Math.hypot(ox, oz) || 1;
+      scene.add(createPlaceSign({ name: pl.name, color: pl.color, x: pl.px + (ox / ol) * 1.6, z: pl.pz + (oz / ol) * 1.6, facing: hit ? Math.atan2(hit.dirZ, hit.dirX) : 0 }));
+    }
+  }
+  minimap.places = places.filter((pl) => !pl.landmark).map((pl) => ({ x: pl.x, z: pl.z, glyph: pl.glyph, color: pl.color }));
   const impact = new ImpactDetector();
   const pickupHud = new PickupHud(document.getElementById('hud')!);
   pickupHud.setVisible(pickupOn);

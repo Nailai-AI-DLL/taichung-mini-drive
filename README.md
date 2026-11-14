@@ -81,6 +81,7 @@ npm run test:e2e   # browser smoke and performance test (opens Chrome)
 ## Credits
 
 - Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL. OpenStreetMap has few building footprints for Taichung, so most roadside buildings are generated placeholders, not the real ones.
+- The elevated metro line and the named places (department stores, hotels, stations) are positioned from OpenStreetMap; their signs show names only and the buildings are simplified stand-ins.
 - Terrain: Taiwan Ministry of the Interior 20 m DTM (Open Government Data License, version 1.0).
 - The car, tree and street light models were generated with Tripo AI.
 

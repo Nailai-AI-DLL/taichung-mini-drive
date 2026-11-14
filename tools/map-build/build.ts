@@ -15,6 +15,7 @@ import { buildingHeight, buildingKind, clearBuildingsOffRoads, hasShopTags, kind
 import { KIND, SHOP_KINDS } from '../../src/config/buildings';
 import { fillBuildings } from './lib/fill-buildings';
 import { buildViaduct } from './lib/rail';
+import { PLACE_CLEAR, placePickup } from './lib/places';
 import { intersectionSignals, placeFurniture, type FurnitureRoad } from './lib/furniture';
 import { crossingMarked, generateStreet, type StreetCrossing, type StreetResult, type StreetWay } from './lib/street';
 
@@ -362,9 +363,22 @@ function main() {
   // ---- 補虛構建築(decisions/0027):沿道路兩側,沒有建築的地方排上長方形建築 ----
   if (cfg.fill !== false) {
     const solid = [...buildings.map((b) => dequantPts(b.rings[0])), ...landmarks.flatMap((l) => l.rings.map((r) => dequantPts(r).map(([x, z]) => [x + l.x, z + l.z] as Pt)))];
+    // 知名地點(places.json 裡有 OSM 建築或座標的)與地標周圍留空:半徑 = 外框最遠頂點 + PLACE_CLEAR
+    const clear: { p: Pt; r: number }[] = [];
+    const ringClear = (ring: Pt[]) => {
+      const c = areaCentroid(ring);
+      clear.push({ p: c, r: Math.max(...ring.map((p) => Math.hypot(p[0] - c[0], p[1] - c[1]))) + PLACE_CLEAR });
+    };
+    for (const l of landmarks) for (const r of l.rings) ringClear(dequantPts(r).map(([x, z]) => [x + l.x, z + l.z] as Pt));
+    for (const c of JSON.parse(readFileSync(join(ROOT, 'data/landmarks/places.json'), 'utf8')).places as { osm?: number; at?: [number, number] }[]) {
+      const b = c.osm ? buildings.find((x) => x.id === c.osm) : undefined;
+      if (b) ringClear(dequantPts(b.rings[0]));
+      else if (c.at) clear.push({ p: toW({ lat: c.at[0], lon: c.at[1] }), r: PLACE_CLEAR + 15 });
+    }
+    stats.fillClearZones = clear.length;
     const fills = fillBuildings(
       roads.map((r) => ({ id: r.osmId, pts: dequantPts(r.pts), width: r.width, sidewalk: r.sidewalk, highway: r.highway, bridge: roadExtra.get(r.osmId)?.bridge })),
-      { solid, keepOut: areas.map((a) => dequantPts(a.ring)), waterways: waterways.map((w) => ({ pts: dequantPts(w.pts), w: w.w })), heights: buildings.map((b) => b.h / 10) },
+      { solid, keepOut: areas.map((a) => dequantPts(a.ring)), waterways: waterways.map((w) => ({ pts: dequantPts(w.pts), w: w.w })), heights: buildings.map((b) => b.h / 10), clear },
       [rect.minX, rect.minZ, rect.maxX, rect.maxZ],
     );
     // 繞向和 OSM 建築一致
@@ -495,6 +509,57 @@ function main() {
     stats.viaductPiersSkipped = v.pierSkipped;
     stats.viaductStations = v.stations.length;
   }
+  // ---- 知名地點(decisions/0031):位置、接送點、對應的建築 ----
+  const places: NonNullable<WorldJson['places']> = [];
+  {
+    const cfgPlaces: { id: string; name: string; glyph?: string; color: string; osm?: number; landmark?: string; station?: string; at?: [number, number] }[] =
+      JSON.parse(readFileSync(join(ROOT, 'data/landmarks/places.json'), 'utf8')).places;
+    const rawById = new Map<number, OsmEl>(raw.elements.map((e: OsmEl) => [e.id, e]));
+    const solids = [...buildings.map((b) => dequantPts(b.rings[0])), ...landmarks.flatMap((l) => l.rings.map((r) => dequantPts(r).map(([x, z]) => [x + l.x, z + l.z] as Pt)))];
+    const placeRoads = roads.map((r) => ({ name: r.name, highway: r.highway, width: r.width, pts: dequantPts(r.pts) }));
+    const mean = (pts: Pt[]): Pt => [pts.reduce((t, p) => t + p[0], 0) / pts.length, pts.reduce((t, p) => t + p[1], 0) / pts.length];
+    for (const c of cfgPlaces) {
+      let anchor: Pt | null = null;
+      let b: WorldBuilding | undefined;
+      let lm: string | undefined;
+      if (c.landmark) {
+        const l = landmarks.find((x) => x.id === c.landmark);
+        if (l) [anchor, lm] = [[l.x, l.z], l.id];
+      } else if (c.station) {
+        const st = viaduct?.stations.find((x) => x.name === c.station);
+        if (st) anchor = [st.x, st.z];
+      } else if (c.at) {
+        anchor = toW({ lat: c.at[0], lon: c.at[1] });
+        b = buildings.find((x) => pointInPolygon(anchor!, dequantPts(x.rings[0])));
+      } else if (c.osm) {
+        b = buildings.find((x) => x.id === c.osm);
+        if (b) anchor = areaCentroid(dequantPts(b.rings[0]));
+        else {
+          const e = rawById.get(c.osm);
+          const geo = e?.geometry ?? e?.members?.flatMap((m) => m.geometry ?? []);
+          if (geo?.length) anchor = mean(geo.map(toW));
+        }
+      }
+      if (!anchor || !inRect(anchor, rect)) {
+        inc('placesMissing');
+        console.warn(`知名地點找不到位置:${c.id} ${c.name}`);
+        continue;
+      }
+      const pick = placePickup(anchor, placeRoads, solids, !!c.station);
+      if (!pick) {
+        inc('placesMissing');
+        console.warn(`知名地點找不到接送點:${c.id} ${c.name}`);
+        continue;
+      }
+      if (b) b.k = c.color;
+      places.push({
+        id: c.id, name: c.name, glyph: c.glyph ?? c.name.slice(0, 1), color: c.color,
+        x: round2(anchor[0]), z: round2(anchor[1]), px: round2(pick.p[0]), pz: round2(pick.p[1]), road: pick.road,
+        ...(b && { b: b.id, h: b.h / 10 }), ...(lm && { landmark: lm }),
+      });
+      inc('places');
+    }
+  }
   for (const k of Object.keys(stats)) stats[k] = round2(stats[k]);
   const json: WorldJson = {
     version: 2,
@@ -518,6 +583,7 @@ function main() {
     ...(street && { street }),
     ...(furniture && { furniture }),
     ...(viaduct && { viaduct }),
+    ...(places.length && { places }),
   };
   const outDir = join(ROOT, 'public/map', areaName);
   mkdirSync(outDir, { recursive: true });

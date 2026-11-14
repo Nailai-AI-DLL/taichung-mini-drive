@@ -59,7 +59,8 @@ export interface ChunkSrc {
   waterways: { pts: Pt[]; w: number }[];
   areas: { ring: Pt[]; k: 0 | 1 | 2 }[];
   /** t = 細分類(src/config/buildings.ts 的 KIND),s = 一樓畫店面 */
-  buildings: { id: number; h: number; t: BuildingKind; s: boolean; rings: Pt[][]; sharp?: boolean[] }[];
+  /** col = 知名地點的外牆色(decisions/0031);沒有就依 id 從色票挑 */
+  buildings: { id: number; h: number; t: BuildingKind; s: boolean; rings: Pt[][]; sharp?: boolean[]; col?: Rgb }[];
   /**
    * 經過這一格的街道細節(與其他格共用同一份物件)。虛線、枕木線、分隔島四邊形到 buildChunk 才產生,
    * 用完即丟:全區先展開會多佔約 54 MB 記憶體、載入多 130 ms(2026-10-31 實測)
@@ -178,7 +179,7 @@ export function decodeWorld(json: WorldJson): World {
   for (const b of json.buildings) {
     const rings = b.rings.map(toPts);
     const [x, z] = centroid(rings[0]);
-    get(Math.floor(x / size), Math.floor(z / size)).buildings.push({ id: b.id, h: b.h / 10, t: b.t as BuildingKind, s: b.s === 1, rings, ...(b.c && { sharp: sharpFlags(rings[0].length, b.c) }) });
+    get(Math.floor(x / size), Math.floor(z / size)).buildings.push({ id: b.id, h: b.h / 10, t: b.t as BuildingKind, s: b.s === 1, rings, ...(b.c && { sharp: sharpFlags(rings[0].length, b.c) }), ...(b.k && { col: placeWallRgb(b.k) }) });
   }
   for (const l of json.landmarks ?? []) {
     get(Math.floor(l.x / size), Math.floor(l.z / size)).landmarks.push({ id: l.id, name: l.name, model: l.model, x: l.x, z: l.z, h: l.h / 10, rings: l.rings.map(toPts) });
@@ -313,6 +314,13 @@ export function sharpFlags(n: number, idx: readonly number[]): boolean[] {
   return out;
 }
 
+/** 知名地點的外牆色:代表色往白色混 PLACE_WALL_TINT(整棟塗飽和色太重;樓頂招牌才用原色) */
+export const PLACE_WALL_TINT = 0.55;
+export function placeWallRgb(hex: string): Rgb {
+  const c = hexToRgb(hex);
+  return [0, 1, 2].map((i) => Math.round(c[i] + (255 - c[i]) * PLACE_WALL_TINT)) as Rgb;
+}
+
 /** 建築外牆色:依 OSM id 從該細分類的色系中挑一色 */
 export function buildingRgb(id: number, kind: BuildingKind): Rgb {
   const set = PALETTE.buildingKinds[kind].walls;
@@ -361,7 +369,7 @@ export function furnitureCollision(c: ChunkSrc): FurnitureCollision {
 /** 擠出一棟建築(代碼、配色、相接轉角;廟宇加斜屋頂所以不做女兒牆),回傳屋頂面 */
 export function extrudeBuilding(mb: MeshBuilder, bd: ChunkSrc['buildings'][number]) {
   mb.code = buildingCode(bd.id, bd.t, bd.s);
-  return extrude(mb, bd.rings[0], bd.h, buildingRgb(bd.id, bd.t), buildingRoofRgb(bd.t), bd.rings.slice(1), bd.sharp, bd.t !== KIND.Temple);
+  return extrude(mb, bd.rings[0], bd.h, bd.col ?? buildingRgb(bd.id, bd.t), buildingRoofRgb(bd.t), bd.rings.slice(1), bd.sharp, bd.t !== KIND.Temple);
 }
 
 /** 生成一個格子的網格 */

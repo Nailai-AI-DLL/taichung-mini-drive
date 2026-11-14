@@ -62,6 +62,17 @@ export function pickSpot(
   return null;
 }
 
+/** 從知名地點裡挑一個離 from 的直線距離在 range 內的(decisions/0031);沒有回傳 null */
+export function pickPlace(places: { name: string; px: number; pz: number }[], from: { x: number; z: number }, rand: Rand, range: readonly [number, number] = PICKUP.range): Spot | null {
+  const ok = places.filter((p) => {
+    const d = Math.hypot(p.px - from.x, p.pz - from.z);
+    return d >= range[0] && d <= range[1];
+  });
+  if (!ok.length) return null;
+  const p = ok[Math.floor(rand() * ok.length)];
+  return { x: p.px, z: p.pz, label: p.name };
+}
+
 /** 先照正常距離挑;挑不到(例如在地圖角落)就放寬距離再挑,避免卡住 */
 export function pickSpotWithFallback(...a: Parameters<typeof pickSpot>): Spot | null {
   const cfg = a[4] ?? PICKUP;

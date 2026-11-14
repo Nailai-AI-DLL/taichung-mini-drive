@@ -102,11 +102,12 @@ const pick = (r: readonly [number, number] | readonly number[], u: number) => r[
 /**
  * 沿道路兩側補建築。
  * obstacles.solid = 既有建築、地標外框;obstacles.keepOut = 綠地、運動場、水面;waterways = 河道中心線與寬度;
+ * obstacles.clear = 圓形淨空區(中心、半徑):知名地點、地標周圍不補。
  * bounds = 地圖範圍 [minX, minZ, maxX, maxZ]。existingHeights 用來判定高樓區(和 solid 的前 N 個一一對應,其餘可省略)。
  */
 export function fillBuildings(
   roads: FillRoad[],
-  obstacles: { solid: Pt[][]; keepOut: Pt[][]; waterways?: { pts: Pt[]; w: number }[]; heights?: number[] },
+  obstacles: { solid: Pt[][]; keepOut: Pt[][]; waterways?: { pts: Pt[]; w: number }[]; heights?: number[]; clear?: { p: Pt; r: number }[] },
   bounds: readonly [number, number, number, number],
 ): FillBuilding[] {
   type Seg = { a: Pt; b: Pt; reach: number };
@@ -155,6 +156,11 @@ export function fillBuildings(
   const free = (q: Pt[]): boolean => {
     const [x0, z0, x1, z1] = bbox(q);
     if (x0 < bounds[0] || z0 < bounds[1] || x1 > bounds[2] || z1 > bounds[3]) return false;
+    // 知名地點、地標周圍留空(decisions/0031:不然會被補的高樓包住、從街上看不到)
+    for (const c of obstacles.clear ?? []) {
+      const nx = Math.max(x0, Math.min(x1, c.p[0])), nz = Math.max(z0, Math.min(z1, c.p[1]));
+      if (Math.hypot(nx - c.p[0], nz - c.p[1]) < c.r) return false;
+    }
     // 取樣點:邊上與內部每 ≤ 2.5 m 一點
     const w = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), d = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]);
     const nu = Math.max(2, Math.ceil(w / 2.5)), nv = Math.max(2, Math.ceil(d / 2.5));

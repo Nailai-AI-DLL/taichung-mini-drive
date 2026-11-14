@@ -30,6 +30,8 @@ export interface WorldBuilding {
   s?: 1;
   /** 和隔壁建築相接、不做圓角的外環頂點索引(對應 rings[0]);沒有這個欄位 = 全部做圓角 */
   c?: number[];
+  /** 知名地點的外牆色(#RRGGBB;decisions/0031);有這個欄位就不用色票 */
+  k?: string;
   /** 1 = 建置時補的虛構建築(不是 OSM 的實際建築;decisions/0027) */
   f?: 1;
   /** rings[0] 外環,其餘為中庭(內環);座標量化同道路 */
@@ -129,6 +131,27 @@ export interface WorldJson {
   street?: WorldStreet;
   furniture?: WorldFurniture;
   viaduct?: WorldViaduct;
+  places?: WorldPlace[];
+}
+
+/**
+ * 知名地點(decisions/0031):(x, z) = 地點本身(建築或公園的形心、捷運站位);(px, pz) = 接送點(路邊);road = 接送點所在路名。
+ * b = 對應的建築 id(有才有;執行端用 color 調外牆色、在樓頂立招牌);h = 那棟建築的高度(公尺);
+ * landmark = 已有專屬模型的地標 id(不立招牌)。
+ */
+export interface WorldPlace {
+  id: string;
+  name: string;
+  glyph: string;
+  color: string;
+  x: number;
+  z: number;
+  px: number;
+  pz: number;
+  road: string;
+  b?: number;
+  h?: number;
+  landmark?: string;
 }
 
 /**
