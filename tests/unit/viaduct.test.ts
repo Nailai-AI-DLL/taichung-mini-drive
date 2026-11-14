@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildViaduct, chainLines } from '../../tools/map-build/lib/rail';
-import { addViaduct, viaductCollision, viaductSpans } from '../../src/world/gen/viaduct';
+import { addStation, addViaduct, viaductCollision, viaductSpans } from '../../src/world/gen/viaduct';
 import { MeshBuilder } from '../../src/world/gen/mesh';
 import { VIADUCT } from '../../src/config/viaduct';
 import { decodeWorld } from '../../src/world/chunks';
@@ -56,6 +56,49 @@ describe('高架橋(建置)', () => {
   });
 });
 
+describe('車站(decisions/0033)', () => {
+  it('站體範圍內墩柱加密(約 15 m 一根),站外照舊 30 m', () => {
+    const v = buildViaduct(tracks, [{ name: '甲站', p: [0, 0] }], lanes, B);
+    const near = v.piers.filter((p) => Math.abs(p.p[0]) < VIADUCT.stationHalf[0]).map((p) => p.p[0]).sort((a, b) => a - b);
+    const far = v.piers.filter((p) => p.p[0] > VIADUCT.stationHalf[0] + 30).map((p) => p.p[0]).sort((a, b) => a - b);
+    const gap = (xs: number[]) => Math.min(...xs.slice(1).map((x, i) => x - xs[i]));
+    expect(near.length).toBeGreaterThanOrEqual(5);
+    expect(gap(near)).toBeLessThan(20);
+    expect(gap(far)).toBeGreaterThan(25);
+  });
+
+  const box = (mb: MeshBuilder) => {
+    const p = mb.toArrays().position;
+    let y0 = Infinity, y1 = -Infinity, w = 0;
+    for (let i = 0; i < p.length; i += 3) {
+      y0 = Math.min(y0, p[i + 1]);
+      y1 = Math.max(y1, p[i + 1]);
+      w = Math.max(w, Math.abs(p[i + 2]));
+    }
+    return { y0, y1, w };
+  };
+  it('站體:底(裙板)在車子上方、頂約 20 m、寬約 28 m;弧形屋簷的站比較高', () => {
+    const flat = new MeshBuilder({ wall: true });
+    addStation(flat, { name: '市政府', p: [0, 0], a: 0 });
+    const f = box(flat);
+    expect(f.y0).toBeCloseTo(VIADUCT.hull[0]);
+    expect(f.y0).toBeGreaterThan(6);
+    expect(f.y1).toBeCloseTo(VIADUCT.roof[1]);
+    expect(f.w).toBeCloseTo(VIADUCT.stationHalf[1] + VIADUCT.roof[2], 0);
+    const arch = new MeshBuilder({ wall: true });
+    addStation(arch, { name: '文心森林公園', p: [0, 0], a: 0 });
+    expect(box(arch).y1).toBeGreaterThan(f.y1 + 1);
+  });
+
+  it('空橋從站體側面接到建築,在車子上方', () => {
+    const mb = new MeshBuilder({ wall: true });
+    addStation(mb, { name: '市政府', p: [0, 0], a: 0, bridges: [[[0, 14], [0, 40]]] });
+    const b = box(mb);
+    expect(b.w).toBeGreaterThanOrEqual(40);
+    expect(VIADUCT.bridge[0]).toBeGreaterThan(6);
+  });
+});
+
 describe('高架橋(遊戲端)', () => {
   it('橋面切成不超過 spanLen 的小段,首尾相接', () => {
     const sp = viaductSpans([[0, 0], [100, 0], [100, 40]]);
@@ -83,6 +126,9 @@ describe('高架橋(遊戲端)', () => {
     expect(v.stations.length).toBe(10);
     expect(v.stations.map((s) => s.name)).toContain('市政府');
     expect(v.piers.length / 3).toBeGreaterThan(250);
+    // 有連通建築的站都接了空橋(南屯站的連通建築不在地圖資料裡);有識別色的連通建築帶外牆色
+    expect(v.stations.filter((s) => s.b?.length).length).toBeGreaterThanOrEqual(9);
+    expect(json.buildings.filter((b) => b.k && Object.values(VIADUCT.identity).includes(b.k)).length).toBeGreaterThanOrEqual(6);
     const world = decodeWorld(json);
     let piers = 0, stations = 0, len = 0;
     for (const c of world.chunks.values()) {

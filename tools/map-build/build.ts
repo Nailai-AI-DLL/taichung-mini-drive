@@ -15,6 +15,7 @@ import { buildingHeight, buildingKind, clearBuildingsOffRoads, hasShopTags, kind
 import { KIND, SHOP_KINDS } from '../../src/config/buildings';
 import { fillBuildings } from './lib/fill-buildings';
 import { buildViaduct } from './lib/rail';
+import { VIADUCT } from '../../src/config/viaduct';
 import { PLACE_CLEAR, placePickup } from './lib/places';
 import { intersectionSignals, placeFurniture, type FurnitureRoad } from './lib/furniture';
 import { crossingMarked, generateStreet, type StreetCrossing, type StreetResult, type StreetWay } from './lib/street';
@@ -503,6 +504,40 @@ function main() {
       piers: v.piers.flatMap((p) => [q(p.p[0]), q(p.p[1]), Math.round(p.a * 1000)]),
       stations: v.stations.map((s) => ({ name: s.name, x: round2(s.p[0]), z: round2(s.p[1]), a: Math.round(s.a * 1000) })),
     };
+    // 車站的路邊連通建築(OSM 名稱「捷運○○站」、還留在建築裡的):換識別色、從站體側面拉一條空橋過去(decisions/0033)
+    const byId = new Map(buildings.map((b) => [b.id, b]));
+    for (const st of viaduct.stations) {
+      const ux = Math.cos(st.a / 1000), uz = Math.sin(st.a / 1000);
+      const bridges: number[][] = [];
+      for (const e of raw.elements as OsmEl[]) {
+        if (e.tags?.name !== `捷運${st.name}站`) continue;
+        const b = byId.get(e.id);
+        if (!b) continue;
+        const color = VIADUCT.identity[st.name];
+        if (color) b.k = color;
+        const ring = dequantPts(b.rings[0]);
+        // 建築外框上離站體中心線最近的點(沿線位置限制在站體長度內)
+        let best: { d: number; q: Pt } | null = null;
+        for (let i = 0; i < ring.length; i++) {
+          const a = ring[i], c = ring[(i + 1) % ring.length];
+          for (let k = 0; k <= 10; k++) {
+            const q: Pt = [a[0] + ((c[0] - a[0]) * k) / 10, a[1] + ((c[1] - a[1]) * k) / 10];
+            const du = (q[0] - st.x) * ux + (q[1] - st.z) * uz;
+            if (Math.abs(du) > VIADUCT.stationHalf[0] - 4) continue;
+            const dv = Math.abs(-(q[0] - st.x) * uz + (q[1] - st.z) * ux);
+            if (!best || dv < best.d) best = { d: dv, q };
+          }
+        }
+        if (!best || best.d > VIADUCT.bridgeMax || best.d < VIADUCT.stationHalf[1] + 2) continue;
+        const du = (best.q[0] - st.x) * ux + (best.q[1] - st.z) * uz;
+        const side = Math.sign(-(best.q[0] - st.x) * uz + (best.q[1] - st.z) * ux);
+        const hw = VIADUCT.stationHalf[1];
+        const p1: Pt = [st.x + ux * du - uz * hw * side, st.z + uz * du + ux * hw * side];
+        bridges.push([round2(p1[0]), round2(p1[1]), round2(best.q[0]), round2(best.q[1])]);
+        inc('viaductBridges');
+      }
+      if (bridges.length) st.b = bridges;
+    }
     stats.viaductLengthM = v.lines.reduce((t, l) => t + l.slice(1).reduce((u, p, i) => u + Math.hypot(p[0] - l[i][0], p[1] - l[i][1]), 0), 0);
     stats.viaductPiers = v.piers.length;
     stats.viaductPierSlots = v.pierSlots;

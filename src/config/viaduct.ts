@@ -24,13 +24,40 @@ export const VIADUCT = {
   /** 和橋的夾角餘弦 ≥ 此值算平行 */
   pierParallelCos: 0.85,
   pierShift: [0, 4, -4, 8, -8, 12, -12] as readonly number[],
-  /** 車站(跨在路上的站體):半長、半寬、站體底高與頂高、屋頂挑出與厚度 */
-  stationHalf: [42, 11] as readonly [number, number],
-  stationY: [9.2, 17] as readonly [number, number],
-  roofOver: 1.2,
-  roofH: 0.7,
-  /** 顏色:混凝土、護欄、墩柱、站體、屋頂(綠線的綠) */
-  colors: { deck: '#D4D7DA', parapet: '#E6E8EA', pier: '#BFC4C9', station: '#F2F3F1', roof: '#3FA36B', band: '#3FA36B' },
+  /**
+   * 車站(decisions/0033;依據 docs/art/mrt-station-reference.md,尺寸是 OSM 外框量測 + 照片目測,信心低):
+   * 道路中央、坐在高架橋上的白色長盒,約 100 × 28 m;由下往上:船底形裙板(底寬較窄)→ 白色水平百葉帶 → 玻璃帶 → 白色薄屋頂。
+   * hull = 裙板 [底高, 頂高, 底部半寬];louver / glass = 各帶的 [底, 頂];roof = 屋頂板 [底, 頂, 外挑]。
+   */
+  stationHalf: [50, 14] as readonly [number, number],
+  hull: [8, 11.2, 8] as readonly [number, number, number],
+  louver: [11.2, 14.6] as readonly [number, number],
+  glass: [14.6, 19.0] as readonly [number, number],
+  roof: [19.0, 19.7, 0.9] as readonly [number, number, number],
+  /** 弧形屋簷(CJ930 標的站):中段拱起多高、兩端往下包多少、沿長邊分幾段 */
+  archRise: 1.6,
+  archDrop: 2.6,
+  archSegments: 12,
+  /** CJ930 標(白色弧形 / 微波浪屋簷);其餘(CJ920)是平薄屋頂 */
+  archStations: ['水安宮', '文心森林公園', '南屯', '豐樂公園'] as readonly string[],
+  /** 站體下方墩柱加密:站體範圍內每這麼多公尺一根(一般路段 30 m) */
+  stationPierSpacing: 15,
+  /** 空橋:從站體側面接到路邊的連通建築;[底高, 頂高, 半寬];下半實牆、上半一圈帶狀窗 */
+  bridge: [10.4, 15.2, 2.6] as readonly [number, number, number],
+  bridgeWindow: [12.9, 14.6] as readonly [number, number],
+  /** 連通建築離站體中心最遠多少公尺還接空橋 */
+  bridgeMax: 70,
+  /**
+   * 路邊連通建築的識別色(照片目視估計);not_stated 的站(文華高中、文心櫻花、豐樂公園)不改色。
+   * 文心崇德是灰色棋盤格 + 銅橘入口,這裡只取銅橘;市政府是灰褐格柵 + 綠色玻璃,取綠灰。
+   */
+  identity: { 南屯: '#F2C81E', 四維國小: '#F0A11E', 水安宮: '#A8D46F', 文心森林公園: '#7DC243', 文心崇德: '#C8653A', 市政府: '#7FA391', 文心中清: '#B8BCC0' } as Readonly<Record<string, string>>,
+  /** 顏色:橋面、護欄(綠線的淡黃綠防護牆)、護欄頂的綠框、墩柱、站體各帶 */
+  colors: {
+    deck: '#D4D7DA', parapet: '#B9D67E', rail: '#6FAE3C', pier: '#C8C9C4',
+    hull: '#DCDDD9', louver: '#F2F2F0', glass: '#A9C2C6', roof: '#F5F5F3', mullion: '#FFFFFF', under: '#8C9196',
+    bridgeWall: '#E4E5E2', bridgeGlass: '#9FBFC4',
+  },
   /** 墩柱碰撞高度(公尺) */
   pierHitH: 6,
 };

@@ -163,7 +163,26 @@ export function buildViaduct(
   for (const line of res.lines) {
     const cum = cumLen(line);
     const len = cum[cum.length - 1];
-    for (let s = cfg.pierSpacing / 2; s < len; s += cfg.pierSpacing) {
+    // 站體範圍(沿線位置):墩柱加密(照片:站體段柱距比一般高架段密)
+    const stationS: number[] = [];
+    for (const st of stations) {
+      const n = nearestOnLine(st.p, line);
+      if (n.d < 60) {
+        let best = 0, bd = Infinity;
+        for (let k = 0; k < cum.length; k++) {
+          const d = dist(line[k], n.q);
+          if (d < bd) [bd, best] = [d, cum[k]];
+        }
+        stationS.push(best);
+      }
+    }
+    const slots: number[] = [];
+    for (let s = cfg.pierSpacing / 2; s < len; s += cfg.pierSpacing) slots.push(s);
+    for (const s0 of stationS)
+      for (let s = s0 - cfg.stationHalf[0] + cfg.stationPierSpacing / 2; s < s0 + cfg.stationHalf[0]; s += cfg.stationPierSpacing)
+        if (!slots.some((x) => Math.abs(x - s) < cfg.stationPierSpacing * 0.6)) slots.push(s);
+    slots.sort((x, y) => x - y);
+    for (const s of slots) {
       res.pierSlots++;
       let placed = false;
       for (const shift of cfg.pierShift) {

@@ -416,7 +416,7 @@ export function addBox(mb: MeshBuilder, c: Pt, d: Pt, ha: number, hb: number, y0
 }
 
 /** 四邊形(四點共面),三角形繞向依法向量 nrm 決定 */
-function quad(mb: MeshBuilder, q: [number, number, number][], nrm: [number, number, number], rgb: Rgb) {
+export function quad(mb: MeshBuilder, q: [number, number, number][], nrm: [number, number, number], rgb: Rgb) {
   const i = q.map(([x, y, z]) => mb.vertex(x, y, z, nrm[0], nrm[1], nrm[2], rgb));
   const [a, b, c] = q;
   const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];

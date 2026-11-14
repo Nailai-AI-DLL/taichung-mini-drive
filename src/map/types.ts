@@ -162,7 +162,8 @@ export interface WorldPlace {
 export interface WorldViaduct {
   lines: number[][];
   piers: number[];
-  stations: { name: string; x: number; z: number; a: number }[];
+  /** b = 空橋 [站體端 x, z, 建築端 x, z](公尺;decisions/0033) */
+  stations: { name: string; x: number; z: number; a: number; b?: number[][] }[];
 }
 
 /** 路名索引用的道路(座標為公尺) */

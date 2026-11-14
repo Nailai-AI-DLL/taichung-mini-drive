@@ -193,7 +193,7 @@ export function decodeWorld(json: WorldJson): World {
       const p: Pt = [ps[i] / QUANT, ps[i + 1] / QUANT];
       vd(p).piers.push({ p, a: ps[i + 2] / 1000 });
     }
-    for (const st of json.viaduct.stations) vd([st.x, st.z]).stations.push({ name: st.name, p: [st.x, st.z], a: st.a / 1000 });
+    for (const st of json.viaduct.stations) vd([st.x, st.z]).stations.push({ name: st.name, p: [st.x, st.z], a: st.a / 1000, bridges: (st.b ?? []).map((b) => [[b[0], b[1]], [b[2], b[3]]] as [Pt, Pt]) });
   }
   const fu = json.furniture;
   if (fu) {
