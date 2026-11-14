@@ -112,6 +112,34 @@
         24.16432,
         120.63785
       ]
+    },
+    {
+      "id": "the-lin",
+      "name": "林酒店",
+      "osmIds": [
+        456488572
+      ],
+      "model": "models/landmarks/the-lin.glb",
+      "height": 106,
+      "heightSrc": "SkyscraperPage 屋頂 347 ft ≈ 105.8 m(資料來源標內政部營建署)、Wikidata 106 m;docs/art/hotels-reference.md",
+      "ref": [
+        24.16506,
+        120.63736
+      ]
+    },
+    {
+      "id": "millennium",
+      "name": "日月千禧酒店",
+      "osmIds": [
+        325354906
+      ],
+      "model": "models/landmarks/millennium.glb",
+      "height": 102,
+      "heightSrc": "SkyscraperPage 屋頂 98.95 m(資料來源標營建署使照資料)+ 屋頂招牌鋼構約 3 m;Wikidata 99 m;docs/art/hotels-reference.md",
+      "ref": [
+        24.15671,
+        120.64194
+      ]
     }
   ]
 }

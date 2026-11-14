@@ -82,6 +82,9 @@ const SIDE_FEATURES: Record<string, { what: string; color: string; bearing: numb
   'shin-kong': { what: '圓筒頂的光環在正面(東北)', color: 'c6ccd1', bearing: 32 },
   'top-city': { what: '淡綠條紋玻璃在正面(東北)', color: 'a9cfc2', bearing: 32 },
   'tiger-city': { what: '藍色招牌在靠河南路的轉角(東)', color: '2d7fc4', bearing: 90 },
+  // 飯店(decisions/0034;依據 docs/art/hotels-reference.md)
+  'the-lin': { what: '銅色玻璃塔在凹弧那側(西北西,朝富路)', color: '9c5a4a', bearing: 302 },
+  'millennium': { what: '藍玻璃帶在正面(北北東,市政路)', color: '3e6f8e', bearing: 30 },
 };
 
 async function featureCentroid(file: string, color: string) {
