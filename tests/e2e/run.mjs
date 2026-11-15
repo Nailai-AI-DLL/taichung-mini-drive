@@ -142,8 +142,8 @@ try {
     if (st.over33ms) console.log('  最慢幀分項:', JSON.stringify(st.worst));
     check('高速穿越:小地圖快取重畫 < 8 ms', st.minimapRedraws > 1 && st.minimapMaxRedrawMs < 8, `重畫 ${st.minimapRedraws} 次，最長 ${st.minimapMaxRedrawMs.toFixed(1)} ms`);
   }
-  // 小地圖(M1-plan §5):可切換北朝上 / 車頭朝上;位置與道路對齊。
-  // 對齊的檢查方式(兩種模式各做一次):
+  // 小地圖(M1-plan §5;decisions/0037 起固定北朝上);位置與道路對齊。
+  // 對齊的檢查方式:
   // - 找一個離車子 50–85 m 的道路點 T,它在小地圖上的位置要是道路色;
   // - T 對車子的鏡射點 M(離任何道路邊緣 > 8 m,約 3 px)要不是道路色。
   // 這樣平移、旋轉 180°、鏡像都會失敗(只取樣車頭前方的話，轉 180° 會漏掉;驗收發現)。
@@ -152,9 +152,6 @@ try {
     const g = window.__game;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const modes = [g.state().minimapMode];
-    g.setMinimapMode('north');
-    await sleep(100);
-    modes.push(g.state().minimapMode);
     g.setInput({ throttle: 0, brake: 1, steer: 0, handbrake: false });
     g.setMinimapLabels(false); // 路名底框會擋住取樣點
     const w = await fetch('/map/range-a/world.json').then((r) => r.json());
@@ -185,8 +182,7 @@ try {
     };
     const sp = w.spawn;
     const out = [];
-    for (const mode of ['heading', 'north']) {
-      g.setMinimapMode(mode);
+    for (const mode of ['north']) {
       g.teleport(sp.x, sp.z, sp.headingDeg);
       await sleep(400);
       const s = g.state();
@@ -219,10 +215,56 @@ try {
       out.push({ mode, ok: isRoad(...t) && !isRoad(...m), road: isRoad(...t), mirrorRoad: isRoad(...m), name: found.name });
     }
     g.setMinimapLabels(true);
-    g.setMinimapMode('heading');
     return { modes, out };
   });
-  check('小地圖可切換北朝上 / 車頭朝上', mm.modes[0] === 'heading' && mm.modes[1] === 'north', mm.modes.join(' → '));
+  check('小地圖固定北朝上', mm.modes[0] === 'north', mm.modes.join(' → '));
+  // 大地圖(decisions/0037):開著時遊戲暫停(油門踩到底車子不動)、畫布在畫面內、車子位置畫的是車子箭頭色
+  const big = await page.evaluate(async () => {
+    const g = window.__game;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const w = await fetch('/map/range-a/world.json').then((r) => r.json());
+    g.teleport(w.spawn.x, w.spawn.z, w.spawn.headingDeg);
+    await sleep(300);
+    g.setBigMap(true);
+    g.setInput({ throttle: 1, brake: 0, steer: 0, handbrake: false });
+    const a = g.state();
+    await sleep(800);
+    const b = g.state();
+    const c = document.querySelector('.bigmap canvas');
+    const r = c.getBoundingClientRect();
+    const [x0, z0, x1, z1] = w.meta.bounds;
+    const k = c.width / r.width;
+    const ctx = c.getContext('2d');
+    // 箭頭色和地標圖示的藍色一樣,只看一點會誤判:車子移到 1 km 外一個遠離地標的道路點,
+    // 新位置要出現箭頭色、舊位置的箭頭色要消失(同時驗證東 = 右、北(-z)= 上的方位)
+    const blue = (x, z) => {
+      const px = ((x - x0) / (x1 - x0)) * c.width, py = ((z - z0) / (z1 - z0)) * c.height;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        const p = ctx.getImageData(Math.round(px + dx * k), Math.round(py + dy * k), 1, 1).data;
+        if (Math.hypot(p[0] - 0x2f, p[1] - 0x6f, p[2] - 0xb5) < 12) return true;
+      }
+      return false;
+    };
+    const far = (x, z) => w.landmarks.every((l) => Math.hypot(l.x - x, l.z - z) > 250);
+    const pts = w.roads.map((rd) => ({ x: rd.pts[0] / 10, z: rd.pts[1] / 10 })).filter((p) => far(p.x, p.z));
+    const A = pts[0];
+    const B = pts.find((p) => Math.hypot(p.x - A.x, p.z - A.z) > 1000);
+    g.teleport(A.x, A.z, 0);
+    await sleep(300);
+    const sa = g.state();
+    const atA = blue(sa.x, sa.z);
+    g.teleport(B.x, B.z, 0);
+    await sleep(300);
+    const s2 = g.state();
+    const arrow = atA && blue(s2.x, s2.z) && !blue(sa.x, sa.z);
+    const inView = r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight && r.width > 300;
+    g.setBigMap(false);
+    g.setInput(null);
+    return { open: a.bigMapOpen, moved: Math.hypot(b.x - a.x, b.z - a.z), inView, arrow, size: `${Math.round(r.width)}×${Math.round(r.height)}` };
+  });
+  check('大地圖:開啟時遊戲暫停', big.open && big.moved < 0.05, `移動 ${big.moved.toFixed(3)} m`);
+  check('大地圖:整張地圖在畫面內', big.inView, big.size);
+  check('大地圖:車子位置畫出車子箭頭(移動後跟著移動)', big.arrow, '');
   for (const o of mm.out)
     check(`小地圖對齊(${o.mode === 'north' ? '北朝上' : '車頭朝上'}):道路點畫在道路上、鏡射點不是道路`, o.ok, o.why ?? `${o.name}:道路點 ${o.road ? '是' : '不是'}道路色、鏡射點${o.mirrorRoad ? '是' : '不是'}道路色`);
   // 街道傢俱碰撞(0015 §11.6,Cooper 2026-11-01:要碰撞)。單元測試管不到 main.ts 有沒有把碰撞體加進物理世界,這裡實際開車撞:

@@ -137,3 +137,12 @@ body:has(.overlay[data-mode='title']:not(.hidden)) #hud { opacity: 0; }
 .cici-banner[data-kind='win'] { background: #1fa868; }
 .cici-banner[data-kind='lose'] { background: #e23b2f; }
 .cici-banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+/* ===== 大地圖(decisions/0037):M 鍵開關，整個地圖範圍，北朝上 ===== */
+.bigmap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 27, 46, 0.55); z-index: 20; }
+.bigmap.hidden { display: none; }
+.bigmap-panel { padding: 12px 14px 14px; border-radius: 18px; background: var(--cream); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); }
+.bigmap-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 0 4px 8px; font-size: 13px; }
+.bigmap-head b { font-size: 18px; }
+.bigmap-head kbd { font-family: inherit; font-weight: 800; font-size: 11px; padding: 2px 7px; border-radius: 6px; background: var(--ink); color: #fff; }
+.bigmap canvas { display: block; border-radius: 10px; }

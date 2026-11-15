@@ -33,6 +33,18 @@ export const TRAFFIC = {
   cabin: [2.2, 0.6, 1.6] as readonly [number, number, number],
   /** 車身離地 */
   clearance: 0.3,
-  colors: ['#F2F2EC', '#2B2F36', '#C9342B', '#2F6FD0', '#F2B632', '#8E9AA6', '#3FA36B', '#F28A2E'] as readonly string[],
-  /** 車廂和車身同色(Cooper 2026-11-13:「其他汽車我想改成上下方塊相同顏色」) */
+  /** 車廂和車身同色(Cooper 2026-11-13:「其他汽車我想改成上下方塊相同顏色」)。
+   *  顏色只剩白、黑、黃,黃色 = 計程車(Cooper 2026-11-15,decisions/0037);比例是推論,試玩後再調 */
+  colors: ['#F2F2EC', '#2B2F36', '#F4C20D'] as readonly string[],
+  /** 各顏色出現的權重(和 colors 同順序) */
+  colorWeights: [0.4, 0.3, 0.3] as readonly number[],
+  /** colors 裡哪一個是計程車(車頂加小方塊) */
+  taxiColor: 2,
+  /** 計程車車頂燈箱(公尺):邊長、高、顏色 */
+  taxiSign: { size: 0.45, height: 0.3, color: '#FFFFFF' },
+  /** 公車(綠色長方形,Cooper 2026-11-15):尺寸 長、高、寬(公尺)、離地、顏色;只走 busRoads 的道路 */
+  bus: { size: [11, 2.9, 2.5] as readonly [number, number, number], clearance: 0.35, color: '#3E9B4F' },
+  /** 生成在公車可走的道路上時,有多少機率是公車 */
+  busShare: 0.15,
+  busRoads: ['trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link'] as readonly string[],
 };

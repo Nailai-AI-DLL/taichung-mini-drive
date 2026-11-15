@@ -1,14 +1,13 @@
-// 小地圖(右下):道路線條、主要路名、地標圖示;M 鍵切換車頭朝上 / 北朝上(production-plan.md §3.5)。
+// 小地圖(右下):道路線條、主要路名、地標圖示;固定北朝上(Cooper 2026-11-15,decisions/0037:M 鍵改成開大地圖,原本的車頭朝上切換取消)。
 // 道路與綠地、水面先畫進離屏快取(可視範圍的 2 倍),車子接近快取邊緣才重畫;
 // 每幀只把快取轉一個角度貼上，再畫正立的路名、地標與車子箭頭。邏輯在 minimap-core.ts。
-import { PALETTE } from '../config/palette';
+import { drawCarArrow, drawGlyph, drawMapBase, MAP_COLORS, MAP_FONT } from './map-draw';
 import {
   arrowRotation,
   labelCandidates,
   landmarkGlyph,
   needsRedraw,
   northMarker,
-  overlaps,
   pickLabels,
   uprightAngle,
   viewRotation,
@@ -27,25 +26,15 @@ const SCALE = R / VIEW_R; // px / m
 const CACHE_HALF = VIEW_R * 2; // 快取涵蓋 ±520 m
 const LABEL_EVERY = 6; // 每幾幀重新挑一次路名
 
-const C = {
-  bg: '#ECE8E0',
-  minor: '#FFFFFF',
-  major: '#F7E3AE',
-  majorEdge: '#E2CD93',
-  label: '#47484D',
-  labelMinor: '#6E7076',
-  halo: 'rgba(246, 244, 239, 0.95)',
-  car: '#2F6FB5',
-  ring: '#D8D2C6',
-  icon: '#F6F4EF',
-};
-const FAMILY = "'jf-openhuninn', 'PingFang TC', 'Noto Sans TC', sans-serif";
+const C = MAP_COLORS;
+const FAMILY = MAP_FONT;
 /** 路名字型：主要道路大一點、粗一點 */
 const labelFont = (rank: number) => (rank ? `700 11px ${FAMILY}` : `500 10px ${FAMILY}`);
 
 export class Minimap {
   readonly el = document.createElement('div');
-  mode: MinimapMode = 'heading';
+  /** 固定北朝上(0037);類型保留給 minimap-core 的純函式與測試 */
+  readonly mode: MinimapMode = 'north';
   /** 最近一次重畫快取的耗時(ms)與次數，效能量測用 */
   redrawMs = 0;
   redraws = 0;
@@ -75,18 +64,6 @@ export class Minimap {
     this.ctx = this.canvas.getContext('2d')!;
     this.cacheCtx = this.cache.getContext('2d')!;
     this.resize();
-  }
-
-  toggleMode() {
-    this.mode = this.mode === 'heading' ? 'north' : 'heading';
-    this.labels = [];
-    this.frame = 0;
-  }
-
-  setMode(m: MinimapMode) {
-    this.mode = m;
-    this.labels = [];
-    this.frame = 0;
   }
 
   private resize() {
@@ -162,30 +139,12 @@ export class Minimap {
     for (const lm of this.data.landmarks) {
       const [mx, my] = toMap(lm.x, lm.z);
       if (Math.hypot(mx, my) > R - 10) continue;
-      g.beginPath();
-      g.arc(mx, my, 9, 0, Math.PI * 2);
-      g.fillStyle = C.icon;
-      g.fill();
-      g.lineWidth = 2;
-      g.strokeStyle = C.car;
-      g.stroke();
-      g.fillStyle = C.car;
-      g.font = `700 11px ${FAMILY}`;
-      g.fillText(landmarkGlyph(lm.id, lm.name), mx, my + 0.5);
+      drawGlyph(g, mx, my, 9, landmarkGlyph(lm.id, lm.name), C.icon, C.car, C.car, 2);
     }
     for (const pl of this.places) {
       const [mx, my] = toMap(pl.x, pl.z);
       if (Math.hypot(mx, my) > R - 10) continue;
-      g.beginPath();
-      g.arc(mx, my, 8, 0, Math.PI * 2);
-      g.fillStyle = pl.color;
-      g.fill();
-      g.lineWidth = 1.5;
-      g.strokeStyle = '#fff';
-      g.stroke();
-      g.fillStyle = '#fff';
-      g.font = `700 10px ${FAMILY}`;
-      g.fillText(pl.glyph, mx, my + 0.5);
+      drawGlyph(g, mx, my, 8, pl.glyph, pl.color, '#fff', '#fff', 1.5);
     }
     if (this.target) {
       let [mx, my] = toMap(this.target.x, this.target.z);
@@ -201,17 +160,7 @@ export class Minimap {
     }
     // 車子箭頭：車頭朝上模式永遠朝上;北朝上模式跟著車頭轉
     g.rotate(arrowRotation(this.mode, hx, hz));
-    g.beginPath();
-    g.moveTo(0, -9);
-    g.lineTo(7, 7);
-    g.lineTo(0, 3);
-    g.lineTo(-7, 7);
-    g.closePath();
-    g.fillStyle = C.car;
-    g.lineWidth = 2.5;
-    g.strokeStyle = '#fff';
-    g.stroke();
-    g.fill();
+    drawCarArrow(g);
     g.restore();
 
     // 外圈
@@ -241,42 +190,7 @@ export class Minimap {
     const k = SCALE * this.dpr;
     g.setTransform(k, 0, 0, k, (CACHE_HALF - x) * k, (CACHE_HALF - z) * k);
     g.clearRect(x - CACHE_HALF, z - CACHE_HALF, CACHE_HALF * 2, CACHE_HALF * 2);
-    g.lineCap = 'round';
-    g.lineJoin = 'round';
-
-    const areaColor = [PALETTE.park, PALETTE.pitch, PALETTE.water];
-    for (const a of this.data.areas) {
-      if (!overlaps(a.bbox, area)) continue;
-      g.beginPath();
-      for (let i = 0; i + 1 < a.ring.length; i += 2) (i ? g.lineTo : g.moveTo).call(g, a.ring[i], a.ring[i + 1]);
-      g.closePath();
-      g.fillStyle = areaColor[a.k];
-      g.fill();
-    }
-    g.strokeStyle = PALETTE.water;
-    for (const w of this.data.waterways) {
-      if (!overlaps(w.bbox, area)) continue;
-      g.lineWidth = Math.max(w.width, 2 / SCALE);
-      stroke(g, w.pts);
-    }
-    // 一般道路，再疊主要道路(先畫邊框再畫填色)
-    g.strokeStyle = C.minor;
-    for (const r of this.data.roads) {
-      if (r.rank || !overlaps(r.bbox, area)) continue;
-      g.lineWidth = Math.max(r.width, 1.4 / SCALE);
-      stroke(g, r.pts);
-    }
-    const majors = this.data.roads.filter((r) => r.rank && overlaps(r.bbox, area));
-    g.strokeStyle = C.majorEdge;
-    for (const r of majors) {
-      g.lineWidth = Math.max(r.width, 3 / SCALE) + 1.6 / SCALE;
-      stroke(g, r.pts);
-    }
-    g.strokeStyle = C.major;
-    for (const r of majors) {
-      g.lineWidth = Math.max(r.width, 3 / SCALE);
-      stroke(g, r.pts);
-    }
+    drawMapBase(g, this.data, area, SCALE);
 
     this.win = win;
     this.cands = labelCandidates(this.data, area);
@@ -284,11 +198,4 @@ export class Minimap {
     this.redraws++;
     this.redrawMs = performance.now() - t0;
   }
-}
-
-function stroke(g: CanvasRenderingContext2D, pts: Float32Array) {
-  g.beginPath();
-  g.moveTo(pts[0], pts[1]);
-  for (let i = 2; i + 1 < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]);
-  g.stroke();
 }

@@ -107,3 +107,79 @@ describe('其他車輛', () => {
     expect(t.cars.length).toBe(0);
   });
 });
+
+// 車種(Cooper 2026-11-15,decisions/0037):只有白、黑、黃(黃 = 計程車,車頂有燈箱),外加綠色公車
+import { carSize, distToCar, pickColor } from '../../src/traffic/traffic';
+describe('車種:白 / 黑 / 黃計程車 + 公車', () => {
+  it('顏色只有白、黑、黃三種,黃色是計程車', () => {
+    expect(TRAFFIC.colors.map((c) => c.toUpperCase())).toEqual(['#F2F2EC', '#2B2F36', '#F4C20D']);
+    expect(TRAFFIC.colors[TRAFFIC.taxiColor].toUpperCase()).toBe('#F4C20D');
+    expect(TRAFFIC.colorWeights.length).toBe(TRAFFIC.colors.length);
+  });
+  it('依權重抽色:大量抽樣的比例接近權重', () => {
+    const r = mulberry32(9);
+    const n = [0, 0, 0];
+    for (let i = 0; i < 30000; i++) n[pickColor(r(), TRAFFIC.colorWeights)]++;
+    const sum = TRAFFIC.colorWeights.reduce((a, b) => a + b, 0);
+    TRAFFIC.colorWeights.forEach((w, i) => expect(Math.abs(n[i] / 30000 - w / sum)).toBeLessThan(0.02));
+  });
+  it('公車只生成在主要道路,一般巷道不會有公車', () => {
+    const t = new Traffic([way(1, [-400, 0, 400, 0], { highway: 'primary' }), way(2, [-400, 300, 400, 300])], mulberry32(11));
+    let buses = 0;
+    for (let i = 0; i < 400; i++) {
+      t.update(1 / 60, { x: 0, z: 150 });
+      for (const c of t.cars) if (c.kind === 'bus') {
+        expect(t.ways[c.way].highway).toBe('primary');
+        buses++;
+      }
+    }
+    expect(buses).toBeGreaterThan(0);
+  });
+  it('公車到路口不轉進一般巷道', () => {
+    // 主要道路(東西)在原點和一條巷道(南北)相交
+    const ways = [way(1, [-400, 0, 0, 0, 400, 0], { highway: 'secondary' }), way(2, [0, -400, 0, 0, 0, 400])];
+    const t = new Traffic(ways, mulberry32(12), { ...TRAFFIC, busShare: 1, straight: 0 });
+    for (let i = 0; i < 60 * 30; i++) {
+      t.update(1 / 60, { x: 0, z: 150 });
+      for (const c of t.cars) if (c.kind === 'bus') expect(c.way).toBe(0);
+    }
+  });
+  it('公車比一般車長,跟車時會在前車車尾後面停住,不會疊進去', () => {
+    const t = new Traffic([way(1, [-400, 0, 400, 0], { oneway: true, width: 3.3, highway: 'primary' })], mulberry32(13), { ...TRAFFIC, busShare: 1, count: 0 });
+    // 前面一台靜止的一般車、後面一台公車(手動擺位置:單一路段從 x = −400 開始,x = −400 + s)
+    const got = [];
+    for (let i = 0; i < 300 && got.length < 2; i++) {
+      const c = t.spawn(0, 0);
+      if (c) got.push(c);
+    }
+    expect(got.length).toBe(2);
+    const [front, bus] = got;
+    Object.assign(front, { kind: 'car', s: 450, x: 50, cruise: 0, speed: 0 });
+    Object.assign(bus, { kind: 'bus', s: 420, x: 20, heading: 0 });
+    const bs = carSize('bus'), cs = carSize('car');
+    // 跑 5 秒(被前車擋住超過 stuckSeconds 會消失重生,所以不跑太久)
+    for (let i = 0; i < 60 * 5; i++) {
+      t.update(1 / 60, { x: 0, z: 150 }); // 玩家在旁邊(太遠會被回收),不在車道上
+      if (!t.cars.includes(bus)) break;
+      if (bus.x < front.x) expect(front.x - bus.x).toBeGreaterThan((bs.len + cs.len) / 2);
+    }
+    // 真的有開上來跟在後面(不是一開始就停在遠處)
+    expect(t.cars.includes(bus)).toBe(true);
+    expect(front.x - bus.x).toBeLessThan((bs.len + cs.len) / 2 + 8);
+  });
+});
+
+describe('撞擊判定用的車身距離', () => {
+  it('點到車身外框的距離:公車車頭前 1 m 是 1 m(中心距離是 6.5 m),車身內是 0', () => {
+    const bus = { x: 0, z: 0, heading: 0, kind: 'bus' as const };
+    expect(distToCar(bus, 6.5, 0)).toBeCloseTo(1, 6);
+    expect(distToCar(bus, 0, 2.25)).toBeCloseTo(1, 6);
+    expect(distToCar(bus, 3, 0.5)).toBe(0);
+    // 轉 90°:車頭朝 +z
+    expect(distToCar({ ...bus, heading: Math.PI / 2 }, 0, 6.5)).toBeCloseTo(1, 6);
+  });
+  it('換算後一般車正前後的判定範圍和舊的中心距離規則一樣', () => {
+    const car = { x: 0, z: 0, heading: 0, kind: 'car' as const };
+    expect(distToCar(car, 4.5, 0)).toBeCloseTo(4.5 - TRAFFIC.body[0] / 2, 6);
+  });
+});

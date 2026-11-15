@@ -22,7 +22,32 @@ export interface TrafficCar {
   /** 車道往右偏的距離(公尺,相對中心線) */
   lane: number;
   color: number;
+  /** car = 一般車(含計程車,看 color);bus = 公車(decisions/0037) */
+  kind: 'car' | 'bus';
   stuck: number;
+}
+
+/** 車身長、寬(公尺) */
+export function carSize(kind: TrafficCar['kind'], cfg = TRAFFIC): { len: number; width: number } {
+  return kind === 'bus' ? { len: cfg.bus.size[0], width: cfg.bus.size[2] } : { len: cfg.body[0], width: cfg.body[2] };
+}
+
+/** 點 (x, z) 到車身外框(俯視矩形)的距離;在車身內 = 0。撞擊判定用(公車很長,用中心距離會把撞到車頭車尾算成撞牆) */
+export function distToCar(c: Pick<TrafficCar, 'x' | 'z' | 'heading' | 'kind'>, x: number, z: number, cfg = TRAFFIC): number {
+  const { len, width } = carSize(c.kind, cfg);
+  const hx = Math.cos(c.heading), hz = Math.sin(c.heading);
+  const rx = x - c.x, rz = z - c.z;
+  const a = Math.max(0, Math.abs(rx * hx + rz * hz) - len / 2);
+  const b = Math.max(0, Math.abs(-rx * hz + rz * hx) - width / 2);
+  return Math.hypot(a, b);
+}
+
+/** 依權重抽一個顏色索引 */
+export function pickColor(r: number, weights: readonly number[]): number {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  let t = r * sum;
+  for (let i = 0; i < weights.length; i++) if ((t -= weights[i]) < 0) return i;
+  return weights.length - 1;
 }
 
 export type Rand = () => number;
@@ -48,9 +73,11 @@ export class Traffic {
   /** 生成用:格子 → 線段 (道路, 起點折點) */
   private cells = new Map<string, { w: number; i: number }[]>();
   private usable: boolean[];
+  private busOk: boolean[];
 
   constructor(readonly ways: RoadWay[], private rand: Rand = Math.random, readonly cfg = TRAFFIC) {
     this.usable = ways.map((w) => !cfg.skipHighways.includes(w.highway) && w.points.length >= 4);
+    this.busOk = ways.map((w, i) => this.usable[i] && cfg.busRoads.includes(w.highway));
     ways.forEach((w, wi) => {
       if (!this.usable[wi]) return;
       const p = w.points;
@@ -112,6 +139,7 @@ export class Traffic {
     const turns: Opt[] = [];
     for (const e of this.nodes.get(key(x, z)) ?? []) {
       if (e.w === c.way) continue;
+      if (c.kind === 'bus' && !this.busOk[e.w]) continue; // 公車不轉進小路
       const m = this.ways[e.w].points.length / 2;
       if (e.i + 1 < m) turns.push({ w: e.w, from: e.i, dir: 1 });
       if (e.i - 1 >= 0 && !this.ways[e.w].oneway) turns.push({ w: e.w, from: e.i, dir: -1 });
@@ -141,13 +169,14 @@ export class Traffic {
       const c: TrafficCar = {
         id: this.nextId, x: 0, z: 0, heading: 0, speed: 0, cruise: 0,
         way: e.w, from: dir > 0 ? e.i : e.i + 1, dir, s: 0, lane: this.laneOf(e.w, this.rand()),
-        color: Math.floor(this.rand() * cfg.colors.length), stuck: 0,
+        color: pickColor(this.rand(), cfg.colorWeights), kind: 'car', stuck: 0,
       };
+      if (this.busOk[e.w] && this.rand() < cfg.busShare) c.kind = 'bus';
       c.s = this.rand() * this.seg(c).len;
       const t = this.target(c);
       const d = Math.hypot(t.x - px, t.z - pz);
       if (d < cfg.spawnMin * 0.8 || d > cfg.despawn) continue;
-      if (this.cars.some((o) => Math.hypot(o.x - t.x, o.z - t.z) < cfg.spawnGap)) continue;
+      if (this.cars.some((o) => Math.hypot(o.x - t.x, o.z - t.z) < cfg.spawnGap + (c.kind === 'bus' || o.kind === 'bus' ? cfg.bus.size[0] / 2 : 0))) continue;
       c.x = t.x;
       c.z = t.z;
       c.heading = Math.atan2(t.dz, t.dx);
@@ -172,17 +201,23 @@ export class Traffic {
       const hx = Math.cos(c.heading), hz = Math.sin(c.heading);
       let gap = Infinity;
       let byPlayer = false;
-      const look = (ox: number, oz: number, isPlayer: boolean) => {
+      // 距離用「車頭到對方車尾」換算回兩台一般車的中心距離(lookAhead / stopGap 原本以兩台一般車調的):
+      // ahead − (自己半長 + 對方半長) + 一般車長;公車比較長、比較寬,看得遠一點、寬一點
+      const me = carSize(c.kind, cfg);
+      const base = cfg.body[0];
+      const look = (ox: number, oz: number, isPlayer: boolean, other: { len: number; width: number }) => {
         const rx = ox - c.x, rz = oz - c.z;
-        const ahead = rx * hx + rz * hz;
+        const raw = rx * hx + rz * hz;
+        const ahead = raw - (me.len + other.len) / 2 + base;
         const side = Math.abs(-rx * hz + rz * hx);
-        if (ahead > 0.5 && ahead < cfg.lookAhead && side < cfg.lookSide && ahead < gap) {
+        const sideMax = cfg.lookSide + (me.width + other.width) / 2 - cfg.body[2];
+        if (raw > 0.5 && ahead < cfg.lookAhead && side < sideMax && ahead < gap) {
           gap = ahead;
           byPlayer = isPlayer;
         }
       };
-      look(player.x, player.z, true);
-      for (const o of this.cars) if (o !== c) look(o.x, o.z, false);
+      look(player.x, player.z, true, carSize('car', cfg));
+      for (const o of this.cars) if (o !== c) look(o.x, o.z, false, carSize(o.kind, cfg));
       const want = gap <= cfg.stopGap ? 0 : gap < cfg.lookAhead ? c.cruise * ((gap - cfg.stopGap) / (cfg.lookAhead - cfg.stopGap)) : c.cruise;
       c.speed = want > c.speed ? Math.min(want, c.speed + cfg.accel * dt) : Math.max(want, c.speed - cfg.brake * dt);
       c.stuck = c.speed < 0.3 && !byPlayer ? c.stuck + dt : 0;

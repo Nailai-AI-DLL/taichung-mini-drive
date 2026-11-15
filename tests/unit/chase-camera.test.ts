@@ -184,3 +184,36 @@ describe('第一人稱引擎蓋', () => {
     expect(Math.abs(nose.x)).toBeLessThan(1);
   });
 });
+
+// 加速不拉遠(Cooper 2026-11-15,decisions/0037):構圖距離與 FOV 都不隨車速變
+describe('車速不影響構圖', () => {
+  function distAt(smoothing: Smoothing, mode: number, speed: number) {
+    const cam = new ChaseCamera(16 / 9);
+    cam.setSmoothing(smoothing);
+    cam.setMode(mode);
+    const body = new THREE.Vector3();
+    const pose = new PoseInterpolator();
+    pose.snap(body, ROT);
+    let acc = 0;
+    for (let i = 0; i < 600; i++) {
+      acc += 1 / 60;
+      while (acc >= FIXED) {
+        body.x += speed * FIXED;
+        pose.push(body, ROT);
+        acc -= FIXED;
+      }
+      cam.update(1 / 60, pose.sample(acc / FIXED).position, FWD, speed * 3.6);
+    }
+    return { d: cam.camera.position.distanceTo(pose.sample(acc / FIXED).position), fov: cam.camera.fov, pitch: cam.camera.getWorldDirection(new THREE.Vector3()).y };
+  }
+  it('追尾、近距追尾:靜止與 108 km/h 的鏡頭距離差 < 0.2 m,FOV 都是 60°', () => {
+    for (const s of ['body', 'world'] as Smoothing[])
+      for (const mode of [0, 1]) {
+        const rest = distAt(s, mode, 0), fast = distAt(s, mode, SPEED);
+        expect(Math.abs(fast.d - rest.d)).toBeLessThan(0.2);
+        expect(Math.abs(fast.pitch - rest.pitch)).toBeLessThan(0.003); // 俯角也不變(看點不往前飄)
+        expect(rest.fov).toBe(60);
+        expect(fast.fov).toBe(60);
+      }
+  });
+});

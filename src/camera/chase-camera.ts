@@ -1,13 +1,17 @@
-// 鏡頭:追尾 / 近距追尾 / 第一人稱 / 高空俯視(C 鍵切換)。速度越快 FOV 越寬。
+// 鏡頭:追尾 / 近距追尾 / 第一人稱 / 高空俯視(C 鍵切換)。
+// 車速不影響構圖(Cooper 2026-11-15,decisions/0037:「加速後視角會稍微拉遠…把這效果取消」):
+// FOV 固定 60°,鏡頭到車的距離不隨車速變。
 // 第一人稱(Cooper 2026-11-12,decisions/0017):眼睛在駕駛座(台灣左駕 → 車子左側),位置跟車子硬綁、只緩動高度。
 // 平滑方式有兩種,預設 body(2026-10-24 Cooper 試開後選定,見 docs/decisions/0009 S1);world 保留給測試對照:
 // - world:在世界座標裡 lerp。車子越快,鏡頭落後越多(約 車速 / stiffness),
 //   幀時間不均時落後量跟著跳,鏡頭會前後湧動。
 // - body:在「相對車子的位移」上 lerp(參考 mrdoob/slop-newyork js/cameras.js 的做法,自行改寫)。
-//   直線等速時位移不變,鏡頭穩定;轉彎、換視角仍有緩動。為了和 world 的構圖一致,
-//   依平滑後的車速額外往後拉 車速 / stiffness,看點往後 車速 / (2 × stiffness)。
+//   直線等速時位移不變,鏡頭穩定;轉彎、換視角仍有緩動。
+//   (0037 以前會依車速額外往後拉 車速 / stiffness 來對齊 world 的落後量,這就是「加速後拉遠」;已取消。
+//    反過來讓 world 往前補 車速 / stiffness,兩種方式的構圖仍一致,都不隨車速變)
 import * as THREE from 'three';
-import { DEFAULT_PARAMS } from '../vehicle/params';
+
+export const FOV = 60;
 
 interface Mode {
   name: string;
@@ -44,9 +48,10 @@ export class ChaseCamera {
   private baseY = 0;
   private speed = 0; // 平滑後的車速(m/s)
   private anchored = false;
+  private lastCar = new THREE.Vector3();
 
   constructor(aspect: number) {
-    this.camera = new THREE.PerspectiveCamera(60, aspect, 0.3, 1500);
+    this.camera = new THREE.PerspectiveCamera(FOV, aspect, 0.3, 1500);
   }
 
   get modeName() {
@@ -96,6 +101,7 @@ export class ChaseCamera {
       this.target.set(this.pos.x + forward.x * m.look, y - 0.6, this.pos.z + forward.y * m.look);
       this.initialized = true;
       this.anchored = false; // 切回追尾時從目前位置接續
+      this.lastCar.copy(carPos);
       this.camera.position.copy(this.pos);
       this.camera.lookAt(this.target);
       this.updateFov(dt, speedKmh);
@@ -103,17 +109,21 @@ export class ChaseCamera {
     }
     let back = m.back;
     let look = m.look;
-    if (this.smoothing === 'body') {
-      back += this.speed / m.stiffness;
-      look -= this.speed / (2 * m.stiffness);
+    if (this.smoothing === 'world') {
+      // world 的 lerp 每幀追上 k,等速時穩態落後 = 車速 × dt × (1 − k) / k(約 車速 / stiffness);往前補回來,構圖距離才不隨車速變
+      const lag = k > 0 ? (this.speed * dt * (1 - k)) / k : 0;
+      back -= lag;
+      look += (this.speed * dt * (1 - kLook)) / kLook; // 看點用 kLook 追,落後量另外算
     }
     const desired = new THREE.Vector3(carPos.x - forward.x * back, carPos.y + m.up, carPos.z - forward.y * back);
     const lookAt = new THREE.Vector3(carPos.x + forward.x * look, carPos.y + 0.8, carPos.z + forward.y * look);
     if (!this.initialized) {
-      this.pos.copy(desired);
-      this.target.copy(lookAt);
+      // 第一幀直接放在構圖位置(world 的 desired 往前補過落後量,要扣回來)
+      this.pos.copy(desired).addScaledVector(new THREE.Vector3(forward.x, 0, forward.y), back - m.back);
+      this.target.copy(lookAt).addScaledVector(new THREE.Vector3(forward.x, 0, forward.y), m.look - look);
       this.initialized = true;
       this.anchored = false;
+      this.lastCar.copy(carPos);
     }
     if (this.smoothing === 'world') {
       this.pos.lerp(desired, k);
@@ -121,8 +131,9 @@ export class ChaseCamera {
     } else {
       if (!this.anchored) {
         this.baseY = carPos.y;
-        this.offset.subVectors(this.pos, carPos);
-        this.lookOffset.subVectors(this.target, carPos);
+        // 用上一幀的車位置:pos 是上一幀算的,用這一幀的車位置會多出一幀的位移(高速切換時跳 0.5 m)
+        this.offset.subVectors(this.pos, this.lastCar);
+        this.lookOffset.subVectors(this.target, this.lastCar);
         this.anchored = true;
       }
       // 高度在世界座標裡緩動(路緣、顛簸),水平位置跟著車
@@ -134,6 +145,7 @@ export class ChaseCamera {
       this.target.set(carPos.x, carPos.y, carPos.z).add(this.lookOffset);
       this.target.y += this.baseY - carPos.y;
     }
+    this.lastCar.copy(carPos);
     // 鏡頭不低於地面
     this.pos.y = Math.max(this.pos.y, 0.6);
     this.camera.position.copy(this.pos);
@@ -141,11 +153,10 @@ export class ChaseCamera {
     this.updateFov(dt, speedKmh);
   }
 
-  private updateFov(dt: number, speedKmh: number) {
-    // 速度越快越寬;滿速 = 極速(2026-11-12 改 60 km/h,原本固定 130)
-    const fov = 60 + Math.min(1, Math.abs(speedKmh) / DEFAULT_PARAMS.maxSpeedKmh) * 14;
-    if (Math.abs(this.camera.fov - fov) > 0.05) {
-      this.camera.fov += (fov - this.camera.fov) * Math.min(1, 3 * dt);
+  /** FOV 固定(0037 以前速度越快越寬,最多 +14°,會讓畫面看起來拉遠) */
+  private updateFov(_dt: number, _speedKmh: number) {
+    if (this.camera.fov !== FOV) {
+      this.camera.fov = FOV;
       this.camera.updateProjectionMatrix();
     }
   }

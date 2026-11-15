@@ -20,7 +20,7 @@ export class Hud {
     row.append(this.speedNum, Object.assign(el('span', 'speed-unit'), { textContent: 'km/h' }));
     this.speed.append(row, bar);
     const help = el('div', 'help');
-    const keys: [string, string][] = [['WASD', '開車'], ['空白', '甩尾'], ['R', '回到路面'], ['C', '視角'], ['M', '小地圖'], ['Esc', '暫停']];
+    const keys: [string, string][] = [['WASD', '開車'], ['空白', '甩尾'], ['R', '回到路面'], ['C', '視角'], ['M', '地圖'], ['Esc', '暫停']];
     help.innerHTML = keys.map(([k, t]) => `<span class="key"><kbd>${k}</kbd>${t}</span>`).join('');
     root.classList.add(`hud-${hudTheme(location.search)}`);
     const credit = el('div', 'credit');

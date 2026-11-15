@@ -21,11 +21,12 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { FX_NAMES, type FxName } from './config/look';
 import { Hud } from './ui/hud';
 import { Minimap } from './ui/minimap';
-import { MINIMAP_MODE_NAME, prepareMapData, type MinimapMode } from './ui/minimap-core';
+import { prepareMapData } from './ui/minimap-core';
+import { BigMap } from './ui/bigmap';
 import { createTuningPanel } from './debug/tuning-panel';
 import { propsModeFromSearch, setPropsMode } from './config/props';
 import { furnitureShowFromSearch, setFurnitureShow } from './config/furniture';
-import { Traffic } from './traffic/traffic';
+import { Traffic, distToCar } from './traffic/traffic';
 import { TrafficLayer } from './render/traffic';
 import { TRAFFIC } from './config/traffic';
 import { ImpactDetector, PickupGame, pickPlace, pickSpotWithFallback, type PickupEvent } from './game/pickup';
@@ -137,8 +138,12 @@ async function boot() {
   scene.add(fpHood);
   // 第一人稱時整台車藏起來:AI 模型只有外殼,從車內看引擎蓋是破洞、後照鏡背面一團、描邊(背面外擴殼)亂線(2026-11-12 樣張,decisions/0017)
   const hud = new Hud(document.getElementById('hud')!);
-  const minimap = new Minimap(prepareMapData(world.json, world.roads));
+  const mapData = prepareMapData(world.json, world.roads);
+  const minimap = new Minimap(mapData);
   document.getElementById('hud')!.append(minimap.el);
+  // 大地圖(decisions/0037):M 鍵開關;開著的時候遊戲暫停
+  const bigMap = new BigMap(mapData, world.json.meta.bounds);
+  document.body.append(bigMap.el);
   let minimapMaxRedrawMs = 0;
   const keyboard = new Keyboard();
   const gui = createTuningPanel(vehicle);
@@ -157,13 +162,17 @@ async function boot() {
       trafficBodies.delete(id);
     }
     const [bl, bh, bw] = TRAFFIC.body;
-    const y = TRAFFIC.clearance + (bh + TRAFFIC.cabin[1]) / 2;
+    const [ul, uh, uw] = TRAFFIC.bus.size;
     for (const c of traffic.cars) {
       let b = trafficBodies.get(c.id);
       const rot = { x: 0, y: Math.sin(-c.heading / 2), z: 0, w: Math.cos(-c.heading / 2) };
+      // 公車(decisions/0037)碰撞箱照公車尺寸
+      const bus = c.kind === 'bus';
+      const y = bus ? TRAFFIC.bus.clearance + uh / 2 : TRAFFIC.clearance + (bh + TRAFFIC.cabin[1]) / 2;
       if (!b) {
         b = pw.world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(c.x, y, c.z).setRotation(rot));
-        pw.world.createCollider(R.ColliderDesc.cuboid(bl / 2, (bh + TRAFFIC.cabin[1]) / 2, bw / 2).setFriction(0.4).setRestitution(0.2), b);
+        const half = bus ? [ul / 2, uh / 2, uw / 2] : [bl / 2, (bh + TRAFFIC.cabin[1]) / 2, bw / 2];
+        pw.world.createCollider(R.ColliderDesc.cuboid(half[0], half[1], half[2]).setFriction(0.4).setRestitution(0.2), b);
         trafficBodies.set(c.id, b);
       } else {
         b.setNextKinematicTranslation({ x: c.x, y, z: c.z });
@@ -235,7 +244,7 @@ async function boot() {
     }
   }
   // 已是地標的地點,小地圖圖示由地標那一層畫
-  minimap.places = places.filter((pl) => !pl.landmark).map((pl) => ({ x: pl.x, z: pl.z, glyph: pl.glyph, color: pl.color }));
+  minimap.places = bigMap.places = places.filter((pl) => !pl.landmark).map((pl) => ({ x: pl.x, z: pl.z, glyph: pl.glyph, color: pl.color }));
   const impact = new ImpactDetector();
   const pickupHud = new PickupHud(document.getElementById('hud')!);
   pickupHud.setVisible(pickupOn);
@@ -249,15 +258,15 @@ async function boot() {
         cici.position.set(e.spot.x, 0, e.spot.z);
         cici.visible = true;
         beacon.set(e.spot.x, e.spot.z, 'pickup');
-        minimap.target = { x: e.spot.x, z: e.spot.z, color: MARKER_COLORS.pickup };
+        minimap.target = bigMap.target = { x: e.spot.x, z: e.spot.z, color: MARKER_COLORS.pickup };
       } else if (e.type === 'picked') {
         cici.visible = false;
         beacon.set(e.spot.x, e.spot.z, 'dropoff');
-        minimap.target = { x: e.spot.x, z: e.spot.z, color: MARKER_COLORS.dropoff };
+        minimap.target = bigMap.target = { x: e.spot.x, z: e.spot.z, color: MARKER_COLORS.dropoff };
       } else if (e.type === 'delivered' || e.type === 'failed') {
         cici.visible = false;
         beacon.hide();
-        minimap.target = null;
+        minimap.target = bigMap.target = null;
         saveRespect(e.respect);
         if (e.type === 'delivered') pickupHud.showBanner('win', '接送成功', `尊敬 +${PICKUP.respectWin}(目前 ${e.respect});下一局${PICKUP.name}會比較有耐心`, PICKUP.resultSeconds);
         else pickupHud.showBanner('lose', '接送失敗', `${PICKUP.name}等到不耐煩了;尊敬 ${e.respect}。重新來一局`, PICKUP.resultSeconds);
@@ -305,15 +314,17 @@ async function boot() {
       cam.next();
       hud.showToast(`視角:${cam.modeName}`);
     }
+    // 大地圖開著時,Esc 先關地圖(不叫出暫停選單)
+    if (a === 'pause' && bigMap.open) {
+      bigMap.setOpen(false);
+      return;
+    }
     if (a === 'pause' && started) {
       paused = !paused;
       overlay.dataset.mode = 'pause';
       overlay.classList.toggle('hidden', !paused);
     }
-    if (a === 'map') {
-      minimap.toggleMode();
-      hud.showToast(`小地圖:${MINIMAP_MODE_NAME[minimap.mode]}`);
-    }
+    if (a === 'map' && started) bigMap.toggle();
     if (a === 'debug') {
       gui._hidden ? gui.show() : gui.hide();
       showFps = !gui._hidden || showFps;
@@ -324,8 +335,9 @@ async function boot() {
   for (const b of overlay.querySelectorAll<HTMLButtonElement>('.pause-menu button')) {
     b.addEventListener('click', () => {
       const a = b.dataset.action!;
-      if (a !== 'pause') onAction(a);
+      // 先關選單再做動作(大地圖開著時 Esc 是關地圖,順序反過來會把剛開的地圖關掉)
       if (paused) onAction('pause');
+      if (a !== 'pause') onAction(a);
     });
   }
 
@@ -366,6 +378,7 @@ async function boot() {
     post.setSize(window.innerWidth, window.innerHeight);
     cam.camera.aspect = window.innerWidth / window.innerHeight;
     cam.camera.updateProjectionMatrix();
+    bigMap.relayout();
   });
 
   // 效能統計
@@ -409,7 +422,7 @@ async function boot() {
     }
 
     const tPhys = performance.now();
-    if (started && !paused) {
+    if (started && !paused && !bigMap.open) {
       acc += dt;
       let steps = 0;
       const input = autoInput ?? keyboard.read();
@@ -428,7 +441,8 @@ async function boot() {
           const np = vehicle.position();
           const lv = vehicle.body.linvel();
           if (impact.step(lv.x, lv.z)) {
-            const nearCar = traffic.cars.some((c) => Math.hypot(c.x - np.x, c.z - np.z) < PICKUP.hitCarRange);
+            // 用到車身外框的距離(0037:公車 11 m,中心距離常超過 hitCarRange);hitCarRange 原本是中心距離,扣掉一般車半長換算
+            const nearCar = traffic.cars.some((c) => distToCar(c, np.x, np.z) < PICKUP.hitCarRange - TRAFFIC.body[0] / 2);
             onPickupEvents(game.hit(nearCar ? 'car' : 'wall'));
           }
           onPickupEvents(game.update(FIXED_DT, { x: np.x, z: np.z, speedKmh: vehicle.speedKmh() }));
@@ -486,6 +500,7 @@ async function boot() {
     const redraws = minimap.redraws;
     const tMap = performance.now();
     minimap.update(p.x, p.z, hx, hz, frameWork.build > 2);
+    bigMap.update(p.x, p.z, hx, hz);
     frameWork.minimap = performance.now() - tMap;
     if (minimap.redraws !== redraws) minimapMaxRedrawMs = Math.max(minimapMaxRedrawMs, minimap.redrawMs);
     hud.setFps(fps, showFps);
@@ -511,7 +526,8 @@ async function boot() {
     setCameraSmoothing: (s: Smoothing) => cam.setSmoothing(s),
     inspect: (v: typeof inspectView) => (inspectView = v),
     perf: () => worstFrames.map((f) => ({ ms: +f.ms.toFixed(1), at: f.at, prev: Object.fromEntries(Object.entries(f.prev).map(([k, v]) => [k, +v.toFixed(1)])) })),
-    setMinimapMode: (m: MinimapMode) => minimap.setMode(m),
+    setBigMap: (on: boolean) => bigMap.setOpen(on),
+    trafficCars: () => traffic.cars.map((c) => ({ x: c.x, z: c.z, heading: c.heading, kind: c.kind, color: c.color })),
     setMinimapLabels: (on: boolean) => (minimap.showLabels = on),
     state: () => {
       const p = vehicle.position();
@@ -540,6 +556,7 @@ async function boot() {
         cameraSmoothing: cam.smoothing,
         cameraPos: cam.camera.position.toArray(),
         minimapMode: minimap.mode,
+        bigMapOpen: bigMap.open,
         minimapRedraws: minimap.redraws,
         minimapMaxRedrawMs,
         maxFrameMs: (() => {
