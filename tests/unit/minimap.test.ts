@@ -148,9 +148,12 @@ describe('範圍 A 資料', () => {
 
   it('道路、水道、綠地、地標都整理進來，主要道路有等級', () => {
     expect(data.roads.length).toBe(world.roads.length);
-    expect(data.areas.length).toBe(world.json.areas.length);
+    // 下沉地標(秋紅谷,decisions/0035)的外框也照綠地畫
+    const sinkRings = world.json.landmarks.filter((l) => l.sink).reduce((n, l) => n + l.rings.length, 0);
+    expect(sinkRings).toBeGreaterThan(0);
+    expect(data.areas.length).toBe(world.json.areas.length + sinkRings);
     // 原本的 5 個 P0 地標 + 做了專屬造型的知名地點(decisions/0032:三棟百貨)
-    expect(data.landmarks.map((l) => l.id).sort()).toEqual(['city-hall', 'council', 'millennium', 'opera', 'shin-kong', 'station-new', 'station-old', 'the-lin', 'tiger-city', 'top-city']);
+    expect(data.landmarks.map((l) => l.id).sort()).toEqual(['city-hall', 'council', 'fulfillment', 'ikea', 'maple-garden', 'mcdonalds', 'millennium', 'opera', 'shin-kong', 'station-new', 'station-old', 'the-lin', 'tiger-city', 'top-city']);
     expect(data.roads.find((r) => r.name === '臺灣大道二段')!.rank).toBeGreaterThan(0);
   });
 

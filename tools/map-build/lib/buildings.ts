@@ -218,7 +218,7 @@ const segCross = (a: Pt, b: Pt, c: Pt, e: Pt) => {
 };
 
 /** 保留 f(p) ≥ 0 的那一側(Sutherland–Hodgman,單一直線) */
-function clipHalfPlane(ring: Pt[], f: (p: Pt) => number): Pt[] {
+export function clipHalfPlane(ring: Pt[], f: (p: Pt) => number): Pt[] {
   const out: Pt[] = [];
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i], b = ring[(i + 1) % ring.length];

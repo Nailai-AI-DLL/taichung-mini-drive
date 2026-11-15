@@ -61,10 +61,19 @@ export function prepareMapData(json: WorldJson, roads: RoadWay[]): MapData {
       const pts = Float32Array.from(dequant(w.pts));
       return { pts, bbox: bboxOf(pts), width: w.w, rank: 0, name: '' };
     }),
-    areas: json.areas.map((a) => {
-      const ring = Float32Array.from(dequant(a.ring));
-      return { ring, bbox: bboxOf(ring), k: a.k };
-    }),
+    areas: [
+      ...json.areas.map((a) => {
+        const ring = Float32Array.from(dequant(a.ring));
+        return { ring, bbox: bboxOf(ring), k: a.k };
+      }),
+      // 下沉地標(秋紅谷,decisions/0035)的外框不在 areas 裡,小地圖照綠地畫
+      ...(json.landmarks ?? []).filter((l) => l.sink).flatMap((l) =>
+        l.rings.map((r) => {
+          const ring = Float32Array.from(dequant(r).map((v, i) => v + (i % 2 ? l.z : l.x)));
+          return { ring, bbox: bboxOf(ring), k: 0 as const };
+        }),
+      ),
+    ],
     landmarks: json.landmarks.map((l) => ({ id: l.id, name: l.name, x: l.x, z: l.z })),
   };
 }

@@ -17,6 +17,8 @@ import type { FurnitureCollision } from '../physics/world';
 import { FLOOR_HEIGHT, KIND, type BuildingKind } from '../config/buildings';
 
 // 各圖層高度(毫米級差距)。實際的前後順序靠地面材質依高度做的深度偏移(src/render/scene.ts),遠處也不會閃爍
+import { SINK_RAIL_H } from '../map/types';
+export { SINK_RAIL_H };
 const Y_AREA = 0.01;
 const Y_WATER = 0.015;
 const Y_SIDEWALK = 0.02;
@@ -67,7 +69,7 @@ export interface ChunkSrc {
    */
   street: StreetSrc;
   /** 地標:rings 為相對於 (x, z) 的局部座標 */
-  landmarks: { id: string; name: string; model: string; x: number; z: number; h: number; rings: Pt[][] }[];
+  landmarks: { id: string; name: string; model: string; x: number; z: number; h: number; sink?: number; rings: Pt[][] }[];
   /** 街道傢俱(0015 第四批):依位置分格;a = 懸臂朝向(弧度),arm = 懸臂長(公尺) */
   /** 機車排:p = 第一台中心、a = 排列方向、n = 台數、f = 車頭朝向 */
   furniture: {
@@ -182,7 +184,7 @@ export function decodeWorld(json: WorldJson): World {
     get(Math.floor(x / size), Math.floor(z / size)).buildings.push({ id: b.id, h: b.h / 10, t: b.t as BuildingKind, s: b.s === 1, rings, ...(b.c && { sharp: sharpFlags(rings[0].length, b.c) }), ...(b.k && { col: placeWallRgb(b.k) }) });
   }
   for (const l of json.landmarks ?? []) {
-    get(Math.floor(l.x / size), Math.floor(l.z / size)).landmarks.push({ id: l.id, name: l.name, model: l.model, x: l.x, z: l.z, h: l.h / 10, rings: l.rings.map(toPts) });
+    get(Math.floor(l.x / size), Math.floor(l.z / size)).landmarks.push({ id: l.id, name: l.name, model: l.model, x: l.x, z: l.z, h: l.h / 10, ...(l.sink && { sink: l.sink }), rings: l.rings.map(toPts) });
   }
   // 高架捷運:橋面小段依中點、墩柱與車站依位置分格
   if (json.viaduct) {
@@ -411,7 +413,9 @@ export function buildChunk(c: ChunkSrc, withFurniture = true): ChunkMeshes {
   const landmarkSolids = c.landmarks.map((lm) => {
     const l = new MeshBuilder({ wall: true });
     l.code = buildingCode(0, KIND.Commercial, false);
-    for (const r of lm.rings) extrude(l, r.map(([px, pz]) => [px + lm.x, pz + lm.z] as Pt), lm.h, buildingRgb(0, KIND.Commercial), buildingRoofRgb(KIND.Commercial));
+    // 下沉地標(秋紅谷):碰撞只是一圈欄杆高的擋牆,車子開不進碗裡;模型載入前也只顯示這麼高的平台
+    const h = lm.sink ? SINK_RAIL_H : lm.h;
+    for (const r of lm.rings) extrude(l, r.map(([px, pz]) => [px + lm.x, pz + lm.z] as Pt), h, buildingRgb(0, KIND.Commercial), buildingRoofRgb(KIND.Commercial), [], undefined, !lm.sink);
     return l.toArrays();
   });
   const base = { ground: g.toArrays(), buildings: b.toArrays(), roofProps: props.toArrays(), landmarkSolids };

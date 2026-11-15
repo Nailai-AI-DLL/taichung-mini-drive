@@ -60,7 +60,20 @@ export function groundPlane(bounds: [number, number, number, number]) {
   return { cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2, w: maxX - minX + 2 * GROUND_MARGIN, h: maxZ - minZ + 2 * GROUND_MARGIN };
 }
 
-export function createScene(bounds: [number, number, number, number]): World3D {
+/**
+ * 地面平面;holes = 下沉地標的外框(世界座標 [x, z],decisions/0035),在地面挖洞讓模型往下凹。
+ * ShapeGeometry 在 XY 平面,轉 -90° 後 (x, y) → (x, 0, -y),所以形狀座標用 (x, -z)。
+ */
+export function groundGeometry(bounds: [number, number, number, number], holes: [number, number][][] = []): THREE.BufferGeometry {
+  const gp = groundPlane(bounds);
+  if (!holes.length) return new THREE.PlaneGeometry(gp.w, gp.h).rotateX(-Math.PI / 2).translate(gp.cx, 0, gp.cz);
+  const [x0, x1, z0, z1] = [gp.cx - gp.w / 2, gp.cx + gp.w / 2, gp.cz - gp.h / 2, gp.cz + gp.h / 2];
+  const shape = new THREE.Shape([new THREE.Vector2(x0, -z1), new THREE.Vector2(x1, -z1), new THREE.Vector2(x1, -z0), new THREE.Vector2(x0, -z0)]);
+  for (const h of holes) shape.holes.push(new THREE.Path(h.map(([x, z]) => new THREE.Vector2(x, -z))));
+  return new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
+}
+
+export function createScene(bounds: [number, number, number, number], holes: [number, number][][] = []): World3D {
   const scene = new THREE.Scene();
   scene.background = skyGradient(LOOK_LIGHT.skyTop, LOOK_LIGHT.skyHorizon);
   scene.fog = new THREE.Fog(LOOK_LIGHT.skyHorizon, LOOK_LIGHT.fogNear, LOOK_LIGHT.fogFar);
@@ -84,11 +97,7 @@ export function createScene(bounds: [number, number, number, number]): World3D {
   scene.add(sun, sun.target);
 
   // 原本固定 4000 × 4000 m,蓋不到範圍 A(6.6 × 5.0 km)的東西兩側,露出天空色
-  const gp = groundPlane(bounds);
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(gp.w, gp.h).rotateX(-Math.PI / 2).translate(gp.cx, 0, gp.cz),
-    new THREE.MeshLambertMaterial({ color: PALETTE.ground }),
-  );
+  const ground = new THREE.Mesh(groundGeometry(bounds, holes), new THREE.MeshLambertMaterial({ color: PALETTE.ground }));
   ground.receiveShadow = true;
   scene.add(ground);
   const clouds = createClouds(bounds);

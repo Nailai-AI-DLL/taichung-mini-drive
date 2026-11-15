@@ -5,6 +5,8 @@ import type { Origin } from './projection';
 
 /** 座標量化:世界座標(公尺)× QUANT 取整數 */
 export const QUANT = 10;
+/** 下沉地標碗緣欄杆高(公尺,decisions/0035):遊戲碰撞量體的高度;地圖建置寫進 footprints 給 Blender 腳本用 */
+export const SINK_RAIL_H = 1.1;
 
 /** world.json 內的道路(座標已量化) */
 export interface WorldRoad {
@@ -57,6 +59,8 @@ export interface WorldLandmark {
   x: number; // 世界座標(公尺)
   z: number;
   h: number; // 高度 × 10(整數),用於碰撞與替代量體
+  /** 下沉深度(公尺,decisions/0035):有的話地面在外框挖洞,模型往地面下凹;h 只是周圍欄杆高 */
+  sink?: number;
   /** 外框(可多個),座標量化同道路 */
   rings: number[][];
 }

@@ -8,11 +8,12 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { lonLatToTm2, lonLatToWorld, type Origin } from '../../src/map/projection';
-import { QUANT, type WorldArea, type WorldBuilding, type WorldFurniture, type WorldJson, type WorldLandmark, type WorldRoad, type WorldStreet, type WorldWaterway } from '../../src/map/types';
+import { QUANT, SINK_RAIL_H, type WorldArea, type WorldBuilding, type WorldFurniture, type WorldJson, type WorldLandmark, type WorldRoad, type WorldStreet, type WorldWaterway } from '../../src/map/types';
 import { areaCentroid, assembleRings, centroid, cleanRing, clipPolygon, clipPolyline, inRect, pointInPolygon, signedArea, type Pt, type Rect } from '../../src/world/gen/geom';
 import { defaultWidth, isDrivable, isOneway, resolveWidth, runsAlongside, splitWidth } from './lib/roads';
 import { buildingHeight, buildingKind, clearBuildingsOffRoads, hasShopTags, kindHeight, nearWideRoad, touchingCorners, type HeightSource } from './lib/buildings';
 import { KIND, SHOP_KINDS } from '../../src/config/buildings';
+import { clearSinkOffRoads } from './lib/sink';
 import { fillBuildings } from './lib/fill-buildings';
 import { buildViaduct } from './lib/rail';
 import { VIADUCT } from '../../src/config/viaduct';
@@ -101,7 +102,7 @@ function main() {
   const widthOverrides = loadOverrides('road-width.json');
   const gov = cfg.govWidths && existsSync(join(ROOT, cfg.govWidths)) ? JSON.parse(readFileSync(join(ROOT, cfg.govWidths), 'utf8')).byOsmId : {};
   // 地標(decisions/0013):這些 OSM 建築不進一般建築,改輸出成地標
-  const landmarkCfg: { id: string; name: string; osmIds: number[]; model: string; height?: number }[] = JSON.parse(
+  const landmarkCfg: { id: string; name: string; osmIds: number[]; model: string; height?: number; sink?: number }[] = JSON.parse(
     readFileSync(join(ROOT, 'data/landmarks/landmarks.json'), 'utf8'),
   ).landmarks;
   const landmarkOf = new Map<number, (typeof landmarkCfg)[number]>();
@@ -235,6 +236,8 @@ function main() {
     const isWater = t.natural === 'water';
     if (!isGreen && !isWater) continue;
     const k: WorldArea['k'] = isWater ? 2 : t.leisure === 'pitch' ? 1 : 0;
+    // 綠地本身是地標(秋紅谷這類下沉公園,decisions/0035):外框進地標,不畫成平面綠地
+    const lmArea = landmarkOf.get(el.id);
     let rings: Pt[][] = [];
     if (el.type === 'way' && el.geometry && el.nodes && el.nodes[0] === el.nodes[el.nodes.length - 1]) {
       rings = [el.geometry.map(toW)];
@@ -243,6 +246,16 @@ function main() {
         .filter((m) => m.type === 'way' && m.role !== 'inner' && m.geometry)
         .map((m) => m.geometry!.map(toW));
       rings = assembleRingsByPoint(outers);
+    }
+    if (lmArea) {
+      const e = landmarkRings.get(lmArea.id) ?? { rings: [], h: 0 };
+      for (const r0 of rings) {
+        const r = cleanRing(r0);
+        if (r.length >= 3 && inRect(centroid(r), rect)) e.rings.push(r);
+      }
+      landmarkRings.set(lmArea.id, e);
+      inc('landmarkFootprints');
+      continue;
     }
     for (const r0 of rings) {
       const r = clipPolygon(cleanRing(r0), rect);
@@ -312,6 +325,15 @@ function main() {
       console.warn(`地標 ${l.id} 的 OSM 外框不在區域內,略過`);
       continue;
     }
+    // 下沉地標:外框退出所有道路的路面 + 人行道(地面要挖洞、外緣有擋牆)
+    if (l.sink) {
+      const sinkRoads = roads.map((r) => ({ pts: dequantPts(r.pts), width: r.width, sidewalk: r.sidewalk }));
+      e.rings = e.rings.map((r) => {
+        const res = clearSinkOffRoads(r, sinkRoads);
+        inc('sinkCellsOnRoads', res.moved);
+        return res.ring;
+      });
+    }
     let ax = 0, az = 0, at = 0;
     for (const r of e.rings) {
       const a = Math.abs(signedArea(r));
@@ -323,7 +345,16 @@ function main() {
     const x = ax / at, z = az / at;
     // 有查到實際高度(landmarks.json 的 height,附出處)就用實際值,否則用 OSM 標籤或樓層推估
     const h = l.height ?? e.h;
-    landmarks.push({ id: l.id, name: l.name, model: l.model, x: round2(x), z: round2(z), h: Math.round(h * 10), rings: e.rings.map((r) => qPts(r.map(([px, pz]) => [px - x, pz - z] as Pt))) });
+    landmarks.push({ id: l.id, name: l.name, model: l.model, x: round2(x), z: round2(z), h: Math.round(h * 10), ...(l.sink && { sink: l.sink }), rings: e.rings.map((r) => qPts(r.map(([px, pz]) => [px - x, pz - z] as Pt))) });
+    // 下沉地標:地面在這裡挖洞,外框內的水面、綠地由模型自己畫
+    if (l.sink) {
+      for (let i = areas.length - 1; i >= 0; i--) {
+        if (e.rings.some((r) => pointInPolygon(centroid(dequantPts(areas[i].ring)), r))) {
+          areas.splice(i, 1);
+          inc('areasRemovedInSunkLandmarks');
+        }
+      }
+    }
     for (let i = buildings.length - 1; i >= 0; i--) {
       const c = centroid(dequantPts(buildings[i].rings[0]));
       if (e.rings.some((r) => pointInPolygon(c, r))) {
@@ -463,6 +494,22 @@ function main() {
     stats.signalAtIntersections = intersectionSignals(ap).length;
   }
 
+  /** 下沉地標外框內的水面與橋(OSM),給 Blender 腳本畫碗底的湖與橋;座標同外框(X 東、Y 北、原點 = 地標形心) */
+  const sinkFeatures = (l: WorldLandmark) => {
+    const rings = l.rings.map((r) => dequantPts(r).map(([x, z]) => [x + l.x, z + l.z] as Pt));
+    const toB = (pts: Pt[]) => pts.map(([x, z]) => [round2(x - l.x), round2(-(z - l.z))]);
+    const inside = (pts: Pt[]) => rings.some((r) => pointInPolygon(centroid(pts), r));
+    const water: number[][][] = [];
+    const bridges: number[][][] = [];
+    for (const e of els) {
+      const t = e.tags ?? {};
+      if (e.type !== 'way' || !e.geometry) continue;
+      const pts = e.geometry.map(toW);
+      if (t.natural === 'water' && inside(pts)) water.push(toB(cleanRing(pts)));
+      else if (t.bridge && t.highway && inside(pts)) bridges.push(toB(pts));
+    }
+    return { water, bridges };
+  };
   // 給 Blender 地標腳本用的外框:原點 = 地標形心,Blender 座標 X = 東、Y = 北(= 世界 -Z),單位公尺
   writeFileSync(
     join(ROOT, `data/landmarks/footprints-${areaName}.json`),
@@ -471,7 +518,7 @@ function main() {
         說明: '由 tools/map-build/build.ts 產生,勿手改。Blender 座標:X 東、Y 北、原點 = 地標形心;h = landmarks.json 的 height(查到的實際高度),沒有時用 OSM 高度或樓層推估(公尺)',
         area: areaName,
         landmarks: Object.fromEntries(
-          landmarks.map((l) => [l.id, { name: l.name, h: l.h / 10, rings: l.rings.map((r) => { const out: number[][] = []; for (let i = 0; i < r.length; i += 2) out.push([r[i] / QUANT, -r[i + 1] / QUANT]); return out; }) }]),
+          landmarks.map((l) => [l.id, { name: l.name, h: l.h / 10, ...(l.sink && { sink: l.sink, rail: SINK_RAIL_H, ...sinkFeatures(l) }), rings: l.rings.map((r) => { const out: number[][] = []; for (let i = 0; i < r.length; i += 2) out.push([r[i] / QUANT, -r[i + 1] / QUANT]); return out; }) }]),
         ),
       },
       null,

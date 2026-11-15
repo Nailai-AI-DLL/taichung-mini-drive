@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadWorld } from '../helpers/load-map';
 import { worldToLonLat } from '../../src/map/projection';
-import { buildChunk } from '../../src/world/chunks';
+import { buildChunk, SINK_RAIL_H } from '../../src/world/chunks';
 import { centroid, pointInPolygon, type Pt } from '../../src/world/gen/geom';
 import { QUANT } from '../../src/map/types';
 import { PARAPET_HEIGHT } from '../../src/world/gen/extrude';
@@ -52,8 +52,10 @@ describe('P0 地標', () => {
         const pos = m.landmarkSolids[i].position;
         let top = -Infinity;
         for (let k = 1; k < pos.length; k += 3) top = Math.max(top, pos[k]);
+        // 下沉地標(decisions/0035):只有欄杆高、沒有女兒牆
+        if (l.sink) expect(top, l.id).toBeCloseTo(SINK_RAIL_H, 1);
         // 擠出量體頂端多一道女兒牆
-        expect(top - PARAPET_HEIGHT, l.id).toBeCloseTo(REAL_H[l.id] ?? l.h, 1);
+        else expect(top - PARAPET_HEIGHT, l.id).toBeCloseTo(REAL_H[l.id] ?? l.h, 1);
       });
     }
   });

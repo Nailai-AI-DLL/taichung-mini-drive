@@ -140,6 +140,64 @@
         24.15671,
         120.64194
       ]
+    },
+    {
+      "id": "mcdonalds",
+      "name": "麥當勞文心二店",
+      "osmIds": [
+        479357752
+      ],
+      "model": "models/landmarks/mcdonalds.glb",
+      "height": 9,
+      "heightSrc": "not_stated;推估 2 層店面約 9 m(Commons 照片是從 2 樓座位區往外拍);docs/art/places4-reference.md §一",
+      "ref": [
+        24.157659,
+        120.646395
+      ]
+    },
+    {
+      "id": "ikea",
+      "name": "IKEA 台中店",
+      "osmIds": [
+        281241347
+      ],
+      "model": "models/landmarks/ikea.glb",
+      "height": 26,
+      "heightSrc": "not_stated;推估:新聞地上 4 層 + 屋頂花園,約 24–28 m 取 26;docs/art/places4-reference.md §三",
+      "ref": [
+        24.147742,
+        120.643195
+      ]
+    },
+    {
+      "id": "fulfillment",
+      "name": "圓滿戶外劇場",
+      "osmIds": [
+        1287596507,
+        1287596508
+      ],
+      "model": "models/landmarks/fulfillment.glb",
+      "height": 16,
+      "heightSrc": "官網頂蓋 9.5–11.5 m(可能是淨高,推估);外形最高點 not_stated,照片比例推估 15–18 m 取 16;docs/art/places4-reference.md §四",
+      "ref": [
+        24.146136,
+        120.645858
+      ]
+    },
+    {
+      "id": "maple-garden",
+      "name": "秋紅谷廣場",
+      "osmIds": [
+        224961782
+      ],
+      "model": "models/landmarks/maple-garden.glb",
+      "height": 5,
+      "sink": 6,
+      "heightSrc": "下沉深度 not_stated,照片比例推估 5–7 m 取 6(sink);height = 碗緣玻璃亭屋頂約 5 m(推估);docs/art/places4-reference.md §二",
+      "ref": [
+        24.167238,
+        120.639068
+      ]
     }
   ]
 }

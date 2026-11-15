@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import R from '@dimforge/rapier3d-compat';
 import { fetchWorld } from './map/load';
+import { QUANT } from './map/types';
 import { RoadIndex, RoadNameTracker } from './map/road-index';
 import { addStaticFurniture, addStaticTrimesh, createPhysicsWorld, FIXED_DT, removeBody } from './physics/world';
 import { ChunkStreamer } from './world/streamer';
@@ -53,7 +54,9 @@ async function boot() {
 
   const canvas = document.getElementById('game') as HTMLCanvasElement;
   const renderer = createRenderer(canvas);
-  const world3d = createScene(world.json.meta.bounds);
+  // 下沉地標(秋紅谷,decisions/0035)的外框在地面挖洞
+  const sunkHoles = (world.json.landmarks ?? []).filter((l) => l.sink).flatMap((l) => l.rings.map((r) => { const out: [number, number][] = []; for (let i = 0; i < r.length; i += 2) out.push([l.x + r[i] / QUANT, l.z + r[i + 1] / QUANT]); return out; }));
+  const world3d = createScene(world.json.meta.bounds, sunkHoles);
   const { scene, sun } = world3d;
   // 遠景山脈(decisions/0019):依實際地形;沒有 skyline.json 的區域(m0)就不畫;?fx=mountains:0 可關
   const mountains = skyline ? createMountains(skyline) : null;
