@@ -95,6 +95,10 @@ const SIDE_FEATURES: Record<string, SideFeature | SideFeature[]> = {
   ikea: { what: '黃色塊在東南角', color: 'ffdb00', bearing: 135 },
   fulfillment: { what: '後台建物在根部(東北),開口朝西南', color: 'd9dbd8', bearing: 45 },
   'maple-garden': { what: '橘紅折線橋在湖的西南西段', color: 'e0502a', bearing: 250 },
+  // 第五批(decisions/0036;依據 docs/art/places5-reference.md)
+  'golden-jaguar': { what: '金色燈柱大門在正面(西南,臺灣大道)', color: 'e8b860', bearing: 211 },
+  tsutaya: { what: '大階梯在 L 內凹的廣場、貼著西南支(北北西)', color: '6b5340', bearing: 330 },
+  chaoma: { what: '橘色緞帶與方盒在南側(正面,潮洋溪)', color: 'f2a33a', bearing: 175 },
 };
 
 async function featureCentroid(file: string, color: string) {
@@ -149,11 +153,21 @@ describe('地標模型與外框對位', () => {
           const j = (i + 2) % r.length;
           ringEdges.push([r[i] / QUANT, r[i + 1] / QUANT, r[j] / QUANT, r[j + 1] / QUANT]);
         }
-      const symmetric = worstCornerGap(corners.map(([x, z]) => [x, -z]), ringEdges) < 10;
+      // 門檻隨建築大小縮放(驗收抓到:寫死 10 m 時,30 m 寬的蔦屋 L 形被誤判成對稱)
+      const area = l.rings.reduce((t, r) => {
+        let a = 0;
+        for (let i = 0; i < r.length; i += 2) {
+          const j = (i + 2) % r.length;
+          a += r[i] * r[j + 1] - r[j] * r[i + 1];
+        }
+        return t + Math.abs(a) / 2 / (QUANT * QUANT);
+      }, 0);
+      const mirrorThr = Math.min(10, 0.3 * Math.sqrt(area));
+      const symmetric = worstCornerGap(corners.map(([x, z]) => [x, -z]), ringEdges) < mirrorThr;
       // 對稱時至少要有一個偏南或偏北的特徵(|cos 方位| > 0.5),南北鏡像才會被抓到
       if (symmetric)
         expect([SIDE_FEATURES[l.id] ?? []].flat().some((f) => Math.abs(Math.cos((f.bearing * Math.PI) / 180)) > 0.5), `${l.id} 外框南北對稱,需要偏南 / 偏北的單側特徵`).toBe(true);
-      else expect(worstCornerGap(corners.map(([x, z]) => [x, -z]), edges)).toBeGreaterThan(10);
+      else expect(worstCornerGap(corners.map(([x, z]) => [x, -z]), edges)).toBeGreaterThan(mirrorThr);
       // 反向：模型不能超出外框太多(白框凸出 0.5 m、倒角容許到 3 m)
       const rings = l.rings.map((r) => {
         const out: [number, number][] = [];

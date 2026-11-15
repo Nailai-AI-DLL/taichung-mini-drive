@@ -198,6 +198,48 @@
         24.167238,
         120.639068
       ]
+    },
+    {
+      "id": "golden-jaguar",
+      "name": "金錢豹",
+      "osmIds": [
+        233938828
+      ],
+      "model": "models/landmarks/golden-jaguar.glb",
+      "height": 20,
+      "heightSrc": "not_stated;新聞 4 層,推估 18–22 m 取 20;docs/art/places5-reference.md §一",
+      "ref": [
+        24.162422,
+        120.651088
+      ]
+    },
+    {
+      "id": "tsutaya",
+      "name": "蔦屋書店",
+      "osmIds": [
+        1547615202
+      ],
+      "model": "models/landmarks/tsutaya.glb",
+      "height": 17,
+      "heightSrc": "not_stated;建築師資料地上 4 層,推估 14–18 m 取 17;docs/art/places5-reference.md §二",
+      "ref": [
+        24.16044,
+        120.64293
+      ]
+    },
+    {
+      "id": "chaoma",
+      "name": "朝馬國民運動中心",
+      "osmIds": [
+        544051984
+      ],
+      "model": "models/landmarks/chaoma.glb",
+      "height": 21,
+      "heightSrc": "not_stated;官方地上 3 層、羽球場淨高 12.8 m,推估 18–22 m:東段 20 m + 東南角樓梯塔 21 m;docs/art/places5-reference.md §三",
+      "ref": [
+        24.167997,
+        120.633334
+      ]
     }
   ]
 }

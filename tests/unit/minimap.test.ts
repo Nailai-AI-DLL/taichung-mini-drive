@@ -153,7 +153,7 @@ describe('範圍 A 資料', () => {
     expect(sinkRings).toBeGreaterThan(0);
     expect(data.areas.length).toBe(world.json.areas.length + sinkRings);
     // 原本的 5 個 P0 地標 + 做了專屬造型的知名地點(decisions/0032:三棟百貨)
-    expect(data.landmarks.map((l) => l.id).sort()).toEqual(['city-hall', 'council', 'fulfillment', 'ikea', 'maple-garden', 'mcdonalds', 'millennium', 'opera', 'shin-kong', 'station-new', 'station-old', 'the-lin', 'tiger-city', 'top-city']);
+    expect(data.landmarks.map((l) => l.id).sort()).toEqual(['chaoma', 'city-hall', 'council', 'fulfillment', 'golden-jaguar', 'ikea', 'maple-garden', 'mcdonalds', 'millennium', 'opera', 'shin-kong', 'station-new', 'station-old', 'the-lin', 'tiger-city', 'top-city', 'tsutaya']);
     expect(data.roads.find((r) => r.name === '臺灣大道二段')!.rank).toBeGreaterThan(0);
   });
 
