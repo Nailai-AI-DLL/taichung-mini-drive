@@ -38,7 +38,7 @@ ARCADE_W, ARCADE_H, ARCADE_D = 36.0, 5.0, 3.0  # 地面層架空廊:寬、高、
 TRIM = 1.0  # 弧形下緣白邊寬
 
 C = {  # landmarks-reference.md §5.4(推論色);綠地為推論
-    'glass': '#5A78A0',
+    'glass': '#678AB8',
     'line': '#B8C4D0',
     'hole': '#2A2B2C',
     'trim': '#E8EAEC',

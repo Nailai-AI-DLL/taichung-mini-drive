@@ -34,7 +34,7 @@ CAVE_DEPTH = 9.0  # 洞窟內凹深度
 C = {  # landmarks-reference.md §1.4(推論色)
     'wall': '#B3B8BC',
     'frame': '#F4F3EF',
-    'glass': '#3E5A60',
+    'glass': '#47676E',
     'cave': '#EDEBE6',
     'tower': '#5A6270',
     'green': '#B9CBA8',

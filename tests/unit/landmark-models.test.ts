@@ -84,8 +84,8 @@ const SIDE_FEATURES: Record<string, SideFeature | SideFeature[]> = {
   'top-city': { what: '淡綠條紋玻璃在正面(東北)', color: 'a9cfc2', bearing: 32 },
   'tiger-city': { what: '藍色招牌在靠河南路的轉角(東)', color: '2d7fc4', bearing: 90 },
   // 飯店(decisions/0034;依據 docs/art/hotels-reference.md)
-  'the-lin': { what: '銅色玻璃塔在凹弧那側(西北西,朝富路)', color: 'b07a6a', bearing: 302 },
-  'millennium': { what: '藍玻璃帶在正面(北北東,市政路)', color: '2e5478', bearing: 30 },
+  'the-lin': { what: '銅色玻璃塔在凹弧那側(西北西,朝富路)', color: 'ca8c7a', bearing: 302 },
+  'millennium': { what: '藍玻璃帶在正面(北北東,市政路)', color: '35618a', bearing: 30 },
   // 第四批(decisions/0035;依據 docs/art/places4-reference.md)
   mcdonalds: [
     { what: '木紋挑簷在正面(東,文心路)', color: 'c9a27a', bearing: 90 },

@@ -30,7 +30,7 @@ EAVE_OUT, EAVE_H = 1.4, 0.6
 C = {  # §3-D(目視估計)
     'wall': '#D5D6D3',  # 淺灰白長條板
     'line': '#BFC1BE',  # 水平接縫
-    'shop': '#4A5A5A',  # 底層玻璃店面
+    'shop': '#556767',  # 底層玻璃店面
     'recess': '#4B5357',  # 凹口暗面
     'column': '#ECECE8',  # 圓柱
     'eave': '#5A5D60',  # 西臂屋簷
