@@ -19,3 +19,4 @@ data/elevation/
 
 # Car three-view reference overlay (derived from the reference image; stays local)
 docs/art/mini-3view/overlay.png
+__pycache__/
