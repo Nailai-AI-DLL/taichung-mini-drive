@@ -34,7 +34,7 @@ C = {  # §二-D(目視估計)
     'path': '#D8D2C4',
     'wall': '#B8B8B2',  # 擋土牆、玻璃亭基座
     'pebble': '#CFC8BA',
-    'lake': '#4F7F7A',
+    'lake': '#4F5E44',
     'bridge': '#E0502A',
     'lattice': '#EDEDED',
     'roof': '#F2F2EE',

@@ -45,9 +45,9 @@ C = {  # landmarks-reference.md §3.4(推論色);窗為推論
     'brick': '#A86A5C',
     'cream': '#EDE6D6',
     'roof': '#6B7078',
-    'cap': '#565C63',
+    'cap': '#3E4446',
     'clock': '#F4F2EC',
-    'canopy': '#8C8B82',
+    'canopy': '#6A685C',
     'window': '#5F6670',
 }
 

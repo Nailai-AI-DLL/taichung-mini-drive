@@ -35,10 +35,10 @@ FRAME_RECESS = 3.0  # 框內玻璃內凹
 LOUVER_W = 7.0  # 西段米色百葉帶寬
 
 C = {  # landmarks-reference.md §4.4(推論色)
-    'glass': '#8A9BAE',
+    'glass': '#4A5E78',
     'line': '#B5C0CB',
-    'frame': '#4E5257',
-    'inner': '#7F96A3',
+    'frame': '#2C2C32',
+    'inner': '#2C4052',
     'louver': '#D9D2C3',
     'soffit': '#A9B1B8',  # 川堂天花板(推論)
 }

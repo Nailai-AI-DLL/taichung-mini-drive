@@ -31,12 +31,12 @@ CLOUDS = 7
 
 C = {  # §2-D(目視估計)
     'white': '#F1F1EC',
-    'window': '#4F8198',
-    'blue': '#3E6F8E',
+    'window': '#34506E',
+    'blue': '#2E5478',
     'cloud': '#FFFFFF',
     'red': '#D7262E',
     'slab': '#FAFAF7',
-    'podium_glass': '#8FB3C2',
+    'podium_glass': '#3E5A5C',
 }
 
 

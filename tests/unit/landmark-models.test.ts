@@ -74,18 +74,18 @@ function distToRings(x: number, z: number, rings: [number, number][][]) {
  */
 type SideFeature = { what: string; color: string; bearing: number };
 const SIDE_FEATURES: Record<string, SideFeature | SideFeature[]> = {
-  opera: { what: '舞台塔偏向西北(背面)', color: '7a7e82', bearing: 302 },
+  opera: { what: '舞台塔偏向西北(背面)', color: '5a6270', bearing: 302 },
   'station-new': { what: '樹枝狀柱在大廳側(北北西)', color: 'eef0f0', bearing: 336 },
-  'station-old': { what: '鐘塔帽頂在 1917 本體(西段)', color: '565c63', bearing: 247 },
-  'city-hall': { what: '深色方框在正面(北北東)', color: '4e5257', bearing: 31 },
+  'station-old': { what: '鐘塔帽頂在 1917 本體(西段)', color: '3e4446', bearing: 247 },
+  'city-hall': { what: '深色方框在正面(北北東)', color: '2c2c32', bearing: 31 },
   council: { what: '方洞空中花園偏西北', color: 'a9c29a', bearing: 302 },
   // 百貨(decisions/0032;依據 docs/art/dept-stores-reference.md:兩棟正面都朝東北的臺灣大道)
   'shin-kong': { what: '圓筒頂的光環在正面(東北)', color: 'c6ccd1', bearing: 32 },
   'top-city': { what: '淡綠條紋玻璃在正面(東北)', color: 'a9cfc2', bearing: 32 },
   'tiger-city': { what: '藍色招牌在靠河南路的轉角(東)', color: '2d7fc4', bearing: 90 },
   // 飯店(decisions/0034;依據 docs/art/hotels-reference.md)
-  'the-lin': { what: '銅色玻璃塔在凹弧那側(西北西,朝富路)', color: '9c5a4a', bearing: 302 },
-  'millennium': { what: '藍玻璃帶在正面(北北東,市政路)', color: '3e6f8e', bearing: 30 },
+  'the-lin': { what: '銅色玻璃塔在凹弧那側(西北西,朝富路)', color: 'b07a6a', bearing: 302 },
+  'millennium': { what: '藍玻璃帶在正面(北北東,市政路)', color: '2e5478', bearing: 30 },
   // 第四批(decisions/0035;依據 docs/art/places4-reference.md)
   mcdonalds: [
     { what: '木紋挑簷在正面(東,文心路)', color: 'c9a27a', bearing: 90 },

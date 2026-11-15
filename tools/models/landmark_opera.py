@@ -32,11 +32,11 @@ GLASS_DEPTH = 2.5  # 玻璃帷幕內凹深度
 CAVE_DEPTH = 9.0  # 洞窟內凹深度
 
 C = {  # landmarks-reference.md §1.4(推論色)
-    'wall': '#E4E2DC',
+    'wall': '#B3B8BC',
     'frame': '#F4F3EF',
-    'glass': '#7E949B',
+    'glass': '#3E5A60',
     'cave': '#EDEBE6',
-    'tower': '#7A7E82',
+    'tower': '#5A6270',
     'green': '#B9CBA8',
 }
 
