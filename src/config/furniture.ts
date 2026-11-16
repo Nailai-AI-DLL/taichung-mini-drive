@@ -165,6 +165,8 @@ export function setFurnitureShow(v: { trees: boolean; scooters: boolean }) {
 export const TREE_SCALE_CODE = 10;
 /** 推論:樹高 → 倍率的基準樹高(公尺;遊戲的樹約這麼高)與倍率範圍 */
 export const TREE_REF_HEIGHT = 7;
+/** 所有行道樹畫面上再乘這個大小(Cooper 2026-11-16:「樹的尺寸有點太大了，我覺得可以縮小些」,decisions/0047) */
+export const TREE_DRAW_SCALE = 0.75;
 export const TREE_SCALE_RANGE: readonly [number, number] = [0.6, 1.6];
 /** 推論:實測樹 TREE_GOV_COVER 公尺內不再種規則樹(避免實測路段多種一排) */
 export const TREE_GOV_COVER = 15;

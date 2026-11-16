@@ -121,7 +121,8 @@ export const LOOK_NIGHT = {
  */
 export const HEADLIGHT = {
   color: '#fff2d9',
-  intensity: 600,
+  // 600 → 300(Cooper 2026-11-16:「夜晚模式中我們的車燈太亮了」,decisions/0047)
+  intensity: 300,
   distance: 80,
   angle: 0.75,
   penumbra: 0.7,
@@ -129,7 +130,24 @@ export const HEADLIGHT = {
   pos: [1.9, 0.35, 0] as [number, number, number],
   aim: 25,
   drop: 1.2,
-  lens: 3,
+  lens: 1.6,
+};
+
+/**
+ * 其他車輛的車燈(0047;Cooper:「晚上看不太出來其他的車子在哪裡」):夜裡才顯示。
+ * 頭燈兩顆、尾燈兩顆(小方塊,不受光照、顏色大於 1 讓泛光發光暈);位置是車身長寬高的比例。
+ */
+export const TRAFFIC_LAMPS = {
+  head: '#fff4d6',
+  tail: '#ff2a1a',
+  /** 顏色乘上這個倍數(> 1 才會被夜裡的泛光門檻抓到);紅色亮度低,尾燈要乘多一點才看得到光暈 */
+  boost: 2.4,
+  tailBoost: 6,
+  /** 燈的大小(公尺):長(沿車身)、高、寬 */
+  size: [0.08, 0.16, 0.34] as [number, number, number],
+  /** 燈中心:離車身左右邊緣往內(佔車寬比例)、高度(佔車身高比例) */
+  inset: 0.18,
+  height: 0.6,
 };
 
 /**

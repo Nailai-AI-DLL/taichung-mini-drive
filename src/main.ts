@@ -375,6 +375,7 @@ async function boot() {
     setCloudsNight(world3d.clouds, on ? NIGHT.clouds : 1);
     if (mountains) setCloudsNight(mountains, on ? NIGHT.mountains : 1);
     car.setHeadlights(on);
+    trafficLayer.setNight(on);
   };
   const toggleNight = () => setNightMode(!isNight());
   if (new URLSearchParams(location.search).get('night') === '1') setNightMode(true);

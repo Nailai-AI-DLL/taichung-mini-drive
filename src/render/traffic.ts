@@ -4,12 +4,25 @@ import * as THREE from 'three';
 import { TRAFFIC } from '../config/traffic';
 import type { TrafficCar } from '../traffic/traffic';
 import { toonMaterial } from './car-style';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { TRAFFIC_LAMPS } from '../config/look';
+
+/** 一對車燈(局部 +x = 車頭):x = 前 / 後緣,左右各一顆,高度 = 離地高 */
+function lampPair(x: number, halfW: number, y: number): THREE.BufferGeometry {
+  const [l, h, w] = TRAFFIC_LAMPS.size;
+  const z = halfW - TRAFFIC_LAMPS.inset * halfW * 2 + w / 2;
+  const a = new THREE.BoxGeometry(l, h, w).translate(x, y, z);
+  const b = new THREE.BoxGeometry(l, h, w).translate(x, y, -z);
+  return mergeGeometries([a, b])!;
+}
 
 export class TrafficLayer {
   private body: THREE.InstancedMesh;
   private cabin: THREE.InstancedMesh;
   private sign: THREE.InstancedMesh;
   private bus: THREE.InstancedMesh;
+  /** 夜裡的車燈(0047):一般車 / 公車各一組頭燈、尾燈 */
+  private lamps: { head: THREE.InstancedMesh; tail: THREE.InstancedMesh; bus: boolean }[] = [];
   private colors = TRAFFIC.colors.map((c) => new THREE.Color(c));
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
@@ -32,10 +45,34 @@ export class TrafficLayer {
       mesh.receiveShadow = true;
       scene.add(mesh);
     }
+    const lampMat = (hex: string, k: number) => new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k) });
+    const headMat = lampMat(TRAFFIC_LAMPS.head, TRAFFIC_LAMPS.boost), tailMat = lampMat(TRAFFIC_LAMPS.tail, TRAFFIC_LAMPS.tailBoost);
+    for (const bus of [false, true]) {
+      const [L, H, W] = bus ? TRAFFIC.bus.size : TRAFFIC.body;
+      const y = (bus ? TRAFFIC.bus.clearance : TRAFFIC.clearance) + H * TRAFFIC_LAMPS.height;
+      const pair = {
+        head: new THREE.InstancedMesh(lampPair(L / 2 + 0.02, W / 2, y), headMat, max),
+        tail: new THREE.InstancedMesh(lampPair(-L / 2 - 0.02, W / 2, y), tailMat, max),
+        bus,
+      };
+      for (const m of [pair.head, pair.tail]) {
+        m.count = 0;
+        m.frustumCulled = false;
+        m.visible = false;
+        m.name = `traffic-lamps-${bus ? 'bus' : 'car'}`;
+        scene.add(m);
+      }
+      this.lamps.push(pair);
+    }
     this.body.name = 'traffic-body';
     this.cabin.name = 'traffic-cabin';
     this.sign.name = 'traffic-taxi-sign';
     this.bus.name = 'traffic-bus';
+  }
+
+  /** 夜景開關(0047):車燈只在夜裡顯示 */
+  setNight(on: boolean) {
+    for (const l of this.lamps) l.head.visible = l.tail.visible = on;
   }
 
   sync(cars: readonly TrafficCar[]) {
@@ -67,6 +104,25 @@ export class TrafficLayer {
         this.p.set(cx, TRAFFIC.clearance + bh + ch + TRAFFIC.taxiSign.height / 2, cz);
         this.sign.setMatrixAt(ns++, this.m.compose(this.p, this.q, this.one));
       }
+    }
+    // 車燈:和車身同一個位置與朝向(只有夜裡看得到;白天不畫,省得每幀多算)
+    if (this.lamps[0].head.visible) {
+      const n = [0, 0];
+      for (const c of cars) {
+        const k = c.kind === 'bus' ? 1 : 0;
+        const l = this.lamps[k];
+        if (n[k] >= max) continue;
+        this.q.setFromAxisAngle(this.up, -c.heading);
+        this.p.set(c.x, 0, c.z);
+        this.m.compose(this.p, this.q, this.one);
+        l.head.setMatrixAt(n[k], this.m);
+        l.tail.setMatrixAt(n[k], this.m);
+        n[k]++;
+      }
+      this.lamps.forEach((l, k) => {
+        l.head.count = l.tail.count = n[k];
+        l.head.instanceMatrix.needsUpdate = l.tail.instanceMatrix.needsUpdate = true;
+      });
     }
     this.body.count = this.cabin.count = nc;
     this.sign.count = ns;
