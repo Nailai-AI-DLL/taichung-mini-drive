@@ -9,8 +9,10 @@ export const TRAFFIC = {
   despawn: 280,
   /** 生成時離其他車至少多遠(公尺) */
   spawnGap: 18,
-  /** 巡航時速範圍(km/h) */
+  /** 巡航時速範圍(km/h;道路沒有速限資料時用) */
   speedKmh: [30, 45] as readonly [number, number],
+  /** 推論:有速限(臺中市道路圖,decisions/0046)時,巡航 = 速限 × 每台車固定的係數(這個範圍內亂數) */
+  limitPace: [0.8, 1.0] as readonly [number, number],
   /** 加速、煞車(m/s²) */
   accel: 2.5,
   brake: 9,

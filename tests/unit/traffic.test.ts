@@ -183,3 +183,49 @@ describe('撞擊判定用的車身距離', () => {
     expect(distToCar(car, 4.5, 0)).toBeCloseTo(4.5 - TRAFFIC.body[0] / 2, 6);
   });
 });
+
+describe('依道路圖速限與車道數(0046)', () => {
+  it('有速限:巡航 = 速限 × 0.8–1.0;沒速限:照 speedKmh;換路時重算', () => {
+    const t = new Traffic([way(1, [-400, 0, 0, 0], { spd: 60 }), way(2, [0, 0, 400, 0])], mulberry32(5));
+    for (const pace of [0, 0.5, 1]) {
+      const v = t.cruiseOf({ way: 0, pace }) * 3.6;
+      expect(v).toBeGreaterThanOrEqual(60 * TRAFFIC.limitPace[0] - 1e-9);
+      expect(v).toBeLessThanOrEqual(60 * TRAFFIC.limitPace[1] + 1e-9);
+      const d = t.cruiseOf({ way: 1, pace }) * 3.6;
+      expect(d).toBeGreaterThanOrEqual(TRAFFIC.speedKmh[0] - 1e-9);
+      expect(d).toBeLessThanOrEqual(TRAFFIC.speedKmh[1] + 1e-9);
+    }
+  });
+  it('有車道數:車子落在其中一條車道的中心(雙向 20 m、每向 2 線)', () => {
+    const t = new Traffic([way(1, [-400, 0, 400, 0], { width: 20, lanes: 2 })], mulberry32(6));
+    const lanes = new Set<number>();
+    for (let i = 0; i < 40; i++) {
+      const c = t.spawn(0, 0);
+      if (c) lanes.add(Math.round(Math.abs(c.lane) * 100) / 100);
+      t.cars.length = 0;
+    }
+    // 半寬 10 − 0.3 = 9.7 m ÷ 2 = 4.85 → 每條 LANE_MAX 3.75:中心 1.875、5.625
+    expect([...lanes].sort((a, b) => a - b)).toEqual([1.88, 5.63]);
+  });
+});
+
+import { lanePlan } from '../../tools/map-build/lib/street';
+import { DOUBLE_GAP, LINE_W } from '../../src/config/street';
+describe('單行道緊貼對向時,車子車道和標線一致(0046 驗收)', () => {
+  it('車道中心都落在相鄰兩條標線(或分界、路緣)之間的正中間', () => {
+    const width = 16, shared = 6.4, lanes = 3;
+    // 標線:左正右負;車子:往右為正 → 換號比較
+    const marks = lanePlan({ width, oneway: true, sidewalk: 4, lanes }, shared).filter((m) => m.c === 0).map((m) => -m.o);
+    const ls = -(shared - (LINE_W + DOUBLE_GAP / 2)); // shared − YELLOW_HALF
+    const t = new Traffic([way(1, [-400, 0, 400, 0], { width, oneway: true, lanes, ls })], mulberry32(7));
+    const centers = new Set<number>();
+    for (let i = 0; i < 60; i++) {
+      const c = t.spawn(0, 0);
+      if (c) centers.add(Math.round(c.lane * 1000) / 1000);
+      t.cars.length = 0;
+    }
+    const edges = [ls, ...marks.sort((a, b) => a - b)];
+    expect(centers.size).toBe(lanes);
+    [...centers].sort((a, b) => a - b).forEach((c, k) => expect(c).toBeCloseTo((edges[k] + edges[k + 1]) / 2, 2));
+  });
+});

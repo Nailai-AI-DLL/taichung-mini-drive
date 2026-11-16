@@ -22,6 +22,12 @@ export const BAR_LEN = 4;
 export const LANE = 3.3;
 /** 推論:最外側車道之外剩下 ≥ 2 m 時,當成機慢車道,以快慢車道分隔線(白實線,第 183-1 條)分開 */
 export const SLOW_LANE_MIN = 2;
+/**
+ * 推論:有道路圖車道數時(decisions/0046),每條車道寬限制在這個範圍:
+ * 路面除以車道數比 LANE_MAX 寬 → 車道 LANE_MAX 寬、剩下的當機慢車道;比 LANE_MIN 窄 → 減少車道數到放得下
+ */
+export const LANE_MIN = 2.8;
+export const LANE_MAX = 3.75;
 /** 推論:雙向道路面寬 ≥ 8 m 才畫中線(法規是 6 m 以上,但台中 6–8 m 巷道實際上多半沒畫) */
 export const CENTER_MIN_W = 8;
 /** 推論:路面寬 < 5.5 m 的路不畫任何標線 */

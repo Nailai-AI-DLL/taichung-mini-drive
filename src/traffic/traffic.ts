@@ -4,6 +4,7 @@
 // 前方有車或玩家就煞車;被卡太久就消失重生。
 import type { RoadWay } from '../map/types';
 import { TRAFFIC } from '../config/traffic';
+import { EDGE_INSET, LANE_MAX, LANE_MIN } from '../config/street';
 
 export interface TrafficCar {
   id: number;
@@ -14,6 +15,8 @@ export interface TrafficCar {
   /** 目前車速、巡航車速(m/s) */
   speed: number;
   cruise: number;
+  /** 這台車開速限的幾成(0046;換到別條路時用新路的速限重算巡航) */
+  pace: number;
   /** 所在道路、線段起點折點、方向(+1 順折線、−1 逆)、在線段上走了多遠(公尺) */
   way: number;
   from: number;
@@ -117,6 +120,16 @@ export class Traffic {
 
   private laneOf(w: number, u: number): number {
     const way = this.ways[w];
+    // 有道路圖車道數(0046):和標線同一套排法(tools/map-build/lib/street.ts lanePlan),從內側往外每條 min(LANE_MAX, 可用寬 / 車道數)
+    if (way.lanes) {
+      // 單行:從左緣(或緊貼對向時的分界 ls)往右排到右緣;雙向:從中心線往右
+      const start = way.oneway ? (way.ls ?? -way.width / 2 + EDGE_INSET) : 0;
+      const room = way.width / 2 - EDGE_INSET - start;
+      const n = Math.max(1, Math.min(way.lanes, Math.floor(room / LANE_MIN)));
+      const lw2 = Math.min(LANE_MAX, room / n);
+      const k = Math.min(n - 1, Math.floor(u * n));
+      return start + (k + 0.5) * lw2;
+    }
     const lw = this.cfg.laneWidth;
     if (way.oneway) {
       const n = Math.max(1, Math.round(way.width / lw));
@@ -153,7 +166,16 @@ export class Traffic {
     c.way = next.w;
     c.from = next.from;
     c.dir = next.dir;
+    c.cruise = this.cruiseOf(c);
     return true;
+  }
+
+  /** 巡航速度(m/s):有速限 → 速限 × limitPace 範圍內的係數;沒有 → speedKmh 範圍(0046) */
+  cruiseOf(c: Pick<TrafficCar, 'way' | 'pace'>): number {
+    const cfg = this.cfg;
+    const spd = this.ways[c.way].spd;
+    const kmh = spd ? spd * (cfg.limitPace[0] + c.pace * (cfg.limitPace[1] - cfg.limitPace[0])) : cfg.speedKmh[0] + c.pace * (cfg.speedKmh[1] - cfg.speedKmh[0]);
+    return kmh / 3.6;
   }
 
   /** 在玩家附近的路上生成一台;找不到合適位置回傳 null */
@@ -167,7 +189,7 @@ export class Traffic {
       const way = this.ways[e.w];
       const dir: 1 | -1 = way.oneway || this.rand() < 0.5 ? 1 : -1;
       const c: TrafficCar = {
-        id: this.nextId, x: 0, z: 0, heading: 0, speed: 0, cruise: 0,
+        id: this.nextId, x: 0, z: 0, heading: 0, speed: 0, cruise: 0, pace: 0,
         way: e.w, from: dir > 0 ? e.i : e.i + 1, dir, s: 0, lane: this.laneOf(e.w, this.rand()),
         color: pickColor(this.rand(), cfg.colorWeights), kind: 'car', stuck: 0,
       };
@@ -180,7 +202,8 @@ export class Traffic {
       c.x = t.x;
       c.z = t.z;
       c.heading = Math.atan2(t.dz, t.dx);
-      c.cruise = (cfg.speedKmh[0] + this.rand() * (cfg.speedKmh[1] - cfg.speedKmh[0])) / 3.6;
+      c.pace = this.rand();
+      c.cruise = this.cruiseOf(c);
       c.speed = c.cruise;
       this.nextId++;
       this.cars.push(c);

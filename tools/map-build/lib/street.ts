@@ -3,7 +3,7 @@
 import {
   ANTI_PARALLEL, BAR_LEN, MEDIAN_NOSE, CENTER_MIN_W, CONTINUE_SIN, CROSSWALK_MAX_H, DOUBLE_GAP, EDGE_INSET, EDGE_W, PAVE_BAND_REACH,
   JUNCTION_PAD, PAVE_MAX_GAP, PAVE_OVERLAP, PAVE_STEP,
-  LANE, LINE_W, MARK_MIN_W, MEDIAN_MAX, MEDIAN_MIN, MEDIAN_PROBE, MIN_SIN, PAIR_BREAK, PAIR_STEP, SLOW_LANE_MIN, YELLOW_SIMPLIFY, YELLOW_SMOOTH,
+  LANE, LANE_MAX, LANE_MIN, LINE_W, MARK_MIN_W, MEDIAN_MAX, MEDIAN_MIN, MEDIAN_PROBE, MIN_SIN, PAIR_BREAK, PAIR_STEP, SLOW_LANE_MIN, YELLOW_SIMPLIFY, YELLOW_SMOOTH,
   STOP_CLEAR, STOP_END_MIN, STOP_MIN_W, STOP_W, STRIP_MIN_LEN, ZONE_MAX, ZONE_MERGE,
 } from '../../../src/config/street';
 import { pointInPolygon, type Pt } from '../../../src/world/gen/geom';
@@ -16,6 +16,8 @@ export interface StreetWay {
   oneway: boolean;
   width: number;
   sidewalk: number;
+  /** 每向車道數(臺中市道路圖,decisions/0046);沒有就依路寬推算 */
+  lanes?: number;
   /** 與 line 一一對應;單行道已轉成行車方向 */
   nodes: number[];
   line: Pt[];
@@ -47,6 +49,11 @@ export interface StreetResult {
    * p = 停止線與行車方向右側路緣的交點,dir = 行車方向,half = 路面半寬,highway / name 給號誌篩選用
    */
   approaches?: { p: Pt; dir: Pt; half: number; way: number; highway: string; name: string }[];
+  /**
+   * 單行道左側緊貼對向車道時,車道從哪裡開始往右排(OSM way id → 相對中心線往右的距離,公尺;負 = 中心線左側)。
+   * 其他車輛的車道位置要和標線一致(0046 驗收:不考慮時最多偏 6 m)
+   */
+  laneStart?: Record<number, number>;
 }
 
 /** 巷弄、服務道路不畫標線,也不會切斷別條路的標線 */
@@ -85,18 +92,24 @@ interface Zone {
  * shared:單行道左側緊貼對向車道(OSM 把一條雙向路畫成兩條單行 way,中間沒有分隔島)時,
  * 兩條路的分界離中心線最近多遠。雙黃線另外沿兩條路的中線畫(pairYellow),這裡只從分界往右排車道。
  */
-export function lanePlan(w: Pick<StreetWay, 'width' | 'oneway' | 'sidewalk'>, shared?: number): Mark[] {
+export function lanePlan(w: Pick<StreetWay, 'width' | 'oneway' | 'sidewalk' | 'lanes'>, shared?: number): Mark[] {
   const W = w.width;
   if (W < MARK_MIN_W) return [];
   const half = W / 2;
   const out: Mark[] = [];
   const white = (o: number, dashed: boolean, width = LINE_W): Mark => ({ c: 0, d: dashed ? 1 : 0, w: width, o });
   // 從內側(雙向:中線;單行:左緣)往外排車道;剩下夠寬就是機慢車道
+  // 有道路圖車道數(0046)就照它排,車道寬 = 路面 ÷ 車道數(限制在 LANE_MIN–LANE_MAX);沒有就每 LANE 公尺一條
   const lanesFrom = (inner: number, outer: number, sign: 1 | -1) => {
     const room = Math.abs(outer - inner);
-    const lanes = Math.max(1, Math.floor(room / LANE));
-    for (let k = 1; k < lanes; k++) out.push(white(inner + sign * k * LANE, true));
-    if (room - lanes * LANE >= SLOW_LANE_MIN) out.push(white(inner + sign * lanes * LANE, false));
+    let lanes = Math.max(1, Math.floor(room / LANE));
+    let lw = LANE;
+    if (w.lanes) {
+      lanes = Math.max(1, Math.min(w.lanes, Math.floor(room / LANE_MIN)));
+      lw = Math.min(LANE_MAX, room / lanes);
+    }
+    for (let k = 1; k < lanes; k++) out.push(white(inner + sign * k * lw, true));
+    if (room - lanes * lw >= SLOW_LANE_MIN) out.push(white(inner + sign * lanes * lw, false));
     return lanes;
   };
   if (w.oneway && shared !== undefined) {
@@ -201,6 +214,7 @@ export function generateStreet(ways: StreetWay[], crossings: StreetCrossing[]): 
   // ---- 縱向標線與停止線 ----
   const strips: StreetResult['strips'] = [];
   const approaches: NonNullable<StreetResult['approaches']> = [];
+  const laneStart: Record<number, number> = {};
   ways.forEach((x, xi) => {
     if (isMinor(x)) return;
     const cum = cums[xi];
@@ -211,7 +225,11 @@ export function generateStreet(ways: StreetWay[], crossings: StreetCrossing[]): 
     const ps = pairs[xi].filter((p) => !merged.some((z) => p.s >= z.s0 && p.s <= z.s1));
     const touching = ps.filter(isTouching);
     const shared = ps.length && touching.length * 2 >= ps.length ? Math.min(x.width / 2, Math.min(...touching.map((p) => p.d)) / 2) : undefined;
-    if (shared !== undefined) strips.push(...pairYellow(x, ps));
+    if (shared !== undefined) {
+      strips.push(...pairYellow(x, ps));
+      // lanePlan 的單行 + shared:左緣 = shared − YELLOW_HALF(左正右負)→ 往右的距離取負號
+      if (x.oneway) laneStart[x.id] = -(shared - YELLOW_HALF);
+    }
     const plan = lanePlan(x, shared);
     if (!plan.length) return;
     // 路口範圍之外的區間
@@ -272,7 +290,7 @@ export function generateStreet(ways: StreetWay[], crossings: StreetCrossing[]): 
     ...bands[xi].map((b) => ({ s0: b.s - b.half - MEDIAN_NOSE, s1: b.s + b.half + MEDIAN_NOSE, stop: false })),
   ]);
   const junctions = junctionPatches(ways, cums, hits, bands);
-  return { strips, crosswalks, medians: clipMedians(medians(ways, cums, keepOut, pairs, new SegmentGrid(ways)), junctions), junctions, approaches };
+  return { strips, crosswalks, medians: clipMedians(medians(ways, cums, keepOut, pairs, new SegmentGrid(ways)), junctions), junctions, approaches, laneStart };
 }
 
 /**

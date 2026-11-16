@@ -52,6 +52,8 @@ interface AreaConfig {
   govBuildings?: { base: string; rect: [number, number, number, number] };
   /** 臺中市行道樹(decisions/0042;選用):gov_trees.py 的輸出 JSON */
   govTrees?: string;
+  /** 臺中市道路圖的每向車道數、速限對應(decisions/0046;選用):tools/research/road_lanes_match.py 的輸出 */
+  govLanes?: string;
 }
 
 /** 建物圖建築從被換掉的 OSM 建築繼承的細分類(0039) */
@@ -74,6 +76,7 @@ const AREAS: Record<string, AreaConfig> = {
     // 0039:2026-11-16 先做西屯路 + 七期樣張([24.146, 120.63, 24.168, 120.676]),Cooper 看過後同意鋪到整區
     govBuildings: { base: 'data/gov/buildings/shp/01-SHP/b114', rect: [24.12, 120.62, 24.185, 120.705] },
     govTrees: 'data/gov/trees/trees-range-a.json',
+    govLanes: 'data/gov/roads/lanes-range-a.json',
     // 2026-10-31 先做樣張區(歌劇院周邊 1 km × 1 km:{ center: OPERA_HOUSE, half: 500 }),Cooper 看過後同意鋪到整區
     detail: 'all',
   },
@@ -130,6 +133,8 @@ function main() {
   const inc = (k: string, v = 1) => (stats[k] = (stats[k] ?? 0) + v);
 
   // 政府路寬的後處理(平行 way 平分、沿河排除)需要完整幾何,先記下來
+  /** 政府路寬被幾條平行 way 平分(0011);車道數也照比例分(0046) */
+  const splitOf = new Map<number, number>();
   const govWays: { id: number; tags: Record<string, string>; line: Pt[]; carriage: number; pieces: WorldRoad[] }[] = [];
   const waterLines = els
     .filter((e) => e.type === 'way' && e.tags?.waterway && e.geometry)
@@ -326,12 +331,34 @@ function main() {
       const width = round2(splitWidth(w.carriage, n));
       for (const r of w.pieces) r.width = width;
       inc(`govSplitInto${n}M`, len);
+      splitOf.set(w.id, n);
     }
   }
 
   // ---- 街道細節(decisions/0015):用政府路寬後處理完的寬度 ----
   let street: WorldStreet | undefined;
   let streetRaw: StreetResult | undefined;
+  // ---- 臺中市道路圖:每向車道數、速限(decisions/0046)→ 道路(標線、其他車輛的車道與車速) ----
+  if (cfg.govLanes && existsSync(join(ROOT, cfg.govLanes))) {
+    const lanes: Record<string, { n?: number; spd?: number }> = JSON.parse(readFileSync(join(ROOT, cfg.govLanes), 'utf8')).byOsmId;
+    for (const r of roads) {
+      const g = lanes[String(r.osmId)];
+      if (!g) continue;
+      if (g.n) {
+        // 政府路寬被 n 條平行 way 平分時(例:臺灣大道每向又分快車道、慢車道兩條 way),車道數也平分:
+        // 整條路共 2 × 每向車道數,分給 n 條;單行 way 全給行車方向,雙向 way 再除以 2。
+        // 無條件捨去(四捨五入會讓總數變多:5 線分兩條 → 3 + 3,驗收發現);臺灣大道每向 5 → 快 2 + 慢 2(公車道沒畫)
+        const n = splitOf.get(r.osmId) ?? 1;
+        r.lanes = n > 1 ? Math.max(1, Math.floor((2 * g.n) / n / (r.oneway ? 1 : 2))) : g.n;
+        inc('roadLengthLanesM', polyLen(dequantPts(r.pts)));
+      }
+      if (g.spd) {
+        r.spd = g.spd;
+        inc('roadLengthSpeedM', polyLen(dequantPts(r.pts)));
+      }
+    }
+  } else if (cfg.govLanes) console.warn(`找不到車道數資料 ${cfg.govLanes},標線依路寬推算`);
+
   let detailRect: Rect | undefined;
   if (cfg.detail) {
     if (cfg.detail === 'all') detailRect = rect;
@@ -342,8 +369,13 @@ function main() {
     }
     const sw: StreetWay[] = streetWays
       .filter((w) => w.pieces.length)
-      .map((w) => ({ id: w.id, name: w.tags.name ?? '', highway: w.tags.highway, oneway: isOneway(w.tags), width: w.pieces[0].width, sidewalk: w.pieces[0].sidewalk, nodes: w.nodes, line: w.line }));
+      .map((w) => ({ id: w.id, name: w.tags.name ?? '', highway: w.tags.highway, oneway: isOneway(w.tags), width: w.pieces[0].width, sidewalk: w.pieces[0].sidewalk, ...(w.pieces[0].lanes && { lanes: w.pieces[0].lanes }), nodes: w.nodes, line: w.line }));
     streetRaw = generateStreet(sw, crossings);
+    // 單行道緊貼對向時車道的起點(0046 驗收):給其他車輛排車道用
+    for (const r of roads) {
+      const ls = streetRaw.laneStart?.[r.osmId];
+      if (ls !== undefined && r.lanes) r.ls = round2(ls);
+    }
     street = quantStreet(streetRaw, detailRect);
     stats.streetStrips = street.strips.length;
     stats.streetCrosswalks = street.crosswalks.length;

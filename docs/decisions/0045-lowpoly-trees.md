@@ -1,7 +1,7 @@
 # 0045 行道樹換成低多邊形樹(Tripo,5 棵、每棵 450 面)
 
 日期:2026-11-16
-狀態：已實作、已 commit(Cooper 看過授權說明後要求 commit/push,視為確認模型是他自己 Pro 帳號生成)
+狀態：已實作、已 commit。授權已確認:Cooper 2026-11-16「nailai7981 是我的 Pro 帳號沒錯」→ 依 Tripo 條款 §5.2.2 屬 Cooper 的 Paid Content,可公開、修改、散布。
 
 ## 背景
 - 0044 用程式生成的 5 種樹形。Cooper 在 Tripo 找了兩組樹:

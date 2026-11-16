@@ -19,6 +19,11 @@ export interface WorldRoad {
   sidewalk: number; // 單側人行道寬(公尺),0 = 不畫
   /** 寬度來源:gov = 臺中市政府路寬換算(0011),default = 依道路等級預設,override = 手動 */
   widthFrom: 'gov' | 'default' | 'override';
+  /** 每向車道數、速限(km/h;臺中市道路圖,decisions/0046);沒對到就沒有 */
+  lanes?: number;
+  spd?: number;
+  /** 單行道左側緊貼對向時,車道從中心線往右多遠開始排(公尺;0046 驗收) */
+  ls?: number;
   /** [x0, z0, x1, z1, ...],世界座標 × 10 的整數,已裁切到區域內 */
   pts: number[];
 }
@@ -180,6 +185,10 @@ export interface RoadWay {
   highway: string;
   oneway: boolean;
   width: number;
+  /** 每向車道數、速限(km/h;0046) */
+  lanes?: number;
+  spd?: number;
+  ls?: number;
   /** 世界座標折線 [x0, z0, x1, z1, ...] */
   points: number[];
 }
@@ -199,5 +208,5 @@ export function dequant(pts: number[]): number[] {
 }
 
 export function roadWayOf(r: WorldRoad): RoadWay {
-  return { osmId: r.osmId, name: r.name, nameEn: r.nameEn, highway: r.highway, oneway: r.oneway, width: r.width, points: dequant(r.pts) };
+  return { osmId: r.osmId, name: r.name, nameEn: r.nameEn, highway: r.highway, oneway: r.oneway, width: r.width, ...(r.lanes && { lanes: r.lanes }), ...(r.spd && { spd: r.spd }), ...(r.ls !== undefined && { ls: r.ls }), points: dequant(r.pts) };
 }

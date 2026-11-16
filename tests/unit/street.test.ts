@@ -566,3 +566,20 @@ describe('地面平面(修正:原本固定 4000 m,蓋不到範圍 A 東西兩側
     expect(g.cz + g.h / 2).toBeGreaterThanOrEqual(b[3] + GROUND_MARGIN);
   });
 });
+
+import { LANE_MAX, LANE_MIN } from '../../src/config/street';
+describe('標線:臺中市道路圖的每向車道數(0046)', () => {
+  const dashedRight = (m: ReturnType<typeof lanePlan>) => m.filter((k) => k.c === 0 && k.d === 1 && k.o > 0).map((k) => k.o).sort((a, b) => a - b);
+  it('照車道數畫：雙向 20 m、每向 2 線 → 每向 1 條車道虛線;每向 3 線 → 2 條', () => {
+    expect(dashedRight(lanePlan({ width: 20, oneway: false, sidewalk: 0, lanes: 2 }))).toHaveLength(1);
+    expect(dashedRight(lanePlan({ width: 20, oneway: false, sidewalk: 0, lanes: 3 }))).toHaveLength(2);
+  });
+  it('車道寬限制在 LANE_MIN–LANE_MAX:太窄就少畫一條,太寬就多出機慢車道實線', () => {
+    // 半寬 6 − 0.3 = 5.7 m,5 線會 < LANE_MIN → 減到 floor(5.7 / 2.8) = 2 線
+    expect(dashedRight(lanePlan({ width: 12, oneway: false, sidewalk: 0, lanes: 5 }))).toHaveLength(Math.floor(5.7 / LANE_MIN) - 1);
+    // 半寬 15 − 0.3 = 14.7 m,2 線 → 每條 LANE_MAX,剩下 7.2 m ≥ 2 m 畫機慢車道實線
+    const m = lanePlan({ width: 30, oneway: false, sidewalk: 0, lanes: 2 });
+    expect(dashedRight(m)).toEqual([LANE_MAX]);
+    expect(m.some((k) => k.c === 0 && k.d === 0 && Math.abs(k.o - 2 * LANE_MAX) < 1e-9)).toBe(true);
+  });
+});
