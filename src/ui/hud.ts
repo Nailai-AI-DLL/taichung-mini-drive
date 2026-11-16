@@ -25,7 +25,8 @@ export class Hud {
     root.classList.add(`hud-${hudTheme(location.search)}`);
     const credit = el('div', 'credit');
     credit.innerHTML =
-      '地圖資料 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>';
+      '地圖資料 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>' +
+      '、<a href="https://data.gov.tw/dataset/158889" target="_blank" rel="noopener">臺中市政府</a>(道路寬度、建物;政府資料開放授權條款第 1 版)';
     root.append(this.sign, this.speed, help, credit, this.fps, this.toast);
   }
 

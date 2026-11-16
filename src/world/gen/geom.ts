@@ -200,3 +200,33 @@ export function pointInPolygon(p: Pt, ring: Pt[]): boolean {
   }
   return inside;
 }
+
+/**
+ * 一定落在多邊形內的代表點(凹多邊形的頂點平均中心可能在外面;0039 驗收發現建物圖有 4.5% 是這樣)。
+ * 頂點平均中心在內就用它;否則沿通過它的水平線找多邊形內最寬的一段,取中點。
+ */
+export function interiorPoint(ring: Pt[]): Pt {
+  const c = centroid(ring);
+  if (pointInPolygon(c, ring)) return c;
+  let z0 = Infinity, z1 = -Infinity;
+  for (const [, z] of ring) {
+    z0 = Math.min(z0, z);
+    z1 = Math.max(z1, z);
+  }
+  for (const z of [c[1], (z0 + z1) / 2, z0 + (z1 - z0) * 0.25, z0 + (z1 - z0) * 0.75]) {
+    const xs: number[] = [];
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, zi] = ring[i], [xj, zj] = ring[j];
+      if (zi > z !== zj > z) xs.push(xi + ((xj - xi) * (z - zi)) / (zj - zi));
+    }
+    xs.sort((a, b) => a - b);
+    let best: Pt | null = null, w = 0;
+    for (let k = 0; k + 1 < xs.length; k += 2)
+      if (xs[k + 1] - xs[k] > w) {
+        w = xs[k + 1] - xs[k];
+        best = [(xs[k] + xs[k + 1]) / 2, z];
+      }
+    if (best) return best;
+  }
+  return c;
+}

@@ -287,10 +287,11 @@ describe('範圍 A 實際資料', () => {
     expect(shop).toBeLessThan(0.5);
   });
 
-  it('廟宇:多數是估計的 2 層(6.4 m);超過 10 m 的只有帶高度資料的少數', () => {
+  it('廟宇:建物圖的實測樓層多數 ≤ 3 層,沒有超過 4 層的(0039:OSM 廟宇外框包到的大樓不繼承廟宇)', () => {
     const temples = bs.filter((b) => b.t === KIND.Temple);
-    expect(temples.filter((b) => b.h === Math.round(TEMPLE_EST_FLOORS * FLOOR_HEIGHT * 10)).length).toBeGreaterThan(temples.length * 0.5);
-    expect(temples.filter((b) => b.h > 100).length).toBeLessThan(temples.length * 0.4);
+    expect(temples.length).toBeGreaterThan(50);
+    expect(temples.filter((b) => b.h <= Math.round(3 * FLOOR_HEIGHT * 10)).length).toBeGreaterThan(temples.length * 0.7);
+    expect(temples.filter((b) => b.g && b.h > Math.round(4 * FLOOR_HEIGHT * 10)).length).toBe(0);
   });
 
   it('兩棟共用的外框頂點,在兩棟都標成不做圓角(100%)', () => {

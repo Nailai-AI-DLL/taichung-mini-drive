@@ -36,6 +36,8 @@ export interface WorldBuilding {
   k?: string;
   /** 1 = 建置時補的虛構建築(不是 OSM 的實際建築;decisions/0027) */
   f?: 1;
+  /** 1 = 來自臺中市建物圖(decisions/0039;高度 = 地上樓層數 × 層高) */
+  g?: 1;
   /** rings[0] 外環,其餘為中庭(內環);座標量化同道路 */
   rings: number[][];
 }

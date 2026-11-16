@@ -26,19 +26,21 @@ const polyLen = (pts: [number, number][]) => {
 };
 
 describe('範圍 A 資料', () => {
-  it('world.json 壓縮後遠低於 30 MB 預算(< 3 MB)', () => {
+  it('world.json 壓縮後遠低於 30 MB 預算(< 6 MB;0039 全區用建物圖後約 5.0 MB)', () => {
     const text = readFileSync(join(__dirname, '../../public/map/range-a/world.json'));
-    expect(gzipSync(text).byteLength).toBeLessThan(3 * 1024 * 1024);
+    expect(gzipSync(text).byteLength).toBeLessThan(6 * 1024 * 1024);
   });
 
-  it('建築數量合理(OSM 實查約 12,500 棟)', () => {
-    // f = 1 是建置時補的虛構建築(decisions/0027),分開算
-    const osm = world.json.buildings.filter((b) => !b.f).length;
-    expect(osm).toBeGreaterThan(11000);
-    expect(osm).toBeLessThan(15000);
-    const fill = world.json.buildings.length - osm;
-    expect(fill).toBeGreaterThan(15000);
-    expect(fill).toBeLessThan(40000);
+  it('建築數量合理(臺中市建物圖為主,OSM 只留地標、知名地點、捷運站與建物圖沒收的)', () => {
+    // g = 1 是臺中市建物圖(decisions/0039,範圍 A 全區);f = 1 是補的虛構建築(0027),建物圖範圍內不補
+    const gov = world.json.buildings.filter((b) => b.g).length;
+    const fill = world.json.buildings.filter((b) => b.f).length;
+    const osm = world.json.buildings.length - gov - fill;
+    expect(gov).toBeGreaterThan(110000);
+    expect(gov).toBeLessThan(130000);
+    expect(osm).toBeGreaterThan(300);
+    expect(osm).toBeLessThan(2000);
+    expect(fill).toBe(0);
   });
 
   it('道路最大連通分量 ≥ 95%(M1 驗收條件)', () => {

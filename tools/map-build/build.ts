@@ -9,12 +9,13 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { lonLatToTm2, lonLatToWorld, type Origin } from '../../src/map/projection';
 import { QUANT, SINK_RAIL_H, type WorldArea, type WorldBuilding, type WorldFurniture, type WorldJson, type WorldLandmark, type WorldRoad, type WorldStreet, type WorldWaterway } from '../../src/map/types';
-import { areaCentroid, assembleRings, centroid, cleanRing, clipPolygon, clipPolyline, inRect, pointInPolygon, signedArea, type Pt, type Rect } from '../../src/world/gen/geom';
+import { areaCentroid, assembleRings, centroid, cleanRing, interiorPoint, clipPolygon, clipPolyline, inRect, pointInPolygon, signedArea, type Pt, type Rect } from '../../src/world/gen/geom';
 import { defaultWidth, isDrivable, isOneway, resolveWidth, runsAlongside, splitWidth } from './lib/roads';
 import { buildingHeight, buildingKind, clearBuildingsOffRoads, hasShopTags, kindHeight, nearWideRoad, touchingCorners, type HeightSource } from './lib/buildings';
-import { KIND, SHOP_KINDS } from '../../src/config/buildings';
+import { KIND, SHOP_KINDS, type BuildingKind } from '../../src/config/buildings';
 import { clearSinkOffRoads } from './lib/sink';
 import { fillBuildings } from './lib/fill-buildings';
+import { GOV_MIN_AREA, govKind, INHERIT_KINDS, inheritKind, readGovBuildings, simplifyRing } from './lib/gov-buildings';
 import { buildViaduct } from './lib/rail';
 import { VIADUCT } from '../../src/config/viaduct';
 import { PLACE_CLEAR, placePickup } from './lib/places';
@@ -42,8 +43,14 @@ interface AreaConfig {
   fill?: boolean;
   /** 捷運軌道與車站的 OSM 原始檔(選用;decisions/0030) */
   rail?: string;
+  /**
+   * 臺中市建物圖(decisions/0039;選用):base = Shapefile 路徑(不含副檔名),rect = [南緯, 西經, 北緯, 東經]。
+   * rect 內的一般建築改用建物圖(OSM 只留地標與知名地點用到的建築),也不補虛構建築;檔案不存在就照舊。
+   */
+  govBuildings?: { base: string; rect: [number, number, number, number] };
 }
 
+/** 建物圖建築從被換掉的 OSM 建築繼承的細分類(0039) */
 const OPERA_HOUSE: [number, number] = [24.16293, 120.64052];
 
 const AREAS: Record<string, AreaConfig> = {
@@ -60,6 +67,8 @@ const AREAS: Record<string, AreaConfig> = {
     spawnRoad: '惠來路二段',
     spawnNear: OPERA_HOUSE,
     govWidths: 'data/gov/road-width/widths-range-a.json',
+    // 0039:2026-11-16 先做西屯路 + 七期樣張([24.146, 120.63, 24.168, 120.676]),Cooper 看過後同意鋪到整區
+    govBuildings: { base: 'data/gov/buildings/shp/01-SHP/b114', rect: [24.12, 120.62, 24.185, 120.705] },
     // 2026-10-31 先做樣張區(歌劇院周邊 1 km × 1 km:{ center: OPERA_HOUSE, half: 500 }),Cooper 看過後同意鋪到整區
     detail: 'all',
   },
@@ -131,10 +140,27 @@ function main() {
   const roadExtra = new Map<number, { lit: boolean; bridge: boolean }>();
   const wayLength: number[] = [];
 
+  // 臺中市建物圖的範圍(decisions/0039):範圍內的 OSM 一般建築不收,改用建物圖
+  const govCfg = cfg.govBuildings && existsSync(join(ROOT, cfg.govBuildings.base + '.shp')) ? cfg.govBuildings : undefined;
+  if (cfg.govBuildings && !govCfg) console.warn(`找不到建物圖 ${cfg.govBuildings.base}.shp,照舊用 OSM 建築`);
+  let govRect: Rect | undefined;
+  if (govCfg) {
+    const [la0, lo0, la1, lo1] = govCfg.rect;
+    const [x0, z1] = toW({ lat: la0, lon: lo0 }), [x1, z0] = toW({ lat: la1, lon: lo1 });
+    govRect = { minX: x0, minZ: z0, maxX: x1, maxZ: z1 };
+  }
+  // 知名地點用到的 OSM 建築(招牌、留空要找得到),在建物圖範圍內也保留
+  const placeOsm = new Set((JSON.parse(readFileSync(join(ROOT, 'data/landmarks/places.json'), 'utf8')).places as { osm?: number }[]).flatMap((c) => (c.osm ? [c.osm] : [])));
+
+  /** 建物圖範圍內的 OSM 一般建築 → 高度來源 */
+  const osmInGov = new Map<number, HeightSource>();
   const addBuilding = (id: number, t: Record<string, string>, outer: Pt[], holes: Pt[][]) => {
     const ring = cleanRing(outer);
     if (ring.length < 3) return;
     if (!inRect(centroid(ring), rect)) return;
+    // 建物圖範圍內的 OSM 建築先照常收,記下來;讀完建物圖再決定留不留(有實際高度標註、建物圖那裡又沒有建築的才留)
+    // 捷運站的連通建築(名稱「捷運○○站」)要接空橋、換識別色(decisions/0033),也留著
+    const govCandidate = !!govRect && !landmarkOf.has(id) && !placeOsm.has(id) && !/^捷運.+站$/.test(t.name ?? '') && inRect(centroid(ring), govRect);
     const area = Math.abs(signedArea(ring)) - holes.reduce((s, h) => s + Math.abs(signedArea(h)), 0);
     const est = buildingHeight(id, t, area);
     const lm = landmarkOf.get(id);
@@ -149,6 +175,7 @@ function main() {
     const kind = buildingKind(t, area, est.height);
     const { height, source } = kindHeight(kind, est);
     buildings.push({ id, h: Math.round(height * 10), t: kind, ...(hasShopTags(t) && SHOP_KINDS.includes(kind) && { s: 1 as const }), rings: [ring, ...holes].map(qPts) });
+    if (govCandidate) osmInGov.set(id, source);
     inc('buildings');
     inc(`buildingKind_${Object.keys(KIND)[kind]}`);
     if (holes.length) inc('buildingsWithCourtyard');
@@ -317,6 +344,81 @@ function main() {
     stats.streetJunctions = street.junctions!.length;
   }
 
+  const bboxOf = (r: Pt[]) => {
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const [x, z] of r) {
+      x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z);
+    }
+    return [x0, z0, x1, z1] as const;
+  };
+  // ---- 臺中市建物圖(decisions/0039):rect 內的建築;和保留的 OSM 建築重疊的不收 ----
+  if (govCfg && govRect) {
+    const box = [origin.e + govRect.minX, origin.n - govRect.maxZ, origin.e + govRect.maxX, origin.n - govRect.minZ] as const;
+    const gov = readGovBuildings(join(ROOT, govCfg.base), box);
+    const toWorld = (p: [number, number]): Pt => [p[0] - origin.e, -(p[1] - origin.n)];
+    const govRings = gov.map((g) => g.parts.map((r) => simplifyRing(cleanRing(r.map(toWorld)))).filter((r) => r.length >= 3));
+    // 建物圖的測繪年份不明,近年完工的大樓可能沒收(樣張實測:OSM 標了 ≥ 40 m 的 428 棟有 77 棟在建物圖上沒有建築)。
+    // 所以建物圖在 OSM 建築中心點沒有建築的,OSM 那棟留著(高度照 OSM 標籤或推估),其餘換成建物圖
+    const govOuter = govRings.flatMap((rs) => rs.filter((r) => signedArea(r) > 0)).map((r) => ({ r, b: bboxOf(r) }));
+    const govCovers = (p: Pt) => govOuter.some(({ r, b }) => p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3] && pointInPolygon(p, r));
+    const replaced: { r: Pt[]; b: readonly [number, number, number, number]; t: number; s?: 1 }[] = [];
+    for (let i = buildings.length - 1; i >= 0; i--) {
+      const src = osmInGov.get(buildings[i].id);
+      if (src === undefined) continue;
+      if (!govCovers(interiorPoint(dequantPts(buildings[i].rings[0])))) {
+        inc(`osmBuildingsKeptInGov_${src}`);
+        continue;
+      }
+      inc(`buildingKind_${Object.keys(KIND)[buildings[i].t]}`, -1);
+      inc(`heightFrom_${src}`, -1);
+      if (buildings[i].rings.length > 1) inc('buildingsWithCourtyard', -1);
+      inc('buildings', -1);
+      inc('osmBuildingsReplacedByGov');
+      // 建物圖沒有「廟宇、學校、公共建築、商辦」這類用途分類:換掉前記下來,落在它裡面的建物圖建築繼承(高度仍用建物圖樓層)
+      if (INHERIT_KINDS.has(buildings[i].t) || buildings[i].s) replaced.push({ r: dequantPts(buildings[i].rings[0]), b: bboxOf(dequantPts(buildings[i].rings[0])), t: buildings[i].t, s: buildings[i].s });
+      buildings.splice(i, 1);
+    }
+    // 和所有保留的建築比(不只範圍內:範圍邊界上的 OSM 建築也可能和建物圖重疊)
+    const kept = buildings.map((b) => dequantPts(b.rings[0])).map((r) => ({ r, b: bboxOf(r) }));
+    for (const [gi, g] of gov.entries()) {
+      // Shapefile 外環順時針(E-N 平面),轉到世界座標(z 反向)後變成逆時針 → 面積 > 0 的是外環
+      const rings = govRings[gi];
+      const outers = rings.filter((r) => signedArea(r) > 0);
+      const inners = rings.filter((r) => signedArea(r) < 0);
+      for (const [k, outer] of outers.entries()) {
+        if (k >= 64) throw new Error(`建物圖 ID ${g.id} 有 64 個以上外環,建築 id 會重複`);
+        const area = signedArea(outer);
+        if (area < GOV_MIN_AREA) {
+          inc('govBuildingsTooSmall');
+          continue;
+        }
+        const c = interiorPoint(outer);
+        if (!inRect(c, govRect) || !inRect(c, rect)) continue;
+        if (kept.some(({ r, b }) => c[0] >= b[0] && c[0] <= b[2] && c[1] >= b[1] && c[1] <= b[3] && pointInPolygon(c, r))) {
+          inc('govBuildingsUnderOsm');
+          continue;
+        }
+        const holes = inners.filter((h) => pointInPolygon(h[0], outer));
+        const gk = govKind(g);
+        let kind: BuildingKind = gk.kind;
+        let shop: 1 | undefined;
+        const from = replaced.find(({ r, b }) => c[0] >= b[0] && c[0] <= b[2] && c[1] >= b[1] && c[1] <= b[3] && pointInPolygon(c, r));
+        if (from) {
+          const k2 = inheritKind(kind, g.floors, from.t);
+          if (k2 !== kind) inc('govKindFromOsm');
+          kind = k2;
+          if (from.s) shop = 1;
+        }
+        // 廟宇沒有樓層以外的高度資訊;建物圖的樓層是實測,照用
+        buildings.push({ id: 8_000_000_000 + g.id * 64 + k, h: Math.round(gk.height * 10), t: kind, g: 1, ...(shop && SHOP_KINDS.includes(kind) && { s: shop }), rings: [outer, ...holes].map(qPts) });
+        inc('buildings');
+        inc('govBuildings');
+        inc(`buildingKind_${Object.keys(KIND)[kind]}`);
+      }
+    }
+    stats.govRecordsInRect = gov.length;
+  }
+
   // ---- 地標:位置 = 所有外框的面積加權形心;外框中心落在地標外框內的一般建築(附屬棟、重複描繪)一併挖掉 ----
   const landmarks: WorldLandmark[] = [];
   for (const l of landmarkCfg) {
@@ -356,8 +458,11 @@ function main() {
       }
     }
     for (let i = buildings.length - 1; i >= 0; i--) {
-      const c = centroid(dequantPts(buildings[i].rings[0]));
-      if (e.rings.some((r) => pointInPolygon(c, r))) {
+      // 建物圖的凹多邊形用內部代表點(0039 驗收);OSM 建築維持原本的頂點平均中心,結果不變
+      // 建物圖(凹多邊形多)的頂點平均中心或內部代表點任一個在地標內就挖掉;OSM 建築維持原本只看頂點平均中心
+      const ring = dequantPts(buildings[i].rings[0]);
+      const cs = buildings[i].g ? [centroid(ring), interiorPoint(ring)] : [centroid(ring)];
+      if (e.rings.some((r) => cs.some((c) => pointInPolygon(c, r)))) {
         inc(`buildingKind_${Object.keys(KIND)[buildings[i].t]}`, -1);
         buildings.splice(i, 1);
         inc('buildingsRemovedUnderLandmarks');
@@ -416,6 +521,11 @@ function main() {
     // 繞向和 OSM 建築一致
     const sign = Math.sign(signedArea(dequantPts(buildings[0]?.rings[0] ?? [0, 0, 1, 0, 1, 1])));
     fills.forEach((f, i) => {
+      // 建物圖範圍內不補(decisions/0039)
+      if (govRect && inRect(centroid(f.ring), govRect)) {
+        inc('fillSkippedInGov');
+        return;
+      }
       const ring = Math.sign(signedArea(f.ring)) === sign ? f.ring : [...f.ring].reverse();
       buildings.push({ id: 9_000_000_000 + i, h: Math.round(f.h * 10), t: f.kind, f: 1, rings: [qPts(ring)] });
       inc('buildings');
@@ -424,6 +534,9 @@ function main() {
       inc(`buildingKind_${Object.keys(KIND)[f.kind]}`);
     });
   }
+
+  // 最後實際留在地圖上的建物圖建築(扣掉地標挖除、0026 拿掉的)
+  if (govCfg) stats.govBuildingsFinal = buildings.filter((b) => b.g).length;
 
   // ---- 一樓店面:臨大路(人行道外緣 SHOP_REACH 內)的建築,一樓畫店面(decisions/0015 第三批) ----
   const nearRoad = nearWideRoad(
