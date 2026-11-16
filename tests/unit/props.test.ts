@@ -140,3 +140,23 @@ describe('程式生成樹(0044)', () => {
     for (let k = 0; k < 5; k++) expect(treeTemplate(k, furnitureColors()).index.length).toBeGreaterThan(0);
   });
 });
+
+import { LOWPOLY_TREE_NODES } from '../../src/config/props';
+import { TREE_SPECIES as SP } from '../../src/config/furniture';
+import { readFileSync } from 'node:fs';
+describe('低多邊形樹(0045)', () => {
+  it('每個樹形都對到 GLB 裡存在的節點', () => {
+    expect(LOWPOLY_TREE_NODES).toHaveLength(Object.keys(SP).length);
+    // GLB 的 JSON 區塊在檔頭之後:讀出節點名稱
+    const buf = readFileSync('public/models/trees_lowpoly.glb');
+    const len = buf.readUInt32LE(12);
+    const json = JSON.parse(buf.subarray(20, 20 + len).toString('utf8')) as { nodes: { name?: string; mesh?: number }[]; meshes: { primitives: { attributes: Record<string, number> }[] }[] };
+    const names = new Set(json.nodes.map((n) => n.name));
+    for (const n of LOWPOLY_TREE_NODES) expect(names.has(n)).toBe(true);
+    // 有頂點色、沒有貼圖座標(畫風:不用貼圖)
+    for (const m of json.meshes) {
+      expect(m.primitives[0].attributes.COLOR_0).toBeDefined();
+      expect(m.primitives[0].attributes.TEXCOORD_0).toBeUndefined();
+    }
+  });
+});

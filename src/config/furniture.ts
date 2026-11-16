@@ -21,7 +21,7 @@ export const TREE_CROWN_Y = 4.1;
  * 比較像實際的行道樹;樹種由路名雜湊依權重決定。椰子只種在路寬 ≥ PALM_MIN_WIDTH 的路,其他路抽到椰子改成球形。
  * 0 球形(樟樹)、1 層狀(小葉欖仁)、2 叢生(榕樹、茄苳)、3 椰子(大王椰子)、4 尖塔(落羽松)
  */
-export const TREE_SPECIES = { Round: 0, Tiered: 1, Cluster: 2, Palm: 3, Cone: 4 } as const;
+export const TREE_SPECIES = { Round: 0, Tiered: 1, Cluster: 2, Palm: 3, Cone: 4, Branchy: 5 } as const;
 export const TREE_SPECIES_WEIGHTS = [30, 25, 20, 10, 15];
 export const PALM_MIN_WIDTH = 14;
 

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PALETTE } from '../config/palette';
 import type { MeshArrays } from '../map/types';
-import { furnitureColors, type ChunkMeshes, type FurnitureMeshes } from '../world/chunks';
+import type { ChunkMeshes, FurnitureMeshes } from '../world/chunks';
 import type { VehicleParams } from '../vehicle/params';
 import { createBuildingMaterial, setBuildingNight } from './building-material';
 import { buildingLookFromSearch } from '../config/buildings';
@@ -11,9 +11,8 @@ import { createClouds } from './clouds';
 import type { MiniCar } from './mini-car';
 import { HEADLIGHT, LOOK_LIGHT, LOOK_LIGHT_OLD, LOOK_NIGHT } from '../config/look';
 import { ScooterLayer } from './scooters';
-import { PropLayer, type Variant } from './props';
-import { propsMode } from '../config/props';
-import { treeTemplate } from '../world/gen/furniture';
+import { PropLayer } from './props';
+import { LOWPOLY_TREE_NODES, PROP_MODELS, propsMode } from '../config/props';
 import { scooterTemplate } from '../world/gen/furniture';
 import { hexToRgb } from '../config/palette';
 
@@ -262,19 +261,10 @@ function addScooters(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Ar
   out.push(tag);
 }
 
-/** 程式生成樹的圖層(0044):5 種樹形各做一個樣板,和其他傢俱一樣用 Lambert 頂點色 */
-function genTreeLayer(scene: THREE.Scene) {
-  const fc = furnitureColors();
-  const variants: Variant[][] = [0, 1, 2, 3, 4].map((k) => [
-    { geometry: toGeometry(treeTemplate(k, fc)), material: new THREE.MeshLambertMaterial({ vertexColors: true }), mesh: null },
-  ]);
-  return PropLayer.fromVariants(scene, variants, ['tree-round', 'tree-tiered', 'tree-cluster', 'tree-palm', 'tree-cone']);
-}
-
 /** Tripo 樣板物件(樹、路燈):和機車一樣用空物件當這一格的代號 */
 function addProps(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Array) {
   if (!poses.length) return;
-  props ??= propsMode() === 'gen' ? genTreeLayer(scene) : new PropLayer(scene, import.meta.env.BASE_URL);
+  props ??= propsMode() === 'gen' ? PropLayer.fromGlbNodes(scene, import.meta.env.BASE_URL + PROP_MODELS.lowpolyTrees, LOWPOLY_TREE_NODES) : new PropLayer(scene, import.meta.env.BASE_URL);
   const tag = new THREE.Object3D();
   tag.userData.props = true;
   props.set(tag, poses);

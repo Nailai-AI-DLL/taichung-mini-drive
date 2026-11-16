@@ -27,7 +27,18 @@ export const PROP_MODELS = {
   // 寬 9.1 m、深 6 m、高 7 m;原點在灌木那側的前緣中點,前緣朝 +z(遊戲端轉向最近的車道)
   tree: 'models/prop_tree_group.glb',
   light: 'models/prop_streetlight.glb',
+  /**
+   * 低多邊形樹 5 棵(decisions/0045;Cooper 的 Tripo Pro 帳號生成,tools/models/tree_grid_split.py row 模式拆開、每棵 450 面、
+   * 貼圖烘成面色);節點 tree_00…tree_04,原點在樹幹底、高 7 m(遊戲端依實測樹高縮放)
+   */
+  lowpolyTrees: 'models/trees_lowpoly.glb',
 } as const;
+
+/**
+ * 樹形(src/config/furniture.ts TREE_SPECIES)→ 低多邊形樹的節點(0045;Cooper:「只用這系列就好」)。
+ * 0 球形 → 圓冠密葉、1 層狀 → 細高分層、2 叢生 → 寬傘形、3 椰子 → 細高分層(這系列沒有椰子)、4 尖塔 → 松樹、5 分枝 → 分枝散葉
+ */
+export const LOWPOLY_TREE_NODES = ['tree_01', 'tree_03', 'tree_04', 'tree_03', 'tree_02', 'tree_00'] as const;
 
 export const PROP_KIND = { Tree: 0, Light: 1 } as const;
 

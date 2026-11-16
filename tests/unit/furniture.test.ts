@@ -410,10 +410,10 @@ describe('範圍 A 實際資料', () => {
     return out;
   };
 
-  it('五種樹形都有;招牌 > 5,000、公車站 > 500(候車亭 > 50)', () => {
+  it('六種樹形都有(0045 加分枝);招牌 > 5,000、公車站 > 500(候車亭 > 50)', () => {
     const kinds = new Set<number>();
     for (let i = 2; i < fu.trees.length; i += 3) kinds.add(decodeTreeKind(fu.trees[i]).kind);
-    expect(kinds.size).toBe(5);
+    expect(kinds.size).toBe(6);
     expect(fu.signs.length / 6).toBeGreaterThan(5000);
     expect(fu.busStops.length / 4).toBeGreaterThan(500);
     let sh = 0;
@@ -541,6 +541,7 @@ describe('實測行道樹(0042)', () => {
     expect(speciesKind('落羽松')).toBe(TREE_SPECIES.Cone);
     expect(speciesKind('小葉欖仁')).toBe(TREE_SPECIES.Tiered);
     expect(speciesKind('榕樹')).toBe(TREE_SPECIES.Cluster);
+    expect(speciesKind('茄苳')).toBe(TREE_SPECIES.Branchy);
     expect(speciesKind('樟樹')).toBe(TREE_SPECIES.Round);
     expect(treeScale(0)).toBe(1);
     expect(treeScale(7)).toBe(1);

@@ -73,6 +73,31 @@ export class PropLayer {
     return l;
   }
 
+  /** 低多邊形樹(0045):GLB 裡依名稱取節點,每個樹形一個樣板;頂點色、平面陰影 */
+  static fromGlbNodes(scene: THREE.Scene, url: string, nodes: readonly string[]) {
+    const l = new PropLayer(scene, null);
+    l.names = nodes.map((n, k) => `tree${k}-${n}`);
+    new GLTFLoader()
+      .loadAsync(url)
+      .then((gltf) => {
+        gltf.scene.updateMatrixWorld(true);
+        const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+        const geo = new Map<string, THREE.BufferGeometry>();
+        gltf.scene.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (m.isMesh) geo.set(o.name || o.parent?.name || '', m.geometry.clone().applyMatrix4(m.matrixWorld));
+        });
+        l.variants = nodes.map((n) => {
+          const g = geo.get(n);
+          if (!g) throw new Error(`低多邊形樹缺節點 ${n}`);
+          return [{ geometry: g, material, mesh: null }];
+        });
+        l.rebuild();
+      })
+      .catch((e) => console.warn('低多邊形樹載入失敗', e));
+    return l;
+  }
+
   private names = ['tree', 'light'];
 
   constructor(private readonly scene: THREE.Scene, base: string | null) {
