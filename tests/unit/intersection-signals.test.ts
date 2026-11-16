@@ -46,6 +46,6 @@ describe('每個路口的號誌', () => {
   });
 
   it('路燈間距已拉大(數量約減半)', () => {
-    expect(LIGHT_SPACING).toBe(64);
+    expect(LIGHT_SPACING).toBe(128); // 0042 再減半
   });
 });

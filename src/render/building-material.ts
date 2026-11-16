@@ -7,9 +7,10 @@
 import * as THREE from 'three';
 import { PALETTE } from '../config/palette';
 import { CODE_SEED, CODE_SHOP } from '../world/gen/mesh';
+import { NIGHT } from '../config/look';
 import {
   FACADE_DETAIL, SILL_DROP, SILL_H, SILL_LIGHTEN, SILL_OVERHANG, WINDOW_GLINT_FRAC, WINDOW_STYLE_OLD, type BuildingLook,
-  FLOOR_HEIGHT, KIND_COUNT, SHOP_HEIGHT, SHOP_PILLAR_GAP, SHOP_PILLAR_W, WINDOW_FRAME_W, WINDOW_STYLE, WINDOW_TONE_MAX, WINDOW_TONE_MIN,
+  FLOOR_HEIGHT, KIND, KIND_COUNT, SHOP_HEIGHT, SHOP_PILLAR_GAP, SHOP_PILLAR_W, WINDOW_FRAME_W, WINDOW_STYLE, WINDOW_TONE_MAX, WINDOW_TONE_MIN,
 } from '../config/buildings';
 
 export { FLOOR_HEIGHT };
@@ -26,6 +27,9 @@ export const FRAGMENT = /* glsl */ `
     float code = floor(vWall.y + 0.5);
     int kind = int(mod(code, ${CODE_SHOP}.0));
     float shop = mod(floor(code / ${CODE_SHOP}.0), 2.0);
+    // 低矮建築 + 店面 = 會發光的傢俱(招牌板、號誌燈;mesh.ts 的 GLOW_CODE),不畫店面
+    float glow = (kind == ${KIND.Low} && shop > 0.5) ? 1.0 : 0.0;
+    shop *= 1.0 - glow;
     float seed = floor(code / ${CODE_SEED}.0);
     vec4 st = uWinStyle[kind]; // 週期、窗寬、窗下緣、窗上緣
     vec2 det = uDetail[kind]; // 窗台線(0/1)、玻璃反光強度
@@ -81,9 +85,38 @@ export const FRAGMENT = /* glsl */ `
     diffuseColor.rgb = mix(diffuseColor.rgb, uFrameColor, frame * vertical * fade);
     diffuseColor.rgb = mix(diffuseColor.rgb, glassColor, uStrength * inner * vertical * fade);
     diffuseColor.rgb = mix(diffuseColor.rgb, uShopColor, shopBand * (1.0 - pillar) * vertical * fade);
+    // ---- 夜景(0042):部分窗戶亮燈(暖黃 / 冷白混合)、沒亮的玻璃變暗、一樓店面亮、招牌與號誌燈發光 ----
+    if (uNight > 0.0) {
+      float lh = fract(sin(dot(vec3(col, fl, seed), vec3(39.3468, 11.135, 83.155))) * 43758.5453);
+      float blurW = max(blurU, blurY);
+      float litW = mix(step(lh, uLit[kind]), uLit[kind], blurW);
+      vec3 wc = mix(uWinCool, uWinWarm, mix(step(fract(lh * 7.31), uWarmShare), uWarmShare, blurW));
+      diffuseColor.rgb = mix(diffuseColor.rgb, uNightGlass, uStrength * inner * vertical * (1.0 - litW) * uNight);
+      totalEmissiveRadiance += wc * uWinGlow * litW * inner * vertical * uNight;
+      // 廟宇一樓是柱廊(借用店面的畫法),夜裡不當店面發光(0042 驗收)
+      totalEmissiveRadiance += uShopGlowColor * shopBand * (1.0 - pillar) * vertical * uNight * (kind == ${KIND.Temple} ? 0.0 : 1.0);
+      totalEmissiveRadiance += diffuseColor.rgb * uSignGlow * glow * uNight;
+    }
     // 牆腳壓暗(假的環境光遮蔽):貼地處最暗,往上 AO_HEIGHT 公尺內漸亮,建築才像「站」在地上
     diffuseColor.rgb *= mix(1.0 - uAoStrength, 1.0, smoothstep(0.0, uAoHeight, y) * vertical + (1.0 - vertical));
   }`;
+
+/** 夜景參數(0042):所有建築材質共用同一組物件,setBuildingNight 改值就全部生效 */
+export const NIGHT_UNIFORMS = {
+  uNight: { value: 0 },
+  uLit: { value: [...NIGHT.lit] },
+  uWinWarm: { value: new THREE.Color(NIGHT.warm) },
+  uWinCool: { value: new THREE.Color(NIGHT.cool) },
+  uWarmShare: { value: NIGHT.warmShare },
+  uWinGlow: { value: NIGHT.windowGlow },
+  uNightGlass: { value: new THREE.Color(NIGHT.glass) },
+  uShopGlowColor: { value: new THREE.Color(NIGHT.shop).multiplyScalar(NIGHT.shopGlow) },
+  uSignGlow: { value: NIGHT.sign },
+};
+
+export function setBuildingNight(on: boolean) {
+  NIGHT_UNIFORMS.uNight.value = on ? 1 : 0;
+}
 
 /** look = 'old' 時用 0023 之前的窗格、不畫窗台線與反光(網址 ?bld=old) */
 export function createBuildingMaterial(look: BuildingLook = 'fps'): THREE.MeshLambertMaterial {
@@ -111,6 +144,7 @@ export function createBuildingMaterial(look: BuildingLook = 'fps'): THREE.MeshLa
       uShopH: { value: SHOP_HEIGHT },
       uPillarW: { value: SHOP_PILLAR_W },
       uPillarGap: { value: SHOP_PILLAR_GAP },
+      ...NIGHT_UNIFORMS,
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec2 aWall;\nvarying vec2 vWall;\nvarying float vBandY;\nvarying float vUp;')
@@ -128,7 +162,10 @@ export function createBuildingMaterial(look: BuildingLook = 'fps'): THREE.MeshLa
         uniform vec2 uDetail[${KIND_COUNT}];
         uniform float uGlintFrac, uSillLighten;
         uniform vec3 uSill;
-        uniform vec3 uGlassDark, uGlassLight, uShopColor;`,
+        uniform vec3 uGlassDark, uGlassLight, uShopColor;
+        uniform float uNight, uWarmShare, uWinGlow, uSignGlow;
+        uniform float uLit[${KIND_COUNT}];
+        uniform vec3 uWinWarm, uWinCool, uNightGlass, uShopGlowColor;`,
       )
       .replace('#include <color_fragment>', FRAGMENT);
   };

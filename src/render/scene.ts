@@ -5,11 +5,11 @@ import { PALETTE } from '../config/palette';
 import type { MeshArrays } from '../map/types';
 import type { ChunkMeshes, FurnitureMeshes } from '../world/chunks';
 import type { VehicleParams } from '../vehicle/params';
-import { createBuildingMaterial } from './building-material';
+import { createBuildingMaterial, setBuildingNight } from './building-material';
 import { buildingLookFromSearch } from '../config/buildings';
 import { createClouds } from './clouds';
 import type { MiniCar } from './mini-car';
-import { LOOK_LIGHT, LOOK_LIGHT_OLD } from '../config/look';
+import { LOOK_LIGHT, LOOK_LIGHT_OLD, LOOK_NIGHT } from '../config/look';
 import { ScooterLayer } from './scooters';
 import { PropLayer } from './props';
 import { scooterTemplate } from '../world/gen/furniture';
@@ -37,9 +37,29 @@ export interface World3D {
 /** 太陽相對車子的位置(followSun 用;setLook 切換新舊光照時一起換) */
 let sunOffset: [number, number, number] = LOOK_LIGHT.sunOffset;
 
-/** 切換新舊光照(decisions/0016;on = false 是改版前,前後對照用) */
+let lookOn = true;
+let nightOn = false;
+
+/** 切換新舊光照(decisions/0016;on = false 是改版前,前後對照用);夜景開著時只記下來,關夜景時再套用 */
 export function setLook(w: World3D, on: boolean) {
-  const L = on ? LOOK_LIGHT : LOOK_LIGHT_OLD;
+  lookOn = on;
+  if (!nightOn) applyLight(w, on ? LOOK_LIGHT : LOOK_LIGHT_OLD);
+}
+
+/** 夜景開關(decisions/0042,N 鍵):天空、霧、月光;建築窗燈 / 店面 / 招牌發光;夜裡關太陽陰影 */
+export function setNight(w: World3D, on: boolean) {
+  nightOn = on;
+  applyLight(w, on ? LOOK_NIGHT : lookOn ? LOOK_LIGHT : LOOK_LIGHT_OLD);
+  // 不切 castShadow(會讓所有材質重新編譯、卡一下;0042 驗收),改成陰影強度 0
+  w.sun.shadow.intensity = on ? 0 : 1;
+  setBuildingNight(on);
+}
+
+export function isNight() {
+  return nightOn;
+}
+
+function applyLight(w: World3D, L: typeof LOOK_LIGHT) {
   w.sun.color.set(L.sunColor);
   w.sun.intensity = L.sunIntensity;
   w.hemi.color.set(L.hemiSky);

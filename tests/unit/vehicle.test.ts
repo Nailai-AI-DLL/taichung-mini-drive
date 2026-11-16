@@ -27,7 +27,7 @@ describe('車輛手感(初版)', () => {
     expect(r.handbrakeYawIn1s).toBeGreaterThan(45);
     expect(r.handbrakeYawIn1s).toBeLessThan(150);
   });
-  it('極速受限在 60 km/h 附近(市區法規)', () => expect(Math.abs(r.topSpeedKmh - 60)).toBeLessThan(3));
+  it('極速受限在 120 km/h 附近(Cooper 2026-11-16 為了繞地圖檢查調高;decisions/0040)', () => expect(Math.abs(r.topSpeedKmh - 120)).toBeLessThan(3));
   it('全程沒有翻車', () => {
     expect(r.upY).toBeGreaterThan(0.9);
     expect(r.autoRight).toBe(0);

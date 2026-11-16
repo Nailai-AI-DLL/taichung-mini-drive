@@ -176,3 +176,12 @@ describe('從被換掉的 OSM 建築繼承類別', () => {
     expect(inheritKind(KIND.House, 3, undefined)).toBe(KIND.House);
   });
 });
+
+import { GOV_NO_SHOP_TYPES, GOV_ROW_TYPE } from '../../tools/map-build/lib/gov-buildings';
+describe('建物圖房屋型態 → 店面規則(0041)', () => {
+  it('連棟透天是招牌較密的型態;獨戶、雙併不開店;公寓、大廈不受影響', () => {
+    expect(GOV_ROW_TYPE).toBe('3');
+    expect([...GOV_NO_SHOP_TYPES].sort()).toEqual(['1', '2']);
+    for (const t of ['3', '4', '5', '6']) expect(GOV_NO_SHOP_TYPES.has(t)).toBe(false);
+  });
+});

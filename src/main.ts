@@ -11,7 +11,7 @@ import { Vehicle, headingOf, type DriveInput } from './vehicle/vehicle';
 import { Keyboard } from './input/keyboard';
 import { ChaseCamera, type Smoothing } from './camera/chase-camera';
 import { PoseInterpolator } from './core/pose-interpolator';
-import { addChunkFurniture, addChunkMeshes, addLandmark, CarMesh, createRenderer, createScene, followSun, removeChunkMeshes, setLook } from './render/scene';
+import { addChunkFurniture, addChunkMeshes, addLandmark, CarMesh, createRenderer, createScene, followSun, removeChunkMeshes, setLook, setNight, isNight } from './render/scene';
 import { fxFromUrl, PostFx } from './render/post';
 import { createMiniCar } from './render/mini-car';
 import { toonifyCar } from './render/car-style';
@@ -31,6 +31,8 @@ import { TrafficLayer } from './render/traffic';
 import { TRAFFIC } from './config/traffic';
 import { ImpactDetector, PickupGame, pickPlace, pickSpotWithFallback, type PickupEvent } from './game/pickup';
 import { createPlaceSign } from './render/place-signs';
+import { setCloudsNight } from './render/clouds';
+import { NIGHT } from './config/look';
 import { pointInPolygon } from './world/gen/geom';
 import { PICKUP } from './config/pickup';
 import { PickupHud } from './ui/pickup-hud';
@@ -325,6 +327,7 @@ async function boot() {
       overlay.classList.toggle('hidden', !paused);
     }
     if (a === 'map' && started) bigMap.toggle();
+    if (a === 'night') toggleNight();
     if (a === 'debug') {
       gui._hidden ? gui.show() : gui.hide();
       showFps = !gui._hidden || showFps;
@@ -365,6 +368,15 @@ async function boot() {
     if (fx.mountains !== undefined && mountains) mountains.visible = fx.mountains;
   };
   setFx(fxFromUrl(location.search, FX_NAMES));
+  // 夜景(0042):N 鍵切換;網址 ?night=1 直接開夜景
+  const setNightMode = (on: boolean) => {
+    setNight(world3d, on);
+    post.setNight(on);
+    setCloudsNight(world3d.clouds, on ? NIGHT.clouds : 1);
+    if (mountains) setCloudsNight(mountains, on ? NIGHT.mountains : 1);
+  };
+  const toggleNight = () => setNightMode(!isNight());
+  if (new URLSearchParams(location.search).get('night') === '1') setNightMode(true);
   // 先把「之後才出現」的物件(慈慈、光柱、其他車輛)的著色器編譯好;不然第一次出現的那一幀會卡(2026-11-13 e2e 量到 99 ms)
   {
     const hidden = [cici, beacon.group].filter((o) => !o.visible);
@@ -523,6 +535,7 @@ async function boot() {
     teleport,
     setCamera: (i: number) => cam.setMode(i),
     setFx,
+    setNight: setNightMode,
     setCameraSmoothing: (s: Smoothing) => cam.setSmoothing(s),
     inspect: (v: typeof inspectView) => (inspectView = v),
     perf: () => worstFrames.map((f) => ({ ms: +f.ms.toFixed(1), at: f.at, prev: Object.fromEntries(Object.entries(f.prev).map(([k, v]) => [k, +v.toFixed(1)])) })),

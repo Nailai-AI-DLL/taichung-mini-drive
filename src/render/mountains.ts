@@ -87,6 +87,7 @@ export function createMountains(sky: Skyline): THREE.Group {
       // 遠景要亮、偏天空色,不要被太陽照出很深的陰影面
       emissive: base.clone().lerp(horizon, 0.5), emissiveIntensity: 0.45 + 0.12 * b,
     });
+    mat.userData.dayEmissive = mat.emissiveIntensity; // 夜景(0042 驗收):setCloudsNight 依這個值縮放
     const mesh = new THREE.Mesh(g, mat);
     mesh.name = `mountains-${b}`;
     mesh.frustumCulled = false;

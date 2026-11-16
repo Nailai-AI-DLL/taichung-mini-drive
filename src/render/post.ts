@@ -9,7 +9,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
-import { LOOK_AO, LOOK_BLOOM, LOOK_GRADE, type FxName } from '../config/look';
+import { LOOK_AO, LOOK_BLOOM, LOOK_GRADE, type FxName, NIGHT } from '../config/look';
 
 /** 調色著色器(輸入已是畫面色彩空間 sRGB):飽和度、S 曲線對比、亮暖暗冷、暗角 */
 export const GRADE_SHADER = {
@@ -117,6 +117,14 @@ export class PostFx {
     this.bloom.enabled = this.enabled.bloom !== false;
     this.grade.enabled = this.enabled.grade !== false;
     this.smaa.enabled = this.enabled.smaa !== false;
+  }
+
+  /** 夜景(0042):泛光改成夜裡的參數(窗燈、招牌、車燈發光暈) */
+  setNight(on: boolean) {
+    const b = on ? NIGHT.bloom : LOOK_BLOOM;
+    this.bloom.strength = b.strength;
+    this.bloom.radius = b.radius;
+    this.bloom.threshold = b.threshold;
   }
 
   isOn(name: FxName) {

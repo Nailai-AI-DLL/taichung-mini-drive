@@ -30,8 +30,9 @@ export const LIGHT_HIGHWAYS = ['primary', 'secondary', 'tertiary', 'trunk'] as c
 /**
  * 推論:燈距(公尺);路寬 ≥ LIGHT_BOTH_SIDES 兩側都立(交錯),否則只立行車方向右側。
  * 32 → 64(Cooper 2026-11-12:「我想減少路燈的數量」;約減半,寬路兩側交錯 = 沿路每 32 m 一支)
+ * 64 → 128(Cooper 2026-11-16:「路燈可以減少一半數量。平均放置就好」;寬路兩側交錯 = 沿路每 64 m 一支,decisions/0042)
  */
-export const LIGHT_SPACING = 64;
+export const LIGHT_SPACING = 128;
 export const LIGHT_BOTH_SIDES = 16;
 /** 路燈離路緣(公尺) */
 export const LIGHT_CURB = 0.5;
@@ -89,6 +90,12 @@ export const SCOOTER_SKIP_HIGHWAYS = ['motorway', 'trunk', 'service', 'motorway_
 /** Cooper 2026-11-01:「少一點」→ 從每 4 m、70% 改成每 5 m、45%(密度約一半;0015 §11.11) */
 export const SIGN_SPACING = 5;
 export const SIGN_CHANCE = 0.45;
+/**
+ * 推論:連棟透天店面(臺中市建物圖型態 3)的招牌密度(0041 A;Cooper 2026-11-16 選「透天街屋排招牌」)。
+ * 用 0015 減半前的密度(每 4 m、70%);其他店面維持上面的減半密度。
+ */
+export const SIGN_SPACING_ROW = 4;
+export const SIGN_CHANCE_ROW = 0.7;
 /** 招牌底部高度、最短 / 最長(公尺);頂端不超過建築高度 - SIGN_TOP_GAP */
 export const SIGN_BOTTOM = 3.4;
 export const SIGN_MIN_H = 1.8;
@@ -148,4 +155,23 @@ export function furnitureShowFromSearch(search: string) {
 export function setFurnitureShow(v: { trees: boolean; scooters: boolean }) {
   furnitureShow.trees = v.trees;
   furnitureShow.scooters = v.scooters;
+}
+
+/**
+ * 臺中市行道樹分佈圖(decisions/0042):實測樹的樹高換成大小倍率,和樹形一起存在 world.json 樹的第 3 個值:
+ * 值 = 樹形 + TREE_SCALE_CODE × round(倍率 × 10);倍率 0(舊資料、規則種的樹)= 1。
+ */
+export const TREE_SCALE_CODE = 10;
+/** 推論:樹高 → 倍率的基準樹高(公尺;遊戲的樹約這麼高)與倍率範圍 */
+export const TREE_REF_HEIGHT = 7;
+export const TREE_SCALE_RANGE: readonly [number, number] = [0.6, 1.6];
+/** 推論:實測樹 TREE_GOV_COVER 公尺內不再種規則樹(避免實測路段多種一排) */
+export const TREE_GOV_COVER = 15;
+
+export function encodeTreeKind(kind: number, scale: number): number {
+  return kind + TREE_SCALE_CODE * Math.round(scale * 10);
+}
+export function decodeTreeKind(v: number): { kind: number; scale: number } {
+  const s = Math.floor(v / TREE_SCALE_CODE);
+  return { kind: v % TREE_SCALE_CODE, scale: s ? s / 10 : 1 };
 }

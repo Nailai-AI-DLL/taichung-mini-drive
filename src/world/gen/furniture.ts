@@ -2,10 +2,10 @@
 // 位置來自 world.json 的 furniture(建置端 tools/map-build/lib/furniture.ts 擺好);樹的大小、色調、轉向由位置雜湊決定。
 import {
   BUS_POLE_H, BUS_SHELTER_D, BUS_SHELTER_H, BUS_SHELTER_L, SIGN_DEPTH, SIGN_THICK, SIGN_WALL_GAP, TREE_SPECIES,
-  LIGHT_ARM, LIGHT_H, LIGHT_HEAD, LIGHT_R, SCOOTER_SLOT, SIGNAL_BOX, SIGNAL_H, SIGNAL_R, TREE_CROWN_R, TREE_CROWN_Y, TREE_TRUNK_R,
+  LIGHT_ARM, LIGHT_H, LIGHT_HEAD, LIGHT_R, SCOOTER_SLOT, SIGNAL_BOX, SIGNAL_H, SIGNAL_R, TREE_CROWN_R, TREE_CROWN_Y, TREE_TRUNK_R, decodeTreeKind,
 } from '../../config/furniture';
 import { hash32, type Pt } from './geom';
-import { MeshBuilder } from './mesh';
+import { GLOW_CODE, MeshBuilder } from './mesh';
 import { PLAIN_CODE } from './extrude';
 import type { MeshArrays } from '../../map/types';
 
@@ -93,10 +93,12 @@ function ellipsoid(mb: MeshBuilder, x: number, y: number, z: number, rx: number,
  * 行道樹,kind = 樹種(TREE_SPECIES):球形(樟樹)、層狀(小葉欖仁)、叢生(榕樹)、椰子(大王椰子)、尖塔(落羽松)。
  * 大小、高度、轉向由位置雜湊決定,同一種也不會整排一模一樣。
  */
-export function addTree(mb: MeshBuilder, p: Pt, c: FurnitureColors, kind = 0) {
-  const s = 0.9 + rnd(p, 1) * 0.25;
+export function addTree(mb: MeshBuilder, p: Pt, c: FurnitureColors, code = 0) {
+  // code = 樹形 + 大小倍率(0042;src/config/furniture.ts 的 decodeTreeKind)
+  const { kind, scale } = decodeTreeKind(code);
+  const s = (0.9 + rnd(p, 1) * 0.25) * scale;
   const r = TREE_CROWN_R * s;
-  const hs = 0.92 + rnd(p, 2) * 0.16;
+  const hs = (0.92 + rnd(p, 2) * 0.16) * scale;
   const rot = rnd(p, 4) * Math.PI * 2;
   const green = c.speciesCrown[kind] ?? c.crown[0];
   switch (kind) {
@@ -212,7 +214,10 @@ export function addSign(mb: MeshBuilder, p: Pt, a: number, y0: number, y1: numbe
   const board = c.signBoards[ci % c.signBoards.length];
   const text = ci % c.signBoards.length === 3 ? c.signTextOnWhite : c.signText;
   const cx = p[0] + n[0] * (SIGN_WALL_GAP + SIGN_DEPTH / 2), cz = p[1] + n[1] * (SIGN_WALL_GAP + SIGN_DEPTH / 2);
+  const code0 = mb.code;
+  mb.code = GLOW_CODE; // 夜裡招牌板發光(0042)
   addBox(mb, [cx, cz], n, SIGN_DEPTH / 2, SIGN_THICK / 2, y0, y1, board);
+  mb.code = code0;
   // 固定架:貼牆的一小段深色
   addBox(mb, [p[0] + n[0] * (SIGN_WALL_GAP / 2), p[1] + n[1] * (SIGN_WALL_GAP / 2)], n, SIGN_WALL_GAP / 2, 0.04, y1 - 0.4, y1 - 0.3, shade(board, 0.6), false);
   const ch = 0.46, gap = 0.16;
@@ -287,7 +292,10 @@ export function addSignal(mb: MeshBuilder, p: Pt, a: number, arm: number, c: Fur
         [fc[0] + d[0] * lamp / 2, ym + lamp / 2, fc[1] + d[1] * lamp / 2],
         [fc[0] - d[0] * lamp / 2, ym + lamp / 2, fc[1] - d[1] * lamp / 2],
       ];
+      const code0 = mb.code;
+      mb.code = GLOW_CODE; // 夜裡號誌燈發光(0042)
       quad(mb, q, [n[0] * side, 0, n[1] * side], c.lamps[i]);
+      mb.code = code0;
     }
   }
 }
@@ -436,14 +444,16 @@ export function quad(mb: MeshBuilder, q: [number, number, number][], nrm: [numbe
  * 樹(整組樣板):樣板前緣朝 +z,轉成朝向最近的道路(roads 為這一格的道路折線);找不到道路就用位置雜湊的朝向。
  * 路燈:朝向 = 懸臂朝向、大小 1。
  */
-export function propPoses(trees: readonly Pt[], lights: readonly { p: Pt; a: number }[], treeScale: [number, number], roads: readonly Pt[][] = []): Float32Array {
+export function propPoses(trees: readonly Pt[], lights: readonly { p: Pt; a: number }[], treeScale: [number, number], roads: readonly Pt[][] = [], treeCodes: readonly number[] = []): Float32Array {
   const out = new Float32Array((trees.length + lights.length) * 5);
   let o = 0;
-  for (const p of trees) {
+  for (const [i, p] of trees.entries()) {
+    // 實測樹(0042)依樹高放大縮小;規則樹倍率 1
+    const k = decodeTreeKind(treeCodes[i] ?? 0).scale;
     const q = nearestOnLines(p, roads);
     // 局部 +z 轉到世界 (−sin a, cos a);要它指向道路 (dx, dz) → a = atan2(−dx, dz)
     const a = q ? Math.atan2(-(q[0] - p[0]), q[1] - p[1]) : rnd(p, 4) * Math.PI * 2;
-    out.set([0, p[0], p[1], a, treeScale[0] + rnd(p, 1) * (treeScale[1] - treeScale[0])], o);
+    out.set([0, p[0], p[1], a, k * (treeScale[0] + rnd(p, 1) * (treeScale[1] - treeScale[0]))], o);
     o += 5;
   }
   for (const l of lights) {

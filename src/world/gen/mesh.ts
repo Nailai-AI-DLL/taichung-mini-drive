@@ -93,3 +93,9 @@ export function packBuildingCode(kind: number, shop: boolean, seed: number): num
 export function unpackBuildingCode(code: number): { kind: number; shop: boolean; seed: number } {
   return { kind: code % CODE_SHOP, shop: Math.floor(code / CODE_SHOP) % 2 === 1, seed: Math.floor(code / CODE_SEED) };
 }
+
+/**
+ * 夜裡會自己發光的街道傢俱(招牌板、號誌燈;decisions/0042):用「低矮建築 + 店面」這個建築永遠不會出現的組合當標記
+ * (低矮建築不開店),著色器看到就在夜裡把頂點色當自發光。
+ */
+export const GLOW_CODE = packBuildingCode(6, true, 0);

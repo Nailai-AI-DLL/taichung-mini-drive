@@ -4,9 +4,9 @@
 import {
   CLEAR_CROSSWALK, CLEAR_LIGHT, CLEAR_ROAD, LIGHT_BOTH_SIDES, LIGHT_CURB, LIGHT_HIGHWAYS, LIGHT_SPACING, SIGNAL_ARM_MAX, SIGNAL_CURB,
   SCOOTER_GAP_MAX, SCOOTER_GAP_MIN, SCOOTER_GROUP_MAX, SCOOTER_GROUP_MIN, SCOOTER_LEN, SCOOTER_MIN_SIDEWALK, SCOOTER_SHOP_REACH, SCOOTER_SKIP_HIGHWAYS,
-  SCOOTER_SLOT, TREE_CURB_MAX, TREE_HIGHWAYS, TREE_JITTER, TREE_MIN_SIDEWALK, TREE_SPACING,
+  SCOOTER_SLOT, TREE_CURB_MAX, TREE_GOV_COVER, TREE_HIGHWAYS, TREE_JITTER, TREE_MIN_SIDEWALK, TREE_SPACING,
   BUS_DEDUPE, BUS_POLE_CURB, BUS_SHELTER_CURB, BUS_SHELTER_D, BUS_SHELTER_L, BUS_SHELTER_MIN_SIDEWALK, BUS_SNAP,
-  PALM_MIN_WIDTH, SIGN_COLORS, SIGN_BOTTOM, SIGN_CHANCE, SIGN_DEPTH, SIGN_MAX_H, SIGN_MIN_H, SIGN_ROAD_REACH, SIGN_SPACING, SIGN_TOP_GAP, SIGN_WALL_GAP,
+  PALM_MIN_WIDTH, SIGN_COLORS, SIGN_BOTTOM, SIGN_CHANCE, SIGN_DEPTH, SIGN_MAX_H, SIGN_MIN_H, SIGN_ROAD_REACH, SIGN_SPACING, SIGN_SPACING_ROW, SIGN_CHANCE_ROW, SIGN_TOP_GAP, SIGN_WALL_GAP,
   TREE_SPECIES, TREE_SPECIES_WEIGHTS,
   SIGNAL_HIGHWAYS,
   SIGNAL_MIN_WIDTH,
@@ -109,6 +109,12 @@ const CELL = 40;
 const PARALLEL_COS = 0.95;
 /** 樹與樹至少隔多遠(公尺);重疊描繪的兩條 way 才不會種兩排 */
 const TREE_MIN_GAP = 4;
+/** 實測樹之間的最小距離(只去掉幾乎重疊的重複點)、離建築外框的最小距離(公尺) */
+const GOV_TREE_MIN_GAP = 1;
+const GOV_TREE_BUILDING_GAP = 0.3;
+const GOV_TREE_JUNCTION_GAP = 0.5;
+/** 實測樹離路燈、號誌桿至少多遠(公尺) */
+const GOV_TREE_POLE_GAP = 1.5;
 /** 路燈與路燈至少隔多遠 */
 const LIGHT_MIN_GAP = 10;
 /** 號誌桿與號誌桿至少隔多遠 */
@@ -179,7 +185,7 @@ class Spacing {
  */
 export function placeFurniture(
   roads: FurnitureRoad[],
-  obstacles: { rings: Pt[][]; water: Pt[][]; shops?: Pt[][]; waterways?: { pts: Pt[]; w: number }[]; junctions?: Pt[][]; shopBuildings?: { ring: Pt[]; h: number; id: number }[] },
+  obstacles: { rings: Pt[][]; water: Pt[][]; shops?: Pt[][]; waterways?: { pts: Pt[]; w: number }[]; junctions?: Pt[][]; shopBuildings?: { ring: Pt[]; h: number; id: number; dense?: boolean }[]; govTrees?: { p: Pt; code: number }[] },
   crossings: FurnitureCrossing[],
   busStops: { p: Pt; shelter: boolean }[] = [],
   approaches: FurnitureApproach[] = [],
@@ -321,10 +327,23 @@ export function placeFurniture(
     }
   }
 
-  // ---- 行道樹:主要道路、人行道夠寬,兩側等距(前後亂移);樹穴靠路緣 ----
+  // ---- 實測行道樹(臺中市行道樹分佈圖,decisions/0042):照位置種;不在車道、路口鋪面、水面、建築裡 ----
+  const govSpace = new Spacing(TREE_GOV_COVER);
+  const treeSpace = new Spacing(TREE_MIN_GAP);
+  for (const t of obstacles.govTrees ?? []) {
+    // 也不和已立的路燈、號誌桿重疊(0042 驗收:有 12 處 1 m 內)
+    if (!treeSpace.free(t.p, GOV_TREE_MIN_GAP) || !lightOrTree.free(t.p, GOV_TREE_POLE_GAP) || !ok(t.p, null, GOV_TREE_BUILDING_GAP)) continue;
+    // 路口鋪面邊上再留一點(量化後點會落進鋪面;0042 測試抓到 1 棵)
+    if (junctions.near(t.p).some((r) => ringDist(t.p, r) < GOV_TREE_JUNCTION_GAP)) continue;
+    treeSpace.add(t.p);
+    govSpace.add(t.p);
+    out.trees.push(t.p);
+    out.treeKinds.push(t.code);
+  }
+
+  // ---- 行道樹(規則):主要道路、人行道夠寬,兩側等距(前後亂移);樹穴靠路緣。實測樹附近不種 ----
   const minWidthByName = new Map<string, number>();
   for (const r of roads) if (r.name) minWidthByName.set(r.name, Math.min(minWidthByName.get(r.name) ?? Infinity, r.width));
-  const treeSpace = new Spacing(TREE_MIN_GAP);
   for (const r of roads) {
     if (r.bridge || r.sidewalk < TREE_MIN_SIDEWALK || !(TREE_HIGHWAYS as readonly string[]).includes(r.highway)) continue;
     const cum = cumLength(r.pts);
@@ -339,7 +358,7 @@ export function placeFurniture(
         const { p: c, dir } = pointAt(r.pts, cum, s);
         const n = leftNormal(dir);
         const p: Pt = [c[0] + n[0] * e * side, c[1] + n[1] * e * side];
-        if (!treeSpace.free(p) || !lightOrTree.free(p) || !busClear(p) || !clearOfCrosswalk(p) || !ok(p, dir, TREE_BUILDING_GAP)) continue;
+        if (!govSpace.free(p) || !treeSpace.free(p) || !lightOrTree.free(p) || !busClear(p) || !clearOfCrosswalk(p) || !ok(p, dir, TREE_BUILDING_GAP)) continue;
         treeSpace.add(p);
         out.trees.push(p);
         out.treeKinds.push(kind);
@@ -418,9 +437,10 @@ export function placeFurniture(
       // 逆時針外框:外側法向量在行進方向右手邊
       const n: Pt = [t[1], -t[0]];
       let k = 0;
-      for (let u = 1; u <= len - 1; u += SIGN_SPACING, k++) {
+      const spacing = b.dense ? SIGN_SPACING_ROW : SIGN_SPACING, chance = b.dense ? SIGN_CHANCE_ROW : SIGN_CHANCE;
+      for (let u = 1; u <= len - 1; u += spacing, k++) {
         const h = hash32(b.id * 131 + i * 17 + k);
-        if ((h % 1000) / 1000 >= SIGN_CHANCE) continue;
+        if ((h % 1000) / 1000 >= chance) continue;
         const p: Pt = [a[0] + t[0] * u, a[1] + t[1] * u];
         const at = (e: number): Pt => [p[0] + n[0] * e, p[1] + n[1] * e];
         const probe = at(1);

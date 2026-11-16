@@ -456,6 +456,6 @@ export function buildFurniture(c: ChunkSrc): FurnitureMeshes {
   for (const s of c.furniture.signals) addSignal(fm, s.p, s.a, s.arm, fc);
   if (c.furniture.viaduct) addViaduct(fm, c.furniture.viaduct);
   return { furniture: fm.toArrays(), scooters: scooterPoses(furnitureShow.scooters ? c.furniture.scooters : [], PALETTE.scooterBody.length),
-    props: tripo ? propPoses(trees, c.furniture.lights, PROP_TREE_SCALE, c.roads?.map((r) => r.pts)) : new Float32Array(),
+    props: tripo ? propPoses(trees, c.furniture.lights, PROP_TREE_SCALE, c.roads?.map((r) => r.pts), c.furniture.treeKinds) : new Float32Array(),
   };
 }

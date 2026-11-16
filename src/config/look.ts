@@ -96,3 +96,43 @@ export const LOOK_MOUNTAINS = {
 /** 可單獨開關的效果名稱 */
 export const FX_NAMES = ['light', 'gtao', 'bloom', 'grade', 'smaa', 'clouds', 'mountains'] as const;
 export type FxName = (typeof FX_NAMES)[number];
+
+/**
+ * 夜景(decisions/0042,第一步;N 鍵切換):天空、霧、月光、環境光。品味數值，樣張給 Cooper 看後再調。
+ * 欄位和 LOOK_LIGHT 相同，切換時整組套用。
+ */
+export const LOOK_NIGHT = {
+  sunColor: '#a9bde6',
+  sunIntensity: 0.45,
+  sunOffset: [-85, 95, 60] as [number, number, number],
+  hemiSky: '#3a4f86',
+  hemiGround: '#1c1d26',
+  hemiIntensity: 0.7,
+  skyTop: '#060b22',
+  skyHorizon: '#1f2d55',
+  fogNear: 300,
+  fogFar: 800,
+};
+
+/**
+ * 夜裡建築與傢俱的自發光(0042):
+ * - lit:各細分類亮燈窗戶的比例(順序同 KIND:一般、透天、大樓、商辦、學校、廟宇、低矮、公共);
+ * - 窗燈顏色「混合」(Cooper 2026-11-16):暖黃與冷白,warmShare = 暖黃的比例;
+ * - glass:沒亮的窗玻璃顏色;shop:一樓店面燈光;sign:招牌板、號誌燈發光倍率;
+ * - bloom:夜裡的泛光(白天是 LOOK_BLOOM);clouds:雲自發光的倍率(夜裡雲要暗)。
+ */
+export const NIGHT = {
+  lit: [0.35, 0.4, 0.45, 0.6, 0.2, 0, 0, 0.35],
+  warm: '#ffc96b',
+  cool: '#e3eeff',
+  warmShare: 0.6,
+  windowGlow: 1.15,
+  glass: '#141b2b',
+  shop: '#ffc47a',
+  shopGlow: 0.6,
+  sign: 0.85,
+  bloom: { strength: 0.4, radius: 0.5, threshold: 0.6 },
+  clouds: 0.12,
+  /** 遠山自發光的倍率(0042 驗收：白天的自發光讓夜裡的山發亮) */
+  mountains: 0.15,
+};

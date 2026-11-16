@@ -8,7 +8,7 @@ const RIGHT = ['KeyD', 'ArrowRight'];
 const HANDBRAKE = ['Space'];
 const PREVENT = new Set([...THROTTLE, ...BRAKE, ...LEFT, ...RIGHT, ...HANDBRAKE]);
 
-export type ActionKey = 'reset' | 'camera' | 'pause' | 'debug' | 'map' | 'horn';
+export type ActionKey = 'reset' | 'camera' | 'pause' | 'debug' | 'map' | 'horn' | 'night';
 const ACTIONS: Record<string, ActionKey> = {
   KeyR: 'reset',
   KeyC: 'camera',
@@ -16,6 +16,8 @@ const ACTIONS: Record<string, ActionKey> = {
   Backquote: 'debug',
   KeyM: 'map',
   KeyH: 'horn',
+  // 夜景開關(decisions/0042;Cooper:「先用按鍵做切換，方便我確認效果」)
+  KeyN: 'night',
 };
 
 export class Keyboard {

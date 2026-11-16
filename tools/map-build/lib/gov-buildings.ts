@@ -185,3 +185,8 @@ export function inheritKind(own: BuildingKind, floors: number, from: number | un
   if (from === KIND.Temple && floors > TEMPLE_MAX_FLOORS) return own;
   return from as BuildingKind;
 }
+
+/** 房屋型態「連棟式透天厝」:臨路的一樓當店面、招牌較密(0041 A;Cooper:「西屯路一段其實都是三到四樓的透天，然後招牌很多」) */
+export const GOV_ROW_TYPE = '3';
+/** 房屋型態「獨戶」「雙併」:住宅，臨路也不開店、不掛招牌(0041 D) */
+export const GOV_NO_SHOP_TYPES: ReadonlySet<string> = new Set(['1', '2']);

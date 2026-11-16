@@ -15,7 +15,9 @@ import { buildingHeight, buildingKind, clearBuildingsOffRoads, hasShopTags, kind
 import { KIND, SHOP_KINDS, type BuildingKind } from '../../src/config/buildings';
 import { clearSinkOffRoads } from './lib/sink';
 import { fillBuildings } from './lib/fill-buildings';
-import { GOV_MIN_AREA, govKind, INHERIT_KINDS, inheritKind, readGovBuildings, simplifyRing } from './lib/gov-buildings';
+import { speciesKind, treeScale } from './lib/gov-trees';
+import { decodeTreeKind, encodeTreeKind, TREE_SCALE_CODE } from '../../src/config/furniture';
+import { GOV_MIN_AREA, GOV_NO_SHOP_TYPES, GOV_ROW_TYPE, govKind, INHERIT_KINDS, inheritKind, readGovBuildings, simplifyRing } from './lib/gov-buildings';
 import { buildViaduct } from './lib/rail';
 import { VIADUCT } from '../../src/config/viaduct';
 import { PLACE_CLEAR, placePickup } from './lib/places';
@@ -48,6 +50,8 @@ interface AreaConfig {
    * rect 內的一般建築改用建物圖(OSM 只留地標與知名地點用到的建築),也不補虛構建築;檔案不存在就照舊。
    */
   govBuildings?: { base: string; rect: [number, number, number, number] };
+  /** 臺中市行道樹(decisions/0042;選用):gov_trees.py 的輸出 JSON */
+  govTrees?: string;
 }
 
 /** 建物圖建築從被換掉的 OSM 建築繼承的細分類(0039) */
@@ -69,6 +73,7 @@ const AREAS: Record<string, AreaConfig> = {
     govWidths: 'data/gov/road-width/widths-range-a.json',
     // 0039:2026-11-16 先做西屯路 + 七期樣張([24.146, 120.63, 24.168, 120.676]),Cooper 看過後同意鋪到整區
     govBuildings: { base: 'data/gov/buildings/shp/01-SHP/b114', rect: [24.12, 120.62, 24.185, 120.705] },
+    govTrees: 'data/gov/trees/trees-range-a.json',
     // 2026-10-31 先做樣張區(歌劇院周邊 1 km × 1 km:{ center: OPERA_HOUSE, half: 500 }),Cooper 看過後同意鋪到整區
     detail: 'all',
   },
@@ -152,6 +157,8 @@ function main() {
   // 知名地點用到的 OSM 建築(招牌、留空要找得到),在建物圖範圍內也保留
   const placeOsm = new Set((JSON.parse(readFileSync(join(ROOT, 'data/landmarks/places.json'), 'utf8')).places as { osm?: number }[]).flatMap((c) => (c.osm ? [c.osm] : [])));
 
+  /** 建物圖建築 id → 房屋型態(B1B;只在建置端用,不進 world.json) */
+  const govType = new Map<number, string>();
   /** 建物圖範圍內的 OSM 一般建築 → 高度來源 */
   const osmInGov = new Map<number, HeightSource>();
   const addBuilding = (id: number, t: Record<string, string>, outer: Pt[], holes: Pt[][]) => {
@@ -410,6 +417,7 @@ function main() {
           if (from.s) shop = 1;
         }
         // 廟宇沒有樓層以外的高度資訊;建物圖的樓層是實測,照用
+        govType.set(8_000_000_000 + g.id * 64 + k, g.type);
         buildings.push({ id: 8_000_000_000 + g.id * 64 + k, h: Math.round(gk.height * 10), t: kind, g: 1, ...(shop && SHOP_KINDS.includes(kind) && { s: shop }), rings: [outer, ...holes].map(qPts) });
         inc('buildings');
         inc('govBuildings');
@@ -555,8 +563,11 @@ function main() {
   // 補的建築一律方角(省三角形;外框本來就是長方形)
   for (const b of buildings) if (b.f) b.c = [0, 1, 2, 3];
   buildings.forEach((b, i) => {
-    if (nearRoad[i] && SHOP_KINDS.includes(b.t as (typeof SHOP_KINDS)[number])) b.s = 1;
+    // 建物圖的獨戶、雙併(0041 D):住宅，臨路也不開店(OSM 本身有商店標籤繼承來的 s 照留)
+    const gt = govType.get(b.id);
+    if (nearRoad[i] && SHOP_KINDS.includes(b.t as (typeof SHOP_KINDS)[number]) && !(gt && GOV_NO_SHOP_TYPES.has(gt))) b.s = 1;
     if (b.s) inc('buildingShopfront');
+    if (b.s && gt === GOV_ROW_TYPE) inc('buildingShopfrontRowHouse');
   });
 
   // ---- 街道傢俱(decisions/0015 第四批):行道樹、路燈、號誌桿、機車、招牌、公車站;只在街道細節範圍內 ----
@@ -569,6 +580,16 @@ function main() {
       .map((n) => ({ p: toW({ lat: n.lat!, lon: n.lon! }), shelter: n.tags?.shelter === 'yes' }))
       .filter((b) => inRect(b.p, rect));
     stats.busStopNodes = busStops.length;
+    // 臺中市行道樹分佈圖(decisions/0042;tools/map-build/gov_trees.py 從 KMZ 轉出)
+    const govTrees: { p: Pt; code: number }[] = [];
+    if (cfg.govTrees && existsSync(join(ROOT, cfg.govTrees))) {
+      for (const t of JSON.parse(readFileSync(join(ROOT, cfg.govTrees), 'utf8')) as { e: number; n: number; sp: string; h: number }[]) {
+        const p: Pt = [t.e - origin.e, -(t.n - origin.n)];
+        if (!inRect(p, rect)) continue;
+        govTrees.push({ p, code: encodeTreeKind(speciesKind(t.sp), treeScale(t.h)) });
+      }
+      stats.govTreesInRect = govTrees.length;
+    } else if (cfg.govTrees) console.warn(`找不到行道樹資料 ${cfg.govTrees},只用規則種樹`);
     const fr: FurnitureRoad[] = roads.map((r) => ({ id: r.osmId, name: r.name, highway: r.highway, width: r.width, sidewalk: r.sidewalk, ...(roadExtra.get(r.osmId) ?? { lit: false, bridge: false }), pts: dequantPts(r.pts) }));
     const f = placeFurniture(
       fr,
@@ -576,7 +597,8 @@ function main() {
         shops: buildings.filter((b) => b.s).map((b) => dequantPts(b.rings[0])),
         waterways: waterways.map((w) => ({ pts: dequantPts(w.pts), w: w.w })),
         junctions: streetRaw.junctions,
-        shopBuildings: buildings.filter((b) => b.s).map((b) => ({ ring: dequantPts(b.rings[0]), h: b.h / 10, id: b.id })),
+        shopBuildings: buildings.filter((b) => b.s).map((b) => ({ ring: dequantPts(b.rings[0]), h: b.h / 10, id: b.id, ...(govType.get(b.id) === GOV_ROW_TYPE && { dense: true }) })),
+        govTrees,
         rings: [...buildings.map((b) => dequantPts(b.rings[0])), ...landmarks.flatMap((l) => l.rings.map((r) => dequantPts(r).map(([x, z]) => [x + l.x, z + l.z] as Pt)))], water: areas.filter((a) => a.k === 2).map((a) => dequantPts(a.ring)) },
       streetRaw.crosswalks.map((c) => ({ p: c.p, v: [Math.cos(c.v), Math.sin(c.v)] as Pt, reach: c.reach, sig: c.sig })),
       busStops,
@@ -591,7 +613,10 @@ function main() {
     stats.furnitureBusStops = furniture.busStops.length / 4;
     // 統計一律從寫進 world.json 的陣列算(驗收 2026-11-01:原本用未裁切的結果,數字和 world.json 對不上)
     for (let i = 3; i < furniture.busStops.length; i += 4) inc('furnitureBusShelters', furniture.busStops[i]);
-    for (let i = 2; i < furniture.trees.length; i += 3) inc(`furnitureTreeKind${furniture.trees[i]}`);
+    for (let i = 2; i < furniture.trees.length; i += 3) {
+      inc(`furnitureTreeKind${decodeTreeKind(furniture.trees[i]).kind}`);
+      if (furniture.trees[i] >= TREE_SCALE_CODE) inc('furnitureTreesGov');
+    }
     for (const l of f.lights) if (inRect(l.p, dr)) furniture.lights.push(q(l.p[0]), q(l.p[1]), ang(l.a));
     for (const s of f.signals) if (inRect(s.p, dr)) furniture.signals.push(q(s.p[0]), q(s.p[1]), ang(s.a), Math.round(s.arm * 10));
     for (const s of f.scooters) if (inRect(s.p, dr)) furniture.scooters.push(q(s.p[0]), q(s.p[1]), ang(s.a), s.n, ang(s.f));

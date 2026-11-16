@@ -128,6 +128,7 @@ export function createClouds(bounds: [number, number, number, number]): THREE.Gr
     const geo = mergeGeometries(list);
     for (const p of list) p.dispose();
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, fog: false, emissive: new THREE.Color('#ffffff'), emissiveIntensity: emissive });
+    mat.userData.dayEmissive = emissive; // 夜景(0042)用:setCloudsNight 依這個值縮放
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = name;
     mesh.frustumCulled = false;
@@ -136,4 +137,12 @@ export function createClouds(bounds: [number, number, number, number]): THREE.Gr
   make(parts, 0.35, 'clouds-puffy');
   make(flatParts, 0.75, 'clouds-flat');
   return group;
+}
+
+/** 夜景(0042):雲(也用在遠山)的自發光乘上 k(白天 1);材質要在 userData.dayEmissive 記下白天的值 */
+export function setCloudsNight(group: THREE.Object3D, k: number) {
+  group.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.MeshLambertMaterial | undefined;
+    if (m && typeof m.userData.dayEmissive === 'number') m.emissiveIntensity = m.userData.dayEmissive * k;
+  });
 }

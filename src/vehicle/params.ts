@@ -61,8 +61,9 @@ export const DEFAULT_PARAMS: VehicleParams = {
   engineForce: 1950,
   reverseForce: 900,
   brakeForce: 55,
-  // 市區法規,極速先控制在 60 km/h(Cooper 2026-11-12,decisions/0017);原 130
-  maxSpeedKmh: 60,
+  // 極速 120 km/h(Cooper 2026-11-16:「車速幫我增加到最快可以到 120,方便我繞整張地圖確認內容」,decisions/0040);
+  // 之前 60(市區法規,2026-11-12,0017),更早 130
+  maxSpeedKmh: 120,
   maxReverseKmh: 30,
   // 轉向收斂(Cooper 2026-11-12:「輕輕按一下就會過頭」,decisions/0017);原 0.6 / 0.16 / 110 / 5、回正同 5
   // 量測(tools/dev/handling-probe.ts):40 km/h 輕點 0.15 秒車頭轉 19.9° → 5.8°;20 km/h 迴轉半徑 4.2 → 5.7 m

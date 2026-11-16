@@ -81,7 +81,9 @@ export class Minimap {
   update(x: number, z: number, hx: number, hz: number, busy = false) {
     if (Math.min(window.devicePixelRatio || 1, 2) !== this.dpr) this.resize();
     if (needsRedraw(this.win, x, z, VIEW_R)) {
-      if (busy && !this.deferred) this.deferred = true;
+      // 忙的時候(這一幀在生成分塊)延後一幀重畫;但還沒畫過(快取視窗是空的)就一定要畫,否則下面讀 this.win 會當掉
+      // (0042 在內建瀏覽器重整後馬上開始 + 傳送時抓到)
+      if (busy && !this.deferred && this.win) this.deferred = true;
       else {
         this.redraw(x, z);
         this.deferred = false;

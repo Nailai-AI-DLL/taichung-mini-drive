@@ -2,14 +2,14 @@
 import { describe, expect, it } from 'vitest';
 import { placeFurniture, treeKindOf, type FurnitureRoad } from '../../tools/map-build/lib/furniture';
 import { BUS_SHELTER_D, BUS_SHELTER_L, CLEAR_CROSSWALK, SIGN_CHANCE, SIGN_COLORS, SIGN_SPACING, CLEAR_LIGHT, CLEAR_ROAD, LIGHT_ARM, LIGHT_H, PALM_MIN_WIDTH, SCOOTER_GROUP_MAX, SCOOTER_GROUP_MIN, SIGN_BOTTOM, SIGN_TOP_GAP, TREE_SPACING, TREE_SPECIES } from '../../src/config/furniture';
-import { MeshBuilder } from '../../src/world/gen/mesh';
+import { GLOW_CODE, MeshBuilder } from '../../src/world/gen/mesh';
 import { addBusStop, addSign, addSignal, addStreetLight, addTree, scooterPoses, scooterTemplate, type FurnitureColors } from '../../src/world/gen/furniture';
 import { PLAIN_CODE } from '../../src/world/gen/extrude';
 import { buildChunk, colliderMeshes, furnitureCollision, type ChunkSrc } from '../../src/world/chunks';
 import R from '@dimforge/rapier3d-compat';
 import { addStaticFurniture, createPhysicsWorld, FIXED_DT, removeBody } from '../../src/physics/world';
 import { Vehicle } from '../../src/vehicle/vehicle';
-import { LIGHT_HIT_R, SCOOTER_LEN, SCOOTER_SLOT, SIGNAL_HIT_R, TREE_HIT_R } from '../../src/config/furniture';
+import { LIGHT_HIT_R, SCOOTER_LEN, SCOOTER_SLOT, SIGNAL_HIT_R, TREE_HIT_R, decodeTreeKind, encodeTreeKind } from '../../src/config/furniture';
 import { pointInPolygon, type Pt } from '../../src/world/gen/geom';
 import { loadWorld } from '../helpers/load-map';
 import { PALETTE } from '../../src/config/palette';
@@ -84,7 +84,7 @@ describe('擺放規則', () => {
     for (const t of f.trees) for (const l of f.lights) expect(Math.hypot(t[0] - l.p[0], t[1] - l.p[1])).toBeGreaterThanOrEqual(CLEAR_LIGHT - 1e-6);
     // 沿 +x 行駛:leftNormal = (0, -1),右側是 +z
     const narrow = placeFurniture([road(1, [[0, 0], [640, 0]], { width: 10 })], noObstacles, []);
-    expect(narrow.lights.length).toBeGreaterThan(5);
+    expect(narrow.lights.length).toBeGreaterThanOrEqual(4); // 0042 燈距 128 m:640 m 約 5 支
     for (const l of narrow.lights) expect(l.p[1]).toBeGreaterThan(0);
   });
 
@@ -147,6 +147,20 @@ describe('擺放規則', () => {
     expect(blocked.busStops[0].shelter).toBe(false);
     // 人行道太窄:只放站牌
     expect(placeFurniture([road(1, [[0, 0], [200, 0]], { sidewalk: 1.5 })], noObstacles, [], [{ p: [50, -7], shelter: true }]).busStops[0].shelter).toBe(false);
+  });
+
+  it('連棟透天店面(0041 A)招牌較密:同樣的街面，平均比一般店面多', () => {
+    const r = road(1, [[0, 0], [2000, 0]], { highway: 'residential', width: 10, sidewalk: 3 });
+    let normal = 0, dense = 0;
+    for (let i = 0; i < 40; i++) {
+      const x = i * 45;
+      const shop: Pt[] = [[x, 8.5], [x + 40, 8.5], [x + 40, 25], [x, 25]];
+      normal += placeFurniture([r], { rings: [shop], water: [], shopBuildings: [{ ring: shop, h: 12.8, id: 100 + i }] }, []).signs.length;
+      dense += placeFurniture([r], { rings: [shop], water: [], shopBuildings: [{ ring: shop, h: 12.8, id: 100 + i, dense: true }] }, []).signs.length;
+    }
+    // 期望值:一般 每 5 m × 45%;連棟透天 每 4 m × 70% → 約 1.9 倍
+    expect(dense / normal).toBeGreaterThan(1.5);
+    expect(dense / normal).toBeLessThan(2.4);
   });
 
   it('直式招牌:只掛在店面建築面向道路的外牆,伸出方向朝道路,高度在二樓以上、不超過屋頂', () => {
@@ -398,7 +412,7 @@ describe('範圍 A 實際資料', () => {
 
   it('五種樹形都有;招牌 > 5,000、公車站 > 500(候車亭 > 50)', () => {
     const kinds = new Set<number>();
-    for (let i = 2; i < fu.trees.length; i += 3) kinds.add(fu.trees[i]);
+    for (let i = 2; i < fu.trees.length; i += 3) kinds.add(decodeTreeKind(fu.trees[i]).kind);
     expect(kinds.size).toBe(5);
     expect(fu.signs.length / 6).toBeGreaterThan(5000);
     expect(fu.busStops.length / 4).toBeGreaterThan(500);
@@ -407,9 +421,10 @@ describe('範圍 A 實際資料', () => {
     expect(sh).toBeGreaterThan(50);
   });
 
-  it('數量合理:樹 > 10,000、路燈 > 3,000、號誌桿 > 300', () => {
-    expect(fu.trees.length / 3).toBeGreaterThan(10000);
-    expect(fu.lights.length / 3).toBeGreaterThan(3000);
+  it('數量合理:樹 > 30,000(0042 加了實測行道樹)、路燈 1,200–2,000(0042 再減半)、號誌桿 > 300', () => {
+    expect(fu.trees.length / 3).toBeGreaterThan(30000);
+    expect(fu.lights.length / 3).toBeGreaterThan(1200);
+    expect(fu.lights.length / 3).toBeLessThan(2000);
     expect(fu.signals.length / 4).toBeGreaterThan(300);
   });
 
@@ -496,15 +511,68 @@ describe('範圍 A 實際資料', () => {
     expect(total).toBe(fu.trees.length / 3 + fu.lights.length / 3 + fu.signals.length / 4 + fu.scooters.length / 5 + fu.busStops.length / 4 + (world.json.viaduct?.piers.length ?? 0) / 3);
   });
 
-  it('傢俱網格:代碼全是 PLAIN_CODE(不畫窗),不進三角網格碰撞體(碰撞改用圓柱)', () => {
-    let n = 0;
+  it('傢俱網格:代碼只有 PLAIN_CODE(不畫窗)與 GLOW_CODE(招牌板、號誌燈夜裡發光,0042);不進三角網格碰撞體(碰撞改用圓柱)', () => {
+    let n = 0, glow = 0;
     for (const c of [...world.chunks.values()].slice(0, 80)) {
       const m = buildChunk(c);
-      for (let i = 1; i < (m.furniture.wall?.length ?? 0); i += 2) expect(m.furniture.wall![i]).toBe(PLAIN_CODE);
+      for (let i = 1; i < (m.furniture.wall?.length ?? 0); i += 2) {
+        expect([PLAIN_CODE, GLOW_CODE]).toContain(m.furniture.wall![i]);
+        if (m.furniture.wall![i] === GLOW_CODE) glow++;
+      }
       expect(colliderMeshes(m)).not.toContain(m.furniture);
       expect(m.scooters.length / 4).toBe(c.furniture.scooters.reduce((t, r) => t + r.n, 0));
       n += m.furniture.index.length;
     }
     expect(n).toBeGreaterThan(0);
+    expect(glow).toBeGreaterThan(0);
+  });
+});
+
+import { speciesKind, treeScale } from '../../tools/map-build/lib/gov-trees';
+describe('實測行道樹(0042)', () => {
+  it('樹形 + 大小倍率的編碼可以還原;舊資料(0–4)倍率 1', () => {
+    for (const k of [0, 1, 2, 3, 4]) {
+      expect(decodeTreeKind(k)).toEqual({ kind: k, scale: 1 });
+      expect(decodeTreeKind(encodeTreeKind(k, 1.3))).toEqual({ kind: k, scale: 1.3 });
+    }
+  });
+  it('樹種對應樹形、樹高對應倍率(有上下限)', () => {
+    expect(speciesKind('大王椰子')).toBe(TREE_SPECIES.Palm);
+    expect(speciesKind('落羽松')).toBe(TREE_SPECIES.Cone);
+    expect(speciesKind('小葉欖仁')).toBe(TREE_SPECIES.Tiered);
+    expect(speciesKind('榕樹')).toBe(TREE_SPECIES.Cluster);
+    expect(speciesKind('樟樹')).toBe(TREE_SPECIES.Round);
+    expect(treeScale(0)).toBe(1);
+    expect(treeScale(7)).toBe(1);
+    expect(treeScale(1)).toBe(0.6);
+    expect(treeScale(30)).toBe(1.6);
+  });
+  it('實測樹不和路燈重疊(0042 驗收)', () => {
+    const r = road(1, [[0, 0], [600, 0]], { width: 20 });
+    const l = placeFurniture([r], noObstacles, []).lights[0];
+    const at: Pt = [l.p[0] + 0.5, l.p[1]];
+    const f = placeFurniture([r], { ...noObstacles, govTrees: [{ p: at, code: 0 }] }, []);
+    expect(f.trees).not.toContainEqual(at);
+  });
+
+  it('實測樹照位置種;不種在車道上;附近不再補規則樹', () => {
+    const r = road(1, [[0, 0], [300, 0]], { width: 20 });
+    const gov = [{ p: [50, 12] as Pt, code: encodeTreeKind(0, 1.2) }, { p: [52, 0] as Pt, code: 0 }];
+    const f = placeFurniture([r], { ...noObstacles, govTrees: gov }, []);
+    expect(f.trees).toContainEqual([50, 12]);
+    expect(f.trees).not.toContainEqual([52, 0]);
+    for (const t of f.trees) if (t[0] !== 50 || t[1] !== 12) expect(Math.hypot(t[0] - 50, t[1] - 12)).toBeGreaterThanOrEqual(15 - 1e-6);
+    // 樹大小:倍率 1.2 的樹比倍率 1 的高
+    const top = (code: number) => {
+      const mb = new MeshBuilder();
+      const c: FurnitureColors = { crown: [[150, 170, 140]], trunk: [100, 80, 60], pole: [0, 0, 0], lampHead: [0, 0, 0], signalBox: [0, 0, 0], lamps: [[1, 0, 0]],
+        speciesCrown: [[150, 170, 140]], palmTrunk: [0, 0, 0], signBoards: [[0, 0, 0]], signText: [0, 0, 0], signTextOnWhite: [0, 0, 0], busBlue: [0, 0, 0], busRoof: [0, 0, 0], busGlass: [0, 0, 0] };
+      addTree(mb, [0, 0], c, code);
+      const a = mb.toArrays();
+      let y = 0;
+      for (let i = 1; i < a.position.length; i += 3) y = Math.max(y, a.position[i]);
+      return y;
+    };
+    expect(top(encodeTreeKind(0, 1.2))).toBeGreaterThan(top(0) * 1.1);
   });
 });
