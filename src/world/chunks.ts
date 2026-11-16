@@ -9,7 +9,7 @@ import { MeshBuilder, packBuildingCode } from './gen/mesh';
 import { addRibbon } from './gen/ribbon';
 import { extrude, PLAIN_CODE } from './gen/extrude';
 import { addRoofProps } from './gen/roof-props';
-import { addBusStop, addSign, addSignal, addStreetLight, addTree, propPoses, scooterPoses, type FurnitureColors } from './gen/furniture';
+import { addBusStop, addSign, addSignal, addStreetLight, propPoses, scooterPoses, type FurnitureColors, genTreePoses } from './gen/furniture';
 import { PROP_TREE_SCALE, propsMode } from '../config/props';
 import { addViaduct, viaductCollision, viaductSpans, type ViaductSrc } from './gen/viaduct';
 import { BUS_POLE_HIT_R, BUS_SHELTER_D, BUS_SHELTER_H, BUS_SHELTER_L, LIGHT_HIT_R, POST_HIT_H, SCOOTER_H, SCOOTER_LEN, SCOOTER_SLOT, SIGNAL_HIT_R, TREE_HIT_R, furnitureShow } from '../config/furniture';
@@ -428,10 +428,9 @@ export type FurnitureMeshes = Pick<ChunkMeshes, 'furniture' | 'scooters' | 'prop
  * 一格的街道傢俱網格與機車擺放。和 buildChunk 分開,串流時可以放到下一幀做(0015 §11.10:
  * 同一幀生成建築加傢俱,最重的格子在瀏覽器裡要 29 ms,接近 33 ms 的卡頓門檻)。
  */
-export function buildFurniture(c: ChunkSrc): FurnitureMeshes {
-  const fm = new MeshBuilder({ wall: true });
-  fm.code = PLAIN_CODE;
-  const fc: FurnitureColors = {
+/** 街道傢俱的顏色(調色盤 → RGB) */
+export function furnitureColors(): FurnitureColors {
+  return {
     crown: PALETTE.treeCrown.map(hexToRgb),
     trunk: hexToRgb(PALETTE.treeTrunk),
     pole: hexToRgb(PALETTE.pole),
@@ -447,15 +446,22 @@ export function buildFurniture(c: ChunkSrc): FurnitureMeshes {
     busRoof: hexToRgb(PALETTE.busRoof),
     busGlass: hexToRgb(PALETTE.busGlass),
   };
+}
+
+export function buildFurniture(c: ChunkSrc): FurnitureMeshes {
+  const fm = new MeshBuilder({ wall: true });
+  fm.code = PLAIN_CODE;
+  const fc = furnitureColors();
   const tripo = propsMode() === 'tripo';
   const trees = furnitureShow.trees ? c.furniture.trees : [];
-  if (!tripo) trees.forEach((p, i) => addTree(fm, p, fc, c.furniture.treeKinds[i]));
+  const treeCodes = furnitureShow.trees ? c.furniture.treeKinds : [];
+  // 樹不進這一格的網格:Tripo 模式用 GLB 樣板、程式生成模式用 5 種樹形樣板,都是 InstancedMesh(0044)
   for (const s of c.furniture.signs) addSign(fm, s.p, s.a, s.y0, s.y1, s.c, fc);
   for (const b of c.furniture.busStops) addBusStop(fm, b.p, b.a, b.shelter, fc);
   if (!tripo) for (const l of c.furniture.lights) addStreetLight(fm, l.p, l.a, fc);
   for (const s of c.furniture.signals) addSignal(fm, s.p, s.a, s.arm, fc);
   if (c.furniture.viaduct) addViaduct(fm, c.furniture.viaduct);
   return { furniture: fm.toArrays(), scooters: scooterPoses(furnitureShow.scooters ? c.furniture.scooters : [], PALETTE.scooterBody.length),
-    props: tripo ? propPoses(trees, c.furniture.lights, PROP_TREE_SCALE, c.roads?.map((r) => r.pts), c.furniture.treeKinds) : new Float32Array(),
+    props: tripo ? propPoses(trees, c.furniture.lights, PROP_TREE_SCALE, c.roads?.map((r) => r.pts), treeCodes) : genTreePoses(trees, treeCodes),
   };
 }

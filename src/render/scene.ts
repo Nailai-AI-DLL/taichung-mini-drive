@@ -3,15 +3,17 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PALETTE } from '../config/palette';
 import type { MeshArrays } from '../map/types';
-import type { ChunkMeshes, FurnitureMeshes } from '../world/chunks';
+import { furnitureColors, type ChunkMeshes, type FurnitureMeshes } from '../world/chunks';
 import type { VehicleParams } from '../vehicle/params';
 import { createBuildingMaterial, setBuildingNight } from './building-material';
 import { buildingLookFromSearch } from '../config/buildings';
 import { createClouds } from './clouds';
 import type { MiniCar } from './mini-car';
-import { LOOK_LIGHT, LOOK_LIGHT_OLD, LOOK_NIGHT } from '../config/look';
+import { HEADLIGHT, LOOK_LIGHT, LOOK_LIGHT_OLD, LOOK_NIGHT } from '../config/look';
 import { ScooterLayer } from './scooters';
-import { PropLayer } from './props';
+import { PropLayer, type Variant } from './props';
+import { propsMode } from '../config/props';
+import { treeTemplate } from '../world/gen/furniture';
 import { scooterTemplate } from '../world/gen/furniture';
 import { hexToRgb } from '../config/palette';
 
@@ -260,10 +262,19 @@ function addScooters(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Ar
   out.push(tag);
 }
 
+/** 程式生成樹的圖層(0044):5 種樹形各做一個樣板,和其他傢俱一樣用 Lambert 頂點色 */
+function genTreeLayer(scene: THREE.Scene) {
+  const fc = furnitureColors();
+  const variants: Variant[][] = [0, 1, 2, 3, 4].map((k) => [
+    { geometry: toGeometry(treeTemplate(k, fc)), material: new THREE.MeshLambertMaterial({ vertexColors: true }), mesh: null },
+  ]);
+  return PropLayer.fromVariants(scene, variants, ['tree-round', 'tree-tiered', 'tree-cluster', 'tree-palm', 'tree-cone']);
+}
+
 /** Tripo 樣板物件(樹、路燈):和機車一樣用空物件當這一格的代號 */
 function addProps(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Array) {
   if (!poses.length) return;
-  props ??= new PropLayer(scene, import.meta.env.BASE_URL);
+  props ??= propsMode() === 'gen' ? genTreeLayer(scene) : new PropLayer(scene, import.meta.env.BASE_URL);
   const tag = new THREE.Object3D();
   tag.userData.props = true;
   props.set(tag, poses);
@@ -386,8 +397,15 @@ export class CarMesh {
   private spinners: THREE.Object3D[] = [];
   private placeholder: THREE.Object3D[] = [];
 
+  /** 大燈(0043):白天強度 0,夜裡打開;一直掛在場景裡,開關不會讓材質重新編譯 */
+  readonly headlight = new THREE.SpotLight(HEADLIGHT.color, 0, HEADLIGHT.distance, HEADLIGHT.angle, HEADLIGHT.penumbra, HEADLIGHT.decay);
+
   constructor(private p: VehicleParams) {
     const [hx, hy, hz] = p.halfExtents;
+    this.headlight.name = 'car-headlight';
+    this.headlight.position.set(...HEADLIGHT.pos);
+    this.headlight.target.position.set(HEADLIGHT.pos[0] + HEADLIGHT.aim, HEADLIGHT.pos[1] - HEADLIGHT.drop, 0);
+    this.group.add(this.headlight, this.headlight.target);
     const body = new THREE.Mesh(
       new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2),
       new THREE.MeshLambertMaterial({ color: '#2A2D33' }), // 黑車身(F55 60 週年,黑車身白車頂)
@@ -474,6 +492,15 @@ export class CarMesh {
       this.wheels[i].remove(old);
       this.wheels[i].add(w);
       this.spinners[i] = w;
+    });
+  }
+
+  /** 夜景開大燈(0043):聚光燈 + 車燈玻璃發光 */
+  setHeadlights(on: boolean) {
+    this.headlight.intensity = on ? HEADLIGHT.intensity : 0;
+    this.group.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (m && typeof m.userData?.headLens === 'number') m.emissiveIntensity = on ? HEADLIGHT.lens : m.userData.headLens;
     });
   }
 

@@ -13,9 +13,12 @@ export function setPropsMode(m: PropsMode) {
   mode = m;
 }
 
-/** 網址參數 → 模式;預設 tripo(Cooper 2026-11-12:「路燈跟樹都先幫我放到遊戲裡面，我想看看效果」) */
+/**
+ * 網址參數 → 模式。2026-11-12 起預設 tripo;2026-11-16 Cooper 選程式生成的 5 種樹形(「先用B」,decisions/0044)→ 預設 gen,
+ * 網址 ?props=tripo 換回 Tripo 模型
+ */
 export function propsModeFromSearch(search: string): PropsMode {
-  return new URLSearchParams(search).get('props') === 'gen' ? 'gen' : 'tripo';
+  return new URLSearchParams(search).get('props') === 'tripo' ? 'tripo' : 'gen';
 }
 
 /** 樣板檔(tools/models/prop_normalize.py 產生;單位公尺、原點在立地點、路燈懸臂朝 +x) */

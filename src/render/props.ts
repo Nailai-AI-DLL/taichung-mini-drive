@@ -8,7 +8,7 @@ import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PROP_KIND, PROP_LIGHT_STYLE, PROP_MODELS } from '../config/props';
 import { CAR_TOON, outlineMaterial, toonMapMaterial, toonVertexColorMaterial } from './car-style';
 
-type Variant = {
+export type Variant = {
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
   mesh: THREE.InstancedMesh | null;
@@ -65,7 +65,18 @@ export class PropLayer {
   /** 依種類(PROP_KIND)的樣板清單 */
   private variants: Variant[][] | null = null;
 
-  constructor(private readonly scene: THREE.Scene, base: string) {
+  /** 程式生成樹(0044):直接給樣板(依種類 = 樹形 0–4,每種一個),不載 GLB */
+  static fromVariants(scene: THREE.Scene, variants: Variant[][], names: string[]) {
+    const l = new PropLayer(scene, null);
+    l.variants = variants;
+    l.names = names;
+    return l;
+  }
+
+  private names = ['tree', 'light'];
+
+  constructor(private readonly scene: THREE.Scene, base: string | null) {
+    if (base === null) return;
     const kinds = [PROP_MODELS.tree, PROP_MODELS.light];
     Promise.all(kinds.map((u, k) => loadVariants(base + u, k === PROP_KIND.Light)))
       .then((v) => {
@@ -118,7 +129,7 @@ export class PropLayer {
           v.mesh.frustumCulled = false;
           v.mesh.castShadow = true;
           v.mesh.receiveShadow = true;
-          v.mesh.name = `props-${kind === PROP_KIND.Tree ? 'tree' : 'light'}-${j}`;
+          v.mesh.name = `props-${this.names[kind] ?? kind}-${j}`;
           this.scene.add(v.mesh);
           if (v.outline) {
             const o = new THREE.InstancedMesh(v.outline.geometry, v.outline.material, cap);

@@ -11,7 +11,7 @@ import { Vehicle, headingOf, type DriveInput } from './vehicle/vehicle';
 import { Keyboard } from './input/keyboard';
 import { ChaseCamera, type Smoothing } from './camera/chase-camera';
 import { PoseInterpolator } from './core/pose-interpolator';
-import { addChunkFurniture, addChunkMeshes, addLandmark, CarMesh, createRenderer, createScene, followSun, removeChunkMeshes, setLook, setNight, isNight } from './render/scene';
+import { addChunkFurniture, addChunkMeshes, addLandmark, CarMesh, createRenderer, createScene, followSun, removeChunkMeshes, setLook, setNight, isNight, propLayer } from './render/scene';
 import { fxFromUrl, PostFx } from './render/post';
 import { createMiniCar } from './render/mini-car';
 import { toonifyCar } from './render/car-style';
@@ -374,6 +374,7 @@ async function boot() {
     post.setNight(on);
     setCloudsNight(world3d.clouds, on ? NIGHT.clouds : 1);
     if (mountains) setCloudsNight(mountains, on ? NIGHT.mountains : 1);
+    car.setHeadlights(on);
   };
   const toggleNight = () => setNightMode(!isNight());
   if (new URLSearchParams(location.search).get('night') === '1') setNightMode(true);
@@ -571,6 +572,8 @@ async function boot() {
         minimapMode: minimap.mode,
         bigMapOpen: bigMap.open,
         minimapRedraws: minimap.redraws,
+        /** 樹 / 路燈樣板圖層實際畫出的數量(依種類;0044 查樹看不到時加) */
+        propCounts: propLayer()?.counts() ?? [],
         minimapMaxRedrawMs,
         maxFrameMs: (() => {
           const m = maxFrameMs;

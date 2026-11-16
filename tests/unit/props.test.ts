@@ -12,17 +12,20 @@ const src = (trees: Pt[], lights: Pt[]) =>
 afterEach(() => setPropsMode('gen'));
 
 describe('Tripo 街道物件', () => {
-  it('網址預設 tripo,?props=gen 換回程式生成', () => {
-    expect(propsModeFromSearch('')).toBe('tripo');
+  it('網址預設程式生成(0044),?props=tripo 換回 Tripo 模型', () => {
+    expect(propsModeFromSearch('')).toBe('gen');
+    expect(propsModeFromSearch('?props=tripo')).toBe('tripo');
     expect(propsModeFromSearch('?props=gen')).toBe('gen');
   });
 
-  it('tripo 模式:樹與路燈不產生幾何，改成擺放資料;gen 模式相反', () => {
+  it('tripo 模式:樹與路燈不產生幾何，改成擺放資料;gen 模式路燈產生幾何、樹改成擺放資料(0044 樹形樣板 + InstancedMesh)', () => {
     const c = src([[1, 2], [10, 2]], [[5, 5]]);
     setPropsMode('gen');
     const g = buildFurniture(c);
-    expect(g.furniture.index.length).toBeGreaterThan(0);
-    expect(g.props.length).toBe(0);
+    expect(g.furniture.index.length).toBeGreaterThan(0); // 路燈
+    expect(g.props.length).toBe(2 * 5); // 兩棵樹
+    const noLight = buildFurniture(src([[1, 2], [10, 2]], []));
+    expect(noLight.furniture.index.length).toBe(0); // 樹不進這一格的網格
     setPropsMode('tripo');
     const t = buildFurniture(c);
     expect(t.furniture.index.length).toBe(0);
@@ -96,8 +99,9 @@ import { furnitureShow, furnitureShowFromSearch, setFurnitureShow } from '../../
 describe('行道樹、機車先移除(Cooper 2026-11-13)', () => {
   afterEach(() => setFurnitureShow({ trees: true, scooters: true }));
 
-  it('網址預設都不顯示,?trees=on / ?scooters=on 加回來', () => {
-    expect(furnitureShowFromSearch('')).toEqual({ trees: false, scooters: false });
+  it('網址預設:樹顯示(0044)、機車不顯示;?trees=off 隱藏樹,?scooters=on 加回機車', () => {
+    expect(furnitureShowFromSearch('')).toEqual({ trees: true, scooters: false });
+    expect(furnitureShowFromSearch('?trees=off')).toEqual({ trees: false, scooters: false });
     expect(furnitureShowFromSearch('?trees=on&scooters=on')).toEqual({ trees: true, scooters: true });
   });
 
@@ -117,5 +121,22 @@ describe('行道樹、機車先移除(Cooper 2026-11-13)', () => {
     expect(off.poses.scooters.length).toBe(0);
     expect(off.hit.posts.length).toBe(1);
     expect(off.hit.boxes.length).toBe(0);
+  });
+});
+
+import { genTreePoses, treeTemplate } from '../../src/world/gen/furniture';
+import { encodeTreeKind } from '../../src/config/furniture';
+import { furnitureColors } from '../../src/world/chunks';
+describe('程式生成樹(0044)', () => {
+  it('擺放資料：種類 = 樹形、位置、大小含實測樹高倍率', () => {
+    const p = genTreePoses([[3, 4], [8, 9]], [encodeTreeKind(3, 1.5), 1]);
+    expect([p[0], p[1], p[2]]).toEqual([3, 3, 4]);
+    expect(p[4]).toBeGreaterThanOrEqual(1.5 * 0.9 - 1e-6);
+    expect(p[4]).toBeLessThanOrEqual(1.5 * 1.15 + 1e-6);
+    expect(p[5]).toBe(1);
+    expect(p[9]).toBeLessThanOrEqual(1.15 + 1e-6);
+  });
+  it('5 種樹形樣板都有幾何', () => {
+    for (let k = 0; k < 5; k++) expect(treeTemplate(k, furnitureColors()).index.length).toBeGreaterThan(0);
   });
 });

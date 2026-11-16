@@ -110,7 +110,7 @@ export function createMiniCar(renderer: THREE.WebGLRenderer): MiniCar {
     stripe: std(C.stripe, 0.4, 0.2),
     stripeLine: std(C.stripeLine, 0.2, 0.8),
     chrome: std(C.chrome, 0.12, 1),
-    headLens: std(C.headLens, 0.1, 0, { emissive: new THREE.Color(C.headLens), emissiveIntensity: 0.35 }),
+    headLens: Object.assign(std(C.headLens, 0.1, 0, { emissive: new THREE.Color(C.headLens), emissiveIntensity: 0.35 }), { userData: { headLens: 0.35 } }),
     drl: std(C.drl, 0.2, 0, { emissive: new THREE.Color(C.drl), emissiveIntensity: 0.8 }),
     tail: std(C.tail, 0.25, 0, { emissive: new THREE.Color(C.tail), emissiveIntensity: 0.55 }),
     tailCross: std(C.tailCross, 0.3, 0, { emissive: new THREE.Color(C.tailCross), emissiveIntensity: 0.4 }),

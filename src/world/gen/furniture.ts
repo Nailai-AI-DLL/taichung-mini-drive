@@ -96,10 +96,12 @@ function ellipsoid(mb: MeshBuilder, x: number, y: number, z: number, rx: number,
 export function addTree(mb: MeshBuilder, p: Pt, c: FurnitureColors, code = 0) {
   // code = 樹形 + 大小倍率(0042;src/config/furniture.ts 的 decodeTreeKind)
   const { kind, scale } = decodeTreeKind(code);
-  const s = (0.9 + rnd(p, 1) * 0.25) * scale;
+  addTreeAt(mb, p, c, kind, (0.9 + rnd(p, 1) * 0.25) * scale, (0.92 + rnd(p, 2) * 0.16) * scale, rnd(p, 4) * Math.PI * 2);
+}
+
+/** 一棵樹:s = 樹冠大小倍率、hs = 高度倍率、rot = 朝向 */
+function addTreeAt(mb: MeshBuilder, p: Pt, c: FurnitureColors, kind: number, s: number, hs: number, rot: number) {
   const r = TREE_CROWN_R * s;
-  const hs = (0.92 + rnd(p, 2) * 0.16) * scale;
-  const rot = rnd(p, 4) * Math.PI * 2;
   const green = c.speciesCrown[kind] ?? c.crown[0];
   switch (kind) {
     case TREE_SPECIES.Tiered: {
@@ -481,4 +483,25 @@ export function nearestOnLines(p: Pt, lines: readonly Pt[][]): Pt | null {
       }
     }
   return best && bd > 1e-6 ? best : null;
+}
+
+/**
+ * 程式生成樹的擺放(0044):每棵 [樹形, x, z, 朝向, 大小];畫面用 InstancedMesh(src/render/props.ts),
+ * 5 種樹形各一個樣板,不用每格重新產生樹的幾何(4.6 萬棵時分塊生成會卡)。
+ * 大小 = 實測樹高倍率(0042)× 每棵 0.9–1.15 的亂數;朝向亂數。
+ */
+export function genTreePoses(trees: readonly Pt[], codes: readonly number[]): Float32Array {
+  const out = new Float32Array(trees.length * 5);
+  trees.forEach((p, i) => {
+    const { kind, scale } = decodeTreeKind(codes[i] ?? 0);
+    out.set([kind, p[0], p[1], rnd(p, 4) * Math.PI * 2, scale * (0.9 + rnd(p, 1) * 0.25)], i * 5);
+  });
+  return out;
+}
+
+/** 樹形樣板(0044):在原點、大小倍率 1 的一棵樹 */
+export function treeTemplate(kind: number, c: FurnitureColors): MeshArrays {
+  const mb = new MeshBuilder();
+  addTreeAt(mb, [0, 0], c, kind, 1, 1, 0);
+  return mb.toArrays();
 }

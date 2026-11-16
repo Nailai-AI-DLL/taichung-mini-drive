@@ -115,6 +115,24 @@ export const LOOK_NIGHT = {
 };
 
 /**
+ * 玩家車大燈(0043;Cooper:「夜景模式下，玩家自己的汽車應該要開大燈」):一盞聚光燈照車頭前方路面,夜裡才開。
+ * 位置相對車體中心(+x 車頭);aim = 照射點在車頭前方幾公尺、drop = 照射點比燈低幾公尺。
+ * 只放一盞(每盞真光源都會讓所有材質多算一次,0042 評估)。lens = 夜裡車燈玻璃的自發光強度(泛光會讓它發光暈)。
+ */
+export const HEADLIGHT = {
+  color: '#fff2d9',
+  intensity: 600,
+  distance: 80,
+  angle: 0.75,
+  penumbra: 0.7,
+  decay: 1.3,
+  pos: [1.9, 0.35, 0] as [number, number, number],
+  aim: 25,
+  drop: 1.2,
+  lens: 3,
+};
+
+/**
  * 夜裡建築與傢俱的自發光(0042):
  * - lit:各細分類亮燈窗戶的比例(順序同 KIND:一般、透天、大樓、商辦、學校、廟宇、低矮、公共);
  * - 窗燈顏色「混合」(Cooper 2026-11-16):暖黃與冷白,warmShare = 暖黃的比例;

@@ -148,9 +148,10 @@ export const CLEAR_LIGHT = 3;
  * 網址 ?trees=on / ?scooters=on 加回來。
  */
 export const furnitureShow = { trees: true, scooters: true };
+/** 2026-11-16 起行道樹預設顯示(Cooper 選程式生成樹形,decisions/0044),?trees=off 隱藏;機車仍預設不顯示 */
 export function furnitureShowFromSearch(search: string) {
   const q = new URLSearchParams(search);
-  return { trees: q.get('trees') === 'on', scooters: q.get('scooters') === 'on' };
+  return { trees: q.get('trees') !== 'off', scooters: q.get('scooters') === 'on' };
 }
 export function setFurnitureShow(v: { trees: boolean; scooters: boolean }) {
   furnitureShow.trees = v.trees;
