@@ -53,6 +53,12 @@ export const SIGNAL_HIGHWAYS = ['trunk', 'primary', 'secondary', 'tertiary'] as 
 export const SIGNAL_MIN_WIDTH = 10;
 export const SIGNAL_PARTNER_R = 60;
 export const SIGNAL_SETBACK = 1;
+/**
+ * 0047 A 改法(Cooper 2026-11-16:「紅綠燈用A改法沒問題」):號誌改依 OSM 號誌點(highway=traffic_signals)放。
+ * 進入路口的停止線 SIGNAL_OSM_R 公尺內有 OSM 號誌點 → 立號誌(位置規則同上);
+ * OSM 號誌點附近都沒有停止線(窄路沒畫)→ 在最近道路的路緣補一支。沒有 OSM 號誌點的路口不放。
+ */
+export const SIGNAL_OSM_R = 40;
 /** OSM 標了號誌的穿越道,離已立的路口號誌 < 此值(公尺)就不再另立 */
 export const SIGNAL_OSM_DEDUPE = 12;
 

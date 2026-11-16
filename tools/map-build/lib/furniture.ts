@@ -2,7 +2,7 @@
 // 輸入是處理完路寬的道路、建築 / 地標 / 水面外框、有號誌的行人穿越道;輸出不量化,由 build.ts 量化後寫進 world.json。
 // 位置只由資料決定(亂移用 OSM id 雜湊),每次建置結果一樣。
 import {
-  CLEAR_CROSSWALK, CLEAR_LIGHT, CLEAR_ROAD, LIGHT_BOTH_SIDES, LIGHT_CURB, LIGHT_HIGHWAYS, LIGHT_SPACING, SIGNAL_ARM_MAX, SIGNAL_CURB,
+  CLEAR_CROSSWALK, CLEAR_LIGHT, CLEAR_ROAD, LIGHT_BOTH_SIDES, LIGHT_CURB, LIGHT_HIGHWAYS, LIGHT_SPACING, SIGNAL_ARM_MAX, SIGNAL_CURB, SIGNAL_OSM_R,
   SCOOTER_GAP_MAX, SCOOTER_GAP_MIN, SCOOTER_GROUP_MAX, SCOOTER_GROUP_MIN, SCOOTER_LEN, SCOOTER_MIN_SIDEWALK, SCOOTER_SHOP_REACH, SCOOTER_SKIP_HIGHWAYS,
   SCOOTER_SLOT, TREE_CURB_MAX, TREE_GOV_COVER, TREE_HIGHWAYS, TREE_JITTER, TREE_MIN_SIDEWALK, TREE_SPACING,
   BUS_DEDUPE, BUS_POLE_CURB, BUS_SHELTER_CURB, BUS_SHELTER_D, BUS_SHELTER_L, BUS_SHELTER_MIN_SIDEWALK, BUS_SNAP,
@@ -40,6 +40,30 @@ export interface FurnitureApproach {
 }
 
 /** 每個路口的號誌位置:主要道路進入路口、附近有另一條交叉的主要道路也進入同一路口(純函式,給測試用) */
+/** 號誌桿位置:停止線旁、行車方向右側路緣,往後退 SIGNAL_SETBACK,懸臂伸向車道 */
+function signalAt(a: FurnitureApproach) {
+  const n = leftNormal(a.dir); // 往路中央(行車方向左側)
+  const p: Pt = [a.p[0] - n[0] * SIGNAL_CURB - a.dir[0] * SIGNAL_SETBACK, a.p[1] - n[1] * SIGNAL_CURB - a.dir[1] * SIGNAL_SETBACK];
+  return { p, a: Math.atan2(n[1], n[0]), arm: Math.min(SIGNAL_ARM_MAX, a.half * 0.7) };
+}
+
+/**
+ * 0047 A:依 OSM 號誌點放(純函式,給測試用)。回傳 [停止線旁的號誌, 附近沒有停止線、要補在路緣的 OSM 點]。
+ */
+export function osmSignals(approaches: FurnitureApproach[], nodes: readonly Pt[]) {
+  const g = new Grid<Pt>();
+  for (const p of nodes) g.add(p[0] - SIGNAL_OSM_R, p[1] - SIGNAL_OSM_R, p[0] + SIGNAL_OSM_R, p[1] + SIGNAL_OSM_R, p);
+  const used = new Set<Pt>();
+  const out: ReturnType<typeof signalAt>[] = [];
+  for (const a of approaches) {
+    const hit = g.near(a.p).filter((q) => Math.hypot(q[0] - a.p[0], q[1] - a.p[1]) < SIGNAL_OSM_R);
+    if (!hit.length) continue;
+    hit.forEach((q) => used.add(q));
+    out.push(signalAt(a));
+  }
+  return { signals: out, orphans: nodes.filter((q) => !used.has(q)) };
+}
+
 export function intersectionSignals(approaches: FurnitureApproach[]) {
   // 同名道路最寬處(分隔島兩側的單向車道各自很窄,要看整條路)
   const nameWidth = new Map<string, number>();
@@ -55,9 +79,7 @@ export function intersectionSignals(approaches: FurnitureApproach[]) {
       (b) => b !== a && (b.name !== a.name || !a.name) && Math.abs(a.dir[0] * b.dir[0] + a.dir[1] * b.dir[1]) < 0.7 && Math.hypot(a.p[0] - b.p[0], a.p[1] - b.p[1]) < SIGNAL_PARTNER_R,
     );
     if (!partner) continue;
-    const n = leftNormal(a.dir); // 往路中央(行車方向左側)
-    const p: Pt = [a.p[0] - n[0] * SIGNAL_CURB - a.dir[0] * SIGNAL_SETBACK, a.p[1] - n[1] * SIGNAL_CURB - a.dir[1] * SIGNAL_SETBACK];
-    out.push({ p, a: Math.atan2(n[1], n[0]), arm: Math.min(SIGNAL_ARM_MAX, a.half * 0.7) });
+    out.push(signalAt(a));
   }
   return out;
 }
@@ -118,6 +140,8 @@ const GOV_TREE_POLE_GAP = 1.5;
 /** 路燈與路燈至少隔多遠 */
 const LIGHT_MIN_GAP = 10;
 /** 號誌桿與號誌桿至少隔多遠 */
+/** 補在路緣的 OSM 號誌,放不下時沿道路每次退幾公尺再試 */
+const SIGNAL_OSM_STEP = 5;
 const SIGNAL_MIN_GAP = 3;
 /** 離建築外牆至少多遠:樹冠比較寬 */
 const TREE_BUILDING_GAP = 0.8;
@@ -185,7 +209,7 @@ class Spacing {
  */
 export function placeFurniture(
   roads: FurnitureRoad[],
-  obstacles: { rings: Pt[][]; water: Pt[][]; shops?: Pt[][]; waterways?: { pts: Pt[]; w: number }[]; junctions?: Pt[][]; shopBuildings?: { ring: Pt[]; h: number; id: number; dense?: boolean }[]; govTrees?: { p: Pt; code: number }[] },
+  obstacles: { rings: Pt[][]; water: Pt[][]; shops?: Pt[][]; waterways?: { pts: Pt[]; w: number }[]; junctions?: Pt[][]; shopBuildings?: { ring: Pt[]; h: number; id: number; dense?: boolean }[]; govTrees?: { p: Pt; code: number }[]; signalNodes?: Pt[] },
   crossings: FurnitureCrossing[],
   busStops: { p: Pt; shelter: boolean }[] = [],
   approaches: FurnitureApproach[] = [],
@@ -250,11 +274,48 @@ export function placeFurniture(
 
   // ---- 號誌桿:有號誌的穿越道兩端,人行道上靠路緣;懸臂伸向車道 ----
   const sigSpace = new Spacing(SIGNAL_MIN_GAP);
-  // 先放每個路口的號誌(Cooper 2026-11-12),再用 OSM 標了號誌的穿越道補(例如路段中間的行人號誌)
-  for (const s of intersectionSignals(approaches)) {
+  // 路口號誌:有 OSM 號誌點就依它放(0047 A);沒有號誌點資料時照舊「每個大路口都放」(Cooper 2026-11-12)。
+  // 再用 OSM 標了號誌的穿越道補(例如路段中間的行人號誌)
+  const osm = obstacles.signalNodes ? osmSignals(approaches, obstacles.signalNodes) : null;
+  for (const s of osm ? osm.signals : intersectionSignals(approaches)) {
     if (!sigSpace.free(s.p) || !ok(s.p, null, POLE_BUILDING_GAP)) continue;
     sigSpace.add(s.p);
     out.signals.push(s);
+  }
+  // OSM 號誌點附近沒有停止線(窄路沒畫):在最近道路的路緣補一支,懸臂朝路面
+  for (const q of osm?.orphans ?? []) {
+    let best: { d: number; s: Seg } | null = null;
+    for (const s of segs.near(q)) {
+      const d = segDist(q, s.a, s.b);
+      if (!best || d < best.d) best = { d, s };
+    }
+    if (!best || best.d > SIGNAL_OSM_R) continue;
+    const { a: A, b: B, dir, half } = best.s;
+    const t = Math.max(0, Math.min(1, ((q[0] - A[0]) * (B[0] - A[0]) + (q[1] - A[1]) * (B[1] - A[1])) / ((B[0] - A[0]) ** 2 + (B[1] - A[1]) ** 2 || 1)));
+    const foot: Pt = [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t];
+    // 點在路的哪一側就先試那一側;路緣那點落在橫向道路或路口鋪面上(大路口常見)時,
+    // 沿道路往兩個方向各退 SIGNAL_OSM_STEP 公尺一試,最多 SIGNAL_OSM_R(0047 A:臺灣大道 × 惠來路這類大路口原本放不上去)
+    const n = leftNormal(dir);
+    const near = (q[0] - foot[0]) * n[0] + (q[1] - foot[1]) * n[1] >= 0 ? 1 : -1;
+    const e = half + SIGNAL_CURB;
+    let placed: { p: Pt; side: number } | null = null;
+    let blocked = false;
+    for (let back = 0; back <= SIGNAL_OSM_R && !placed && !blocked; back += SIGNAL_OSM_STEP)
+      for (const along of back ? [1, -1] : [1])
+        for (const side of [near, -near]) {
+          const p: Pt = [foot[0] + n[0] * e * side + dir[0] * back * along, foot[1] + n[1] * e * side + dir[1] * back * along];
+          if (!sigSpace.free(p)) {
+            blocked = true; // 附近已經有號誌了,不用再補
+            break;
+          }
+          if (ok(p, null, POLE_BUILDING_GAP)) {
+            placed = { p, side };
+            break;
+          }
+        }
+    if (!placed) continue;
+    sigSpace.add(placed.p);
+    out.signals.push({ p: placed.p, a: Math.atan2(-n[1] * placed.side, -n[0] * placed.side), arm: Math.min(SIGNAL_ARM_MAX, half * 0.7) });
   }
   for (const c of crossings) {
     if (!c.sig) continue;

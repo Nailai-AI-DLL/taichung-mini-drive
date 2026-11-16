@@ -54,6 +54,8 @@ interface AreaConfig {
   govTrees?: string;
   /** 臺中市道路圖的每向車道數、速限對應(decisions/0046;選用):tools/research/road_lanes_match.py 的輸出 */
   govLanes?: string;
+  /** OSM 號誌點(decisions/0047 A;選用):range_a_signals.overpassql 的輸出;有就依它放路口號誌 */
+  osmSignals?: string;
 }
 
 /** 建物圖建築從被換掉的 OSM 建築繼承的細分類(0039) */
@@ -77,6 +79,7 @@ const AREAS: Record<string, AreaConfig> = {
     govBuildings: { base: 'data/gov/buildings/shp/01-SHP/b114', rect: [24.12, 120.62, 24.185, 120.705] },
     govTrees: 'data/gov/trees/trees-range-a.json',
     govLanes: 'data/gov/roads/lanes-range-a.json',
+    osmSignals: 'data/osm/raw/range-a/range-a_signals.json',
     // 2026-10-31 先做樣張區(歌劇院周邊 1 km × 1 km:{ center: OPERA_HOUSE, half: 500 }),Cooper 看過後同意鋪到整區
     detail: 'all',
   },
@@ -612,6 +615,15 @@ function main() {
       .map((n) => ({ p: toW({ lat: n.lat!, lon: n.lon! }), shelter: n.tags?.shelter === 'yes' }))
       .filter((b) => inRect(b.p, rect));
     stats.busStopNodes = busStops.length;
+    // OSM 號誌點(0047 A):只取路口號誌 highway=traffic_signals
+    let signalNodes: Pt[] | undefined;
+    if (cfg.osmSignals && existsSync(join(ROOT, cfg.osmSignals))) {
+      signalNodes = (JSON.parse(readFileSync(join(ROOT, cfg.osmSignals), 'utf8')).elements as OsmEl[])
+        .filter((e) => e.type === 'node' && e.tags?.highway === 'traffic_signals' && e.lat !== undefined)
+        .map((e) => toW({ lat: e.lat!, lon: e.lon! }))
+        .filter((p) => inRect(p, rect));
+      stats.osmSignalNodes = signalNodes.length;
+    } else if (cfg.osmSignals) console.warn(`找不到 OSM 號誌點 ${cfg.osmSignals},路口號誌照舊依規則放`);
     // 臺中市行道樹分佈圖(decisions/0042;tools/map-build/gov_trees.py 從 KMZ 轉出)
     const govTrees: { p: Pt; code: number }[] = [];
     if (cfg.govTrees && existsSync(join(ROOT, cfg.govTrees))) {
@@ -631,6 +643,7 @@ function main() {
         junctions: streetRaw.junctions,
         shopBuildings: buildings.filter((b) => b.s).map((b) => ({ ring: dequantPts(b.rings[0]), h: b.h / 10, id: b.id, ...(govType.get(b.id) === GOV_ROW_TYPE && { dense: true }) })),
         govTrees,
+        ...(signalNodes && { signalNodes }),
         rings: [...buildings.map((b) => dequantPts(b.rings[0])), ...landmarks.flatMap((l) => l.rings.map((r) => dequantPts(r).map(([x, z]) => [x + l.x, z + l.z] as Pt)))], water: areas.filter((a) => a.k === 2).map((a) => dequantPts(a.ring)) },
       streetRaw.crosswalks.map((c) => ({ p: c.p, v: [Math.cos(c.v), Math.sin(c.v)] as Pt, reach: c.reach, sig: c.sig })),
       busStops,

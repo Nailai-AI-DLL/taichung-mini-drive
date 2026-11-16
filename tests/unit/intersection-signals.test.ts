@@ -49,3 +49,26 @@ describe('每個路口的號誌', () => {
     expect(LIGHT_SPACING).toBe(128); // 0042 再減半
   });
 });
+
+import { osmSignals, placeFurniture } from '../../tools/map-build/lib/furniture';
+import { SIGNAL_OSM_R } from '../../src/config/furniture';
+describe('依 OSM 號誌點放(0047 A)', () => {
+  const cross = [ap([6, -20], [0, 1], '甲路'), ap([-6, 20], [0, -1], '甲路'), ap([-20, -6], [1, 0], '乙路'), ap([20, 6], [-1, 0], '乙路')];
+  it('路口有 OSM 號誌點:四個方向都放;沒有號誌點的路口不放(即使是大路)', () => {
+    expect(osmSignals(cross, [[0, 0]]).signals).toHaveLength(4);
+    expect(osmSignals(cross, [[500, 500]]).signals).toHaveLength(0);
+    // 舊規則(大路十字口)照樣會放:確認差別來自 OSM 點
+    expect(intersectionSignals(cross.map((a) => ({ ...a, highway: 'primary' })))).toHaveLength(4);
+  });
+  it('附近沒有停止線的 OSM 點留給路緣補放;placeFurniture 會在最近道路的路緣立一支', () => {
+    const { orphans } = osmSignals(cross, [[0, 0], [300, 3]]);
+    expect(orphans).toEqual([[300, 3]]);
+    const road = { id: 1, name: '丙路', highway: 'residential', width: 8, sidewalk: 2, lit: false, bridge: false, pts: [[200, 0], [400, 0]] as [number, number][] };
+    const f = placeFurniture([road], { rings: [], water: [], signalNodes: [[300, 3]] }, []);
+    expect(f.signals).toHaveLength(1);
+    const p = f.signals[0].p;
+    expect(Math.abs(p[1])).toBeCloseTo(4 + 0.7, 5); // 路緣外 SIGNAL_CURB,在 OSM 點那一側(+z)
+    expect(p[1]).toBeGreaterThan(0);
+    expect(Math.abs(p[0] - 300)).toBeLessThanOrEqual(SIGNAL_OSM_R);
+  });
+});
