@@ -121,8 +121,15 @@ async function boot() {
   let inspectView: { x: number; y: number; z: number; lx: number; lz: number; ly?: number } | null = null;
 
   const pose = new PoseInterpolator();
-  const teleport = (x: number, z: number, headingDeg: number, surfaceY = 0) => {
-    vehicle.reset(x, z, headingDeg, surfaceY);
+  const teleport = (x: number, z: number, headingDeg: number, surfaceY?: number) => {
+    let y = surfaceY;
+    if (y === undefined) {
+      const hits = roadIndex.near(x, z, 8).filter((h) => h.distance <= h.way.width / 2 + 0.5);
+      // hits 已按中心線距離由近到遠排序;若最近命中的車道為高架/匝道(h.y > 0.1),直接放上該高架坡面
+      y = hits.length > 0 && hits[0].y > 0.1 ? hits[0].y : surface.terrainY(x, z);
+    }
+    if (y > 0.1) chunks.loadAll(x, z);
+    vehicle.reset(x, z, headingDeg, y);
     pickupSys.resetImpact();
     pose.snap(vehicle.position(), vehicle.body.rotation());
     cam.snap();

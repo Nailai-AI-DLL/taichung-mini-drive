@@ -41,6 +41,9 @@ export class WorldChunkManager {
         ];
         const t1 = performance.now();
         const bodies = colliderMeshes(m).map((a) => addStaticTrimesh(pw, a.position, a.index));
+        if (m.roadDeck?.index.length) {
+          bodies.push(addStaticRoadDeck(pw, m.roadDeck.position, m.roadDeck.index));
+        }
         if (this.roadDeckMeshes) {
           for (const d of this.roadDeckMeshes(m)) bodies.push(addStaticRoadDeck(pw, d.position, d.index));
         }

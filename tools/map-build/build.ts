@@ -24,6 +24,7 @@ import { PLACE_CLEAR, placePickup } from './lib/places';
 import { intersectionSignals, placeFurniture, type FurnitureRoad } from './lib/furniture';
 import { crossingMarked, generateStreet, type StreetCrossing, type StreetResult, type StreetWay } from './lib/street';
 import { writeWorldTiles } from './lib/write-tiles';
+import { assignElevatedRoads, cleanElevatedGroundStreet } from '../../src/map/elevated';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -826,6 +827,7 @@ function main() {
       inc('places');
     }
   }
+  stats.elevatedRoads = assignElevatedRoads(roads);
   for (const k of Object.keys(stats)) stats[k] = round2(stats[k]);
   const json: WorldJson = {
     version: 2,
@@ -851,6 +853,7 @@ function main() {
     ...(viaduct && { viaduct }),
     ...(places.length && { places }),
   };
+  cleanElevatedGroundStreet(json);
   const outDir = join(ROOT, 'public/map', areaName);
   mkdirSync(outDir, { recursive: true });
   const text = JSON.stringify(json);

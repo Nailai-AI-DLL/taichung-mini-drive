@@ -63,8 +63,8 @@ export function inRect(p: Pt, r: Rect): boolean {
   return p[0] >= r.minX && p[0] <= r.maxX && p[1] >= r.minZ && p[1] <= r.maxZ;
 }
 
-/** Liang–Barsky:把線段裁切到矩形,回傳裁切後線段或 null */
-function clipSegment(a: Pt, b: Pt, r: Rect): [Pt, Pt] | null {
+/** Liang–Barsky:把線段裁切到矩形,回傳裁切後端點與參數 [a', b', t0, t1] 或 null */
+function clipSegmentT(a: Pt, b: Pt, r: Rect): [Pt, Pt, number, number] | null {
   let t0 = 0;
   let t1 = 1;
   const dx = b[0] - a[0];
@@ -89,10 +89,12 @@ function clipSegment(a: Pt, b: Pt, r: Rect): [Pt, Pt] | null {
       }
     }
   }
-  return [
-    [a[0] + dx * t0, a[1] + dz * t0],
-    [a[0] + dx * t1, a[1] + dz * t1],
-  ];
+  return [[a[0] + dx * t0, a[1] + dz * t0], [a[0] + dx * t1, a[1] + dz * t1], t0, t1];
+}
+
+function clipSegment(a: Pt, b: Pt, r: Rect): [Pt, Pt] | null {
+  const res = clipSegmentT(a, b, r);
+  return res ? [res[0], res[1]] : null;
 }
 
 /** 折線裁切到矩形,可能切成多段 */
@@ -122,6 +124,43 @@ export function clipPolyline(line: Pt[], r: Rect): Pt[][] {
   }
   if (cur.length > 1) out.push(cur);
   return out.filter((l) => l.length > 1);
+}
+
+/** 帶高程 elev 的 3D 折線裁切到矩形:在矩形邊界處自動線性插值高度 y,確保相鄰分塊邊界高程零接縫 */
+export function clipPolyline3D(line: Pt[], elev: number[], r: Rect): { pts: Pt[]; elev: number[] }[] {
+  const out: { pts: Pt[]; elev: number[] }[] = [];
+  let curPts: Pt[] = [];
+  let curElev: number[] = [];
+  for (let i = 0; i + 1 < line.length; i++) {
+    const seg = clipSegmentT(line[i], line[i + 1], r);
+    if (!seg) {
+      if (curPts.length > 1) out.push({ pts: curPts, elev: curElev });
+      curPts = [];
+      curElev = [];
+      continue;
+    }
+    const [a, b, t0, t1] = seg;
+    const y0 = elev[i] ?? 0;
+    const y1 = elev[i + 1] ?? y0;
+    const ya = y0 + (y1 - y0) * t0;
+    const yb = y0 + (y1 - y0) * t1;
+    const last = curPts[curPts.length - 1];
+    if (last && Math.hypot(last[0] - a[0], last[1] - a[1]) < 1e-6) {
+      curPts.push(b);
+      curElev.push(yb);
+    } else {
+      if (curPts.length > 1) out.push({ pts: curPts, elev: curElev });
+      curPts = [a, b];
+      curElev = [ya, yb];
+    }
+    if (b[0] !== line[i + 1][0] || b[1] !== line[i + 1][1]) {
+      out.push({ pts: curPts, elev: curElev });
+      curPts = [];
+      curElev = [];
+    }
+  }
+  if (curPts.length > 1) out.push({ pts: curPts, elev: curElev });
+  return out.filter((l) => l.pts.length > 1);
 }
 
 /** Sutherland–Hodgman:多邊形裁切到矩形 */

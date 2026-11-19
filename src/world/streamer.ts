@@ -58,6 +58,16 @@ export class ChunkStreamer {
     return !cat.available.has(tk) || cat.loaded.has(tk);
   }
 
+  /**
+   * 單格是否含有已就緒於 index.json 骨架中的 3D 高架道路/匝道碰撞網格:
+   * 若傳送至尚未下載完 1 km 分區 Tile 的高架橋上,仍須先建立含高架橋路面與護欄的骨架 Chunk,
+   * 否則物理引擎在 Tile 下載完成前沒有高架橋碰撞體,車子會在第一幀直接墜落地面;
+   * 待 1 km Tile 下載完成後,TileStreamer 會自動呼叫 invalidateChunks 重建完整含建築與傢俱的 Chunk。
+   */
+  private hasElevatedDeck(c: ChunkSrc): boolean {
+    return c.roads.some((r) => r.elev && r.elev.some((e) => e > 0.05));
+  }
+
   /** 當某個分區 Tile 套用或卸載時,使受影響的已載入格子失效(觸發 onUnload,下次 update 會以最新資料重建) */
   invalidateChunks(keys: Iterable<string>) {
     for (const key of keys) {
@@ -85,9 +95,11 @@ export class ChunkStreamer {
     }
     const missing: [number, ChunkSrc][] = [];
     for (const c of this.world.chunks.values()) {
-      if (this.loaded.has(c.key) || !this.isChunkReady(c)) continue;
+      if (this.loaded.has(c.key)) continue;
       const d = distToChunk(c, x, z);
-      if (d <= this.opts.loadRadius) missing.push([d, c]);
+      if (d > this.opts.loadRadius) continue;
+      if (!this.isChunkReady(c) && !(d <= 250 && this.hasElevatedDeck(c))) continue;
+      missing.push([d, c]);
     }
     if (!allowGenerate) {
       this.lastStats = { generated: 0, unloaded, ms: this.now() - t0 };

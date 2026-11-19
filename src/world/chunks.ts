@@ -1,13 +1,15 @@
 // 把 world.json 的 2D 描述分到 250 m 格子,並生成單一格子的網格(docs/decisions/0012)。
 // 不依賴 DOM 與 three.js,可在 Node 測試中使用。
 import { PALETTE, hexToRgb } from '../config/palette';
+import { subdivideElevatedPolyline } from '../map/elevated';
 import { QUANT, roadWayOf, type MeshArrays, type RoadWay, type WorldJson, type WorldStreet } from '../map/types';
 import type { WorldTileCatalog } from '../map/tiles';
 import { BAR_GAP, BAR_LEN, BAR_W, CURB_W, DASH_OFF, DASH_ON, MEDIAN_CURB } from '../config/street';
-import { centroid, clipPolygon, clipPolyline, hash32, type Pt, type Rect } from './gen/geom';
+import { centroid, clipPolygon, clipPolyline, clipPolyline3D, hash32, type Pt, type Rect } from './gen/geom';
 import { dashes, miterNormals, offsetLine } from './gen/polyline';
 import { MeshBuilder, packBuildingCode } from './gen/mesh';
 import { addRibbon } from './gen/ribbon';
+import { addElevatedRoads, type ElevatedRoadPiece } from './gen/elevated-road';
 import { extrude, PLAIN_CODE } from './gen/extrude';
 import { addRoofProps } from './gen/roof-props';
 import { addBusStop, addSign, addSignal, addStreetLight, propPoses, scooterPoses, type FurnitureColors, genTreePoses } from './gen/furniture';
@@ -32,11 +34,16 @@ const Y_MARK = 0.045;
 type Rgb = [number, number, number];
 
 interface RoadPiece {
+  osmId?: number;
   pts: Pt[];
   width: number;
   sidewalk: number;
   /** 裁切到街道細節範圍內的部分(畫路緣石) */
   curbs: Pt[][];
+  /** 高架道路或上下匝道的各折點高度(公尺);未定義或全為 0 時為一般平面道路 */
+  elev?: number[];
+  lanes?: number;
+  oneway?: boolean;
 }
 
 /** 街道細節的平面四邊形:枕木線、分隔島(路緣 / 植栽) */
@@ -59,6 +66,8 @@ export interface ChunkSrc {
   cz: number;
   rect: Rect;
   roads: RoadPiece[];
+  /** 鄰近 15 m 範圍內的高架路段(供匝道與高架主線跨格匯流處判斷護欄開口) */
+  elevatedContext?: ElevatedRoadPiece[];
   waterways: { pts: Pt[]; w: number }[];
   areas: { ring: Pt[]; k: 0 | 1 | 2 }[];
   /** t = 細分類(src/config/buildings.ts 的 KIND),s = 一樓畫店面 */
@@ -104,6 +113,10 @@ export interface ChunkMeshes {
   props: Float32Array;
   /** 每個地標外框擠出的量體(世界座標,順序同 ChunkSrc.landmarks):一律當碰撞體;模型載入失敗時拿來顯示 */
   landmarkSolids: MeshArrays[];
+  /** 3D 高架道路與匝道路面(含標線;物理摩擦係數 1.0) */
+  roadDeck?: MeshArrays;
+  /** 3D 高架道路水泥防撞護欄、箱梁底板與橋墩(物理碰撞體) */
+  roadBarrier?: MeshArrays;
 }
 
 export interface World {
@@ -160,10 +173,46 @@ export function decodeWorld(json: WorldJson): World {
   const at = (p: Pt) => get(Math.floor(p[0] / size), Math.floor(p[1] / size));
   for (const r of json.roads) {
     const pts = toPts(r.pts);
+    const rawElev = r.elev ? r.elev.map((v) => v / QUANT) : undefined;
+    const isElev = !!rawElev && rawElev.some((y) => y > 0.05);
+    if (isElev) {
+      const sub = subdivideElevatedPolyline(pts, rawElev!);
+      each(sub.pts, 15, (c) => {
+        for (const piece of clipPolyline3D(sub.pts, sub.elev, c.rect)) {
+          c.roads.push({
+            osmId: r.osmId,
+            pts: piece.pts,
+            elev: piece.elev,
+            width: r.width,
+            sidewalk: 0,
+            curbs: [],
+            lanes: r.lanes,
+            oneway: r.oneway,
+          });
+        }
+        const ctxRect = {
+          minX: c.rect.minX - 15,
+          minZ: c.rect.minZ - 15,
+          maxX: c.rect.maxX + 15,
+          maxZ: c.rect.maxZ + 15,
+        };
+        for (const ctxPiece of clipPolyline3D(sub.pts, sub.elev, ctxRect)) {
+          (c.elevatedContext ??= []).push({
+            osmId: r.osmId,
+            pts: ctxPiece.pts,
+            elev: ctxPiece.elev,
+            width: r.width,
+            lanes: r.lanes,
+            oneway: r.oneway,
+          });
+        }
+      });
+      continue;
+    }
     each(pts, 0, (c) => {
       for (const piece of clipPolyline(pts, c.rect)) {
         const curbs = detailRect && r.sidewalk > 0 ? clipPolyline(piece, detailRect) : [];
-        c.roads.push({ pts: piece, width: r.width, sidewalk: r.sidewalk, curbs });
+        c.roads.push({ osmId: r.osmId, pts: piece, width: r.width, sidewalk: r.sidewalk, curbs });
       }
     });
   }
@@ -341,9 +390,9 @@ export function buildingCode(id: number, kind: BuildingKind, shop: boolean): num
   return packBuildingCode(kind, shop || kind === KIND.Temple, hash32(id * 13 + 5));
 }
 
-/** 當碰撞體的網格:建築與地標量體。屋頂附加物不算(車子到不了屋頂,三角形不用進物理) */
+/** 當碰撞體的網格:建築、地標量體、以及 3D 高架道路水泥護欄與橋墩。屋頂附加物不算(車子到不了屋頂,三角形不用進物理) */
 export function colliderMeshes(m: ChunkMeshes): MeshArrays[] {
-  return [m.buildings, ...m.landmarkSolids];
+  return [m.buildings, ...m.landmarkSolids, ...(m.roadBarrier?.index.length ? [m.roadBarrier] : [])];
 }
 
 /** 街道傢俱的碰撞形狀(世界座標):樹幹、路燈、號誌桿各一個圓柱,一排機車一個長方體;物理端用 addStaticFurniture 加入 */
@@ -387,13 +436,30 @@ export function buildChunk(c: ChunkSrc, withFurniture = true): ChunkMeshes {
   const white = hexToRgb(PALETTE.markWhite);
   const yellow = hexToRgb(PALETTE.markYellow);
 
+  const groundRoads: RoadPiece[] = [];
+  const elevatedRoads: ElevatedRoadPiece[] = [];
+  for (const r of c.roads) {
+    if (r.elev && r.elev.some((y) => y > 0.05)) {
+      elevatedRoads.push({
+        osmId: r.osmId,
+        pts: r.pts,
+        elev: r.elev,
+        width: r.width,
+        lanes: r.lanes,
+        oneway: r.oneway,
+      });
+    } else {
+      groundRoads.push(r);
+    }
+  }
+
   const g = new MeshBuilder();
   for (const a of c.areas) g.flatPolygon(a.ring, a.k === 2 ? Y_WATER : Y_AREA, areaRgb[a.k]);
   for (const w of c.waterways) addRibbon(g, w.pts, w.w, Y_WATER, water);
-  for (const r of c.roads) if (r.sidewalk > 0) addRibbon(g, r.pts, r.width + 2 * r.sidewalk, Y_SIDEWALK, sidewalk);
+  for (const r of groundRoads) if (r.sidewalk > 0) addRibbon(g, r.pts, r.width + 2 * r.sidewalk, Y_SIDEWALK, sidewalk);
   // 路緣石:路面外側一圈淺色帶(只是顏色,沒有高度差;車子照樣能開上人行道)
-  for (const r of c.roads) for (const k of r.curbs) addRibbon(g, k, r.width + 2 * CURB_W, Y_CURB, curb);
-  for (const r of c.roads) addRibbon(g, r.pts, r.width, Y_ROAD, road);
+  for (const r of groundRoads) for (const k of r.curbs) addRibbon(g, k, r.width + 2 * CURB_W, Y_CURB, curb);
+  for (const r of groundRoads) addRibbon(g, r.pts, r.width, Y_ROAD, road);
   for (const j of c.street.junctions) g.flatPolygon(j, Y_ROAD, road);
   const quadStyle: [number, Rgb][] = [
     [Y_MARK, white],
@@ -403,6 +469,12 @@ export function buildChunk(c: ChunkSrc, withFurniture = true): ChunkMeshes {
   const st = streetGeometry(c);
   for (const q of st.quads) g.flatPolygon(q.q, quadStyle[q.k][0], quadStyle[q.k][1]);
   for (const m of st.marks) addRibbon(g, m.pts, m.w, Y_MARK, m.c ? yellow : white, false);
+
+  const deckMb = new MeshBuilder({ wall: true });
+  const barrierMb = new MeshBuilder({ wall: true });
+  if (elevatedRoads.length) {
+    addElevatedRoads(deckMb, barrierMb, elevatedRoads, c.elevatedContext ?? elevatedRoads, groundRoads);
+  }
 
   const b = new MeshBuilder({ wall: true });
   const props = new MeshBuilder({ wall: true });
@@ -421,7 +493,14 @@ export function buildChunk(c: ChunkSrc, withFurniture = true): ChunkMeshes {
     for (const r of lm.rings) extrude(l, r.map(([px, pz]) => [px + lm.x, pz + lm.z] as Pt), h, buildingRgb(0, KIND.Commercial), buildingRoofRgb(KIND.Commercial), [], undefined, !lm.sink);
     return l.toArrays();
   });
-  const base = { ground: g.toArrays(), buildings: b.toArrays(), roofProps: props.toArrays(), landmarkSolids };
+  const base = {
+    ground: g.toArrays(),
+    buildings: b.toArrays(),
+    roofProps: props.toArrays(),
+    landmarkSolids,
+    roadDeck: deckMb.toArrays(),
+    roadBarrier: barrierMb.toArrays(),
+  };
   return { ...base, ...(withFurniture ? buildFurniture(c) : { furniture: new MeshBuilder({ wall: true }).toArrays(), scooters: new Float32Array(), props: new Float32Array() }) };
 }
 

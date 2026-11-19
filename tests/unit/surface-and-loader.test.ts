@@ -107,7 +107,7 @@ describe('2.5D 立體交叉路網 (RoadIndex & WorldSurface.snapToRoad)', () => 
   const rampRoad = way(3, [-100, 20, 0, 20], { name: '台74線匝道', layer: 0, elev: [0, 12], oneway: true });
   const idx = new RoadIndex([groundRoad, viaductRoad, rampRoad]);
 
-  it('roadWayOf 正確轉換 WorldRoad 的 layer 與量化 elev', () => {
+  it('roadWayOf 正確轉換 WorldRoad 的 layer 與量化 elev(含坡段 S 曲線平滑細分)', () => {
     const wr: WorldRoad = {
       osmId: 99,
       name: '高架測試',
@@ -123,7 +123,19 @@ describe('2.5D 立體交叉路網 (RoadIndex & WorldSurface.snapToRoad)', () => 
     };
     const rw = roadWayOf(wr);
     expect(rw.layer).toBe(1);
-    expect(rw.elev).toEqual([0, 6, 12]);
+    expect(rw.elev?.[0]).toBe(0);
+    expect(rw.elev?.[rw.elev.length - 1]).toBe(12);
+    // 中點 (x = 50 m) 為對稱 S 曲線中點 y = 6 m,且因為有坡度已細分為 > 3 個平滑節點
+    let midIdx = -1;
+    for (let i = 0; i + 1 < rw.points.length; i += 2) {
+      if (Math.abs(rw.points[i] - 50) < 1e-3) {
+        midIdx = i / 2;
+        break;
+      }
+    }
+    expect(midIdx).toBeGreaterThan(0);
+    expect(rw.elev?.[midIdx]).toBe(6);
+    expect(rw.elev!.length).toBeGreaterThan(3);
   });
 
   it('高架橋與平面道路交叉處:依車輛高度 y 區分目前所在道路', () => {

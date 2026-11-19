@@ -26,9 +26,9 @@ export class TrafficLayer {
   private colors = TRAFFIC.colors.map((c) => new THREE.Color(c));
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
+  private eul = new THREE.Euler(0, 0, 0, 'YZX');
   private p = new THREE.Vector3();
   private one = new THREE.Vector3(1, 1, 1);
-  private up = new THREE.Vector3(0, 1, 0);
 
   constructor(scene: THREE.Scene, max = TRAFFIC.count + 8) {
     const [bl, bh, bw] = TRAFFIC.body, [cl, ch, cw] = TRAFFIC.cabin;
@@ -82,8 +82,9 @@ export class TrafficLayer {
     let nc = 0, ns = 0, nb = 0;
     for (const c of cars) {
       const baseY = c.y ?? 0;
-      // 繞 y 轉 θ 把局部 +x 轉到 (cos θ, 0, −sin θ);要轉到 (cos h, 0, sin h),所以 θ = −h
-      this.q.setFromAxisAngle(this.up, -c.heading);
+      const pitch = c.pitch ?? 0;
+      // 繞 y 轉 θ 把局部 +x 轉到 (cos θ, 0, −sin θ);要轉到 (cos h, 0, sin h),所以 θ = −h;再繞局部 z 仰起 pitch
+      this.q.setFromEuler(this.eul.set(0, -c.heading, pitch, 'YZX'));
       if (c.kind === 'bus') {
         if (nb >= max) continue;
         this.p.set(c.x, baseY + TRAFFIC.bus.clearance + uh / 2, c.z);
@@ -97,12 +98,13 @@ export class TrafficLayer {
       this.body.setColorAt(nc, color);
       // 車廂稍微靠後
       const cx = c.x - Math.cos(c.heading) * 0.25, cz = c.z - Math.sin(c.heading) * 0.25;
-      this.p.set(cx, baseY + TRAFFIC.clearance + bh + ch / 2, cz);
+      const cy = baseY - Math.sin(pitch) * 0.25;
+      this.p.set(cx, cy + TRAFFIC.clearance + bh + ch / 2, cz);
       this.cabin.setMatrixAt(nc, this.m.compose(this.p, this.q, this.one));
       this.cabin.setColorAt(nc, color);
       nc++;
       if (c.color === TRAFFIC.taxiColor) {
-        this.p.set(cx, baseY + TRAFFIC.clearance + bh + ch + TRAFFIC.taxiSign.height / 2, cz);
+        this.p.set(cx, cy + TRAFFIC.clearance + bh + ch + TRAFFIC.taxiSign.height / 2, cz);
         this.sign.setMatrixAt(ns++, this.m.compose(this.p, this.q, this.one));
       }
     }
@@ -113,7 +115,7 @@ export class TrafficLayer {
         const k = c.kind === 'bus' ? 1 : 0;
         const l = this.lamps[k];
         if (n[k] >= max) continue;
-        this.q.setFromAxisAngle(this.up, -c.heading);
+        this.q.setFromEuler(this.eul.set(0, -c.heading, c.pitch ?? 0, 'YZX'));
         this.p.set(c.x, c.y ?? 0, c.z);
         this.m.compose(this.p, this.q, this.one);
         l.head.setMatrixAt(n[k], this.m);

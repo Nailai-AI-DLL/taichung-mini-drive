@@ -2,6 +2,7 @@
 // 只存 2D 描述,座標為「世界座標 × 10」的整數(0.1 m);網格在執行端依分塊生成(src/world/)。
 
 import type { Origin } from './projection';
+import { subdivideElevatedPolyline } from './elevated';
 
 /** 座標量化:世界座標(公尺)× QUANT 取整數 */
 export const QUANT = 10;
@@ -218,6 +219,15 @@ export function dequant(pts: number[]): number[] {
 }
 
 export function roadWayOf(r: WorldRoad): RoadWay {
+  let points = dequant(r.pts);
+  let elev = r.elev ? dequant(r.elev) : undefined;
+  if (elev && elev.some((y) => y > 0)) {
+    const pts: [number, number][] = [];
+    for (let i = 0; i + 1 < points.length; i += 2) pts.push([points[i], points[i + 1]]);
+    const sub = subdivideElevatedPolyline(pts, elev);
+    points = sub.pts.flatMap((p) => [p[0], p[1]]);
+    elev = sub.elev;
+  }
   return {
     osmId: r.osmId,
     name: r.name,
@@ -229,7 +239,7 @@ export function roadWayOf(r: WorldRoad): RoadWay {
     ...(r.spd && { spd: r.spd }),
     ...(r.ls !== undefined && { ls: r.ls }),
     ...(r.layer !== undefined && { layer: r.layer }),
-    ...(r.elev && { elev: dequant(r.elev) }),
-    points: dequant(r.pts),
+    ...(elev && { elev }),
+    points,
   };
 }

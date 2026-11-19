@@ -228,7 +228,9 @@ export function addChunkMeshes(scene: THREE.Scene, m: ChunkMeshes): THREE.Object
     ground.receiveShadow = true;
     out.push(ground);
   }
-  const solid = concatArrays(concatArrays(m.buildings, m.roofProps), m.furniture);
+  let solid = concatArrays(concatArrays(m.buildings, m.roofProps), m.furniture);
+  if (m.roadDeck?.index.length) solid = concatArrays(solid, m.roadDeck);
+  if (m.roadBarrier?.index.length) solid = concatArrays(solid, m.roadBarrier);
   if (solid.index.length) out.push(solidMesh(toGeometry(solid)));
   scene.add(...out);
   addScooters(scene, out, m.scooters);
