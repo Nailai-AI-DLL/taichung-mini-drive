@@ -17,6 +17,9 @@ data/osm/
 data/gov/
 data/elevation/
 
+# 大型建置地圖檔改放獨立無歷史分支 map-data(由 npm run map:push / map:pull 同步;main 分支只保留 51 KB 的 m0)
+public/map/range-*/
+
 # Car three-view reference overlay (derived from the reference image; stays local)
 docs/art/mini-3view/overlay.png
 __pycache__/

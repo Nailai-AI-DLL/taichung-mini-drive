@@ -1,5 +1,9 @@
-// Step 1 單元測試:雲端地圖載入器、DTM 地形網格高程取樣、2.5D 立體交叉路網(高架橋/匝道)、AI 車流防跨層轉彎、回到路面與招牌空間計算。
+// Step 1 & Step 3 單元測試:雲端地圖載入器、map-data 獨立無歷史分支同步腳本、DTM 地形網格高程取樣、2.5D 立體交叉路網(高架橋/匝道)、AI 車流防跨層轉彎、回到路面與招牌空間計算。
 import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fetchWorld, mapAssetUrl, regionTileUrl, resolveMapBaseUrl } from '../../src/map/load';
 import { RoadIndex } from '../../src/map/road-index';
 import { roadWayOf, type RoadWay, type WorldRoad } from '../../src/map/types';
@@ -249,5 +253,38 @@ describe('WorldSurface 與 M0 地圖空間查詢', () => {
     expect(specs).toHaveLength(1);
     expect(specs[0].baseY).toBeCloseTo(88);
     expect(surface.placeSignSpecs()).toBeDefined();
+  });
+});
+
+describe('map-data 獨立無歷史分支同步腳本 (tools/map-build/sync-map-branch.sh)', () => {
+  it('push 多次仍維持單一無歷史 commit(整個覆蓋),且 pull 可完整還原地圖檔而不殘留 .git', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'tc-map-sync-'));
+    try {
+      const bare = join(tmp, 'remote.git');
+      const srcDir = join(tmp, 'src-map');
+      const dstDir = join(tmp, 'dst-map');
+      execFileSync('git', ['init', '--bare', '-q', bare]);
+      mkdirSync(join(srcDir, 'range-a'), { recursive: true });
+      writeFileSync(join(srcDir, 'range-a/world.json'), '{"ver":1}');
+      writeFileSync(join(srcDir, 'range-a/skyline.json'), '{"sky":1}');
+
+      const script = join(process.cwd(), 'tools/map-build/sync-map-branch.sh');
+      execFileSync('bash', [script, 'push', '--remote', bare, '--branch', 'map-data', '--dir', srcDir]);
+
+      // 第二次修改後再 push:分支上仍應只有 1 個 commit(不累積歷史)
+      writeFileSync(join(srcDir, 'range-a/world.json'), '{"ver":2}');
+      execFileSync('bash', [script, 'push', '--remote', bare, '--branch', 'map-data', '--dir', srcDir]);
+
+      const count = execFileSync('git', ['-C', bare, 'rev-list', '--count', 'refs/heads/map-data'], { encoding: 'utf8' }).trim();
+      expect(count).toBe('1');
+
+      // pull 到全新目錄:檔案與最新版一致,且不含巢狀 .git
+      execFileSync('bash', [script, 'pull', '--remote', bare, '--branch', 'map-data', '--dir', dstDir]);
+      expect(readFileSync(join(dstDir, 'range-a/world.json'), 'utf8')).toBe('{"ver":2}');
+      expect(readFileSync(join(dstDir, 'range-a/skyline.json'), 'utf8')).toBe('{"sky":1}');
+      expect(existsSync(join(dstDir, '.git'))).toBe(false);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });
