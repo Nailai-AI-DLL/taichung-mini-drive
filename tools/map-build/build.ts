@@ -23,6 +23,7 @@ import { VIADUCT } from '../../src/config/viaduct';
 import { PLACE_CLEAR, placePickup } from './lib/places';
 import { intersectionSignals, placeFurniture, type FurnitureRoad } from './lib/furniture';
 import { crossingMarked, generateStreet, type StreetCrossing, type StreetResult, type StreetWay } from './lib/street';
+import { writeWorldTiles } from './lib/write-tiles';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -856,6 +857,7 @@ function main() {
   writeFileSync(join(outDir, 'world.json'), text);
   const kb = (n: number) => `${(n / 1024).toFixed(0)} KB`;
   console.log(`輸出 ${outDir}/world.json(${kb(Buffer.byteLength(text))},gzip ${kb(gzipSync(text).byteLength)})`);
+  writeWorldTiles(outDir, json);
   console.log(JSON.stringify(stats, null, 2));
   console.log('出生點', spawn);
 }

@@ -92,7 +92,14 @@ export function computePlaceSignSpecs(world: World, roadIndex: RoadIndex, elevat
     if (pl.sign === 0) continue;
     const dx = pl.x - pl.px, dz = pl.z - pl.pz, dist = Math.hypot(dx, dz) || 1;
     let ring: [number, number][] | null = null;
-    if (pl.b !== undefined) for (const c of world.chunks.values()) ring ??= c.buildings.find((b) => b.id === pl.b)?.rings[0] ?? null;
+    if (pl.b !== undefined) {
+      for (const c of world.chunks.values()) ring ??= c.buildings.find((b) => b.id === pl.b)?.rings[0] ?? null;
+      if (!ring && pl.ring) {
+        const pts: [number, number][] = [];
+        for (let i = 0; i + 1 < pl.ring.length; i += 2) pts.push([pl.ring[i] / QUANT, pl.ring[i + 1] / QUANT]);
+        ring = pts;
+      }
+    }
     // 已做專屬造型的地點:外框從地標取(地標外框是相對於地標中心的座標)
     if (pl.landmark)
       for (const c of world.chunks.values())

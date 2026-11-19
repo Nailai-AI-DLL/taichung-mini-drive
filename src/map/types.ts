@@ -168,6 +168,8 @@ export interface WorldPlace {
   h?: number;
   landmark?: string;
   sign?: 0;
+  /** 分區載入(index.json)時保留該地點對應建築的外環(量化座標),讓開場尚未載入該區建築 Tile 時也能在樓頂立招牌 */
+  ring?: number[];
 }
 
 /**
