@@ -24,6 +24,10 @@ export interface WorldRoad {
   spd?: number;
   /** 單行道左側緊貼對向時,車道從中心線往右多遠開始排(公尺;0046 驗收) */
   ls?: number;
+  /** 立體層級:0(預設)= 地面,1+ = 高架橋/高速公路,-1 = 地下道 */
+  layer?: number;
+  /** 各折點高度 y × QUANT(0.1 m 整數);長度為 pts.length / 2;未提供時視為貼地(0) */
+  elev?: number[];
   /** [x0, z0, x1, z1, ...],世界座標 × 10 的整數,已裁切到區域內 */
   pts: number[];
 }
@@ -189,6 +193,10 @@ export interface RoadWay {
   lanes?: number;
   spd?: number;
   ls?: number;
+  /** 立體層級:0(預設)= 地面,1+ = 高架橋/高速公路,-1 = 地下道 */
+  layer?: number;
+  /** 各折點高度(公尺);長度為 points.length / 2;未提供時視為貼地(0) */
+  elev?: number[];
   /** 世界座標折線 [x0, z0, x1, z1, ...] */
   points: number[];
 }
@@ -208,5 +216,18 @@ export function dequant(pts: number[]): number[] {
 }
 
 export function roadWayOf(r: WorldRoad): RoadWay {
-  return { osmId: r.osmId, name: r.name, nameEn: r.nameEn, highway: r.highway, oneway: r.oneway, width: r.width, ...(r.lanes && { lanes: r.lanes }), ...(r.spd && { spd: r.spd }), ...(r.ls !== undefined && { ls: r.ls }), points: dequant(r.pts) };
+  return {
+    osmId: r.osmId,
+    name: r.name,
+    nameEn: r.nameEn,
+    highway: r.highway,
+    oneway: r.oneway,
+    width: r.width,
+    ...(r.lanes && { lanes: r.lanes }),
+    ...(r.spd && { spd: r.spd }),
+    ...(r.ls !== undefined && { ls: r.ls }),
+    ...(r.layer !== undefined && { layer: r.layer }),
+    ...(r.elev && { elev: dequant(r.elev) }),
+    points: dequant(r.pts),
+  };
 }

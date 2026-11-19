@@ -5,6 +5,7 @@
 // 低多邊形:每 1° 一段、中間加一排抖動的頂點,平面著色出稜面;不受霧影響,顏色自己往天空色混(空氣透視)。
 import * as THREE from 'three';
 import { LOOK_LIGHT, LOOK_MOUNTAINS } from '../config/look';
+import { mapAssetUrl, type MapUrlOptions } from '../map/load';
 
 export interface Skyline {
   azStep: number;
@@ -107,9 +108,9 @@ export function followMountains(m: THREE.Object3D, camera: THREE.Camera) {
   m.position.copy(camera.position);
 }
 
-export async function loadSkyline(area: string): Promise<Skyline | null> {
+export async function loadSkyline(area: string, opts?: MapUrlOptions): Promise<Skyline | null> {
   try {
-    const r = await fetch(`${import.meta.env.BASE_URL}map/${area}/skyline.json`);
+    const r = await fetch(mapAssetUrl(area, 'skyline.json', opts));
     return r.ok ? ((await r.json()) as Skyline) : null;
   } catch {
     return null;

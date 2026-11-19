@@ -3,15 +3,20 @@
 // 車身以固定速率追上去(轉彎才會圓)。到折點時,如果那裡接了別條路,依機率直走或轉彎。
 // 前方有車或玩家就煞車;被卡太久就消失重生。
 import type { RoadWay } from '../map/types';
+import { wayPointY } from '../map/road-index';
 import { TRAFFIC } from '../config/traffic';
 import { EDGE_INSET, LANE_MAX, LANE_MIN } from '../config/street';
 
 export interface TrafficCar {
   id: number;
   x: number;
+  /** 所在路面高度(公尺,平路為 0;高架橋與地形坡度時隨路段高程插值) */
+  y?: number;
   z: number;
   /** 車頭方向(弧度,atan2(z, x)) */
   heading: number;
+  /** 車頭俯仰角(弧度,上坡為正,平路為 0) */
+  pitch?: number;
   /** 目前車速、巡航車速(m/s) */
   speed: number;
   cruise: number;
@@ -65,7 +70,8 @@ export function mulberry32(seed: number): Rand {
   };
 }
 
-const key = (x: number, z: number) => Math.round(x * 10) + ',' + Math.round(z * 10);
+/** 路口連通節點 key:同 (x, z) 且高程差在同一個 2 m 桶內才視為相接(防高架橋車流半空轉進橋下平面道路,同時允許匝道兩端銜接不同高度) */
+const key = (x: number, z: number, y = 0) => Math.round(x * 10) + ',' + Math.round(z * 10) + ',' + Math.round(y / 2);
 const CELL = 100;
 
 export class Traffic {
@@ -85,7 +91,7 @@ export class Traffic {
       if (!this.usable[wi]) return;
       const p = w.points;
       for (let i = 0; i < p.length / 2; i++) {
-        const k = key(p[i * 2], p[i * 2 + 1]);
+        const k = key(p[i * 2], p[i * 2 + 1], wayPointY(w, i));
         let l = this.nodes.get(k);
         if (!l) this.nodes.set(k, (l = []));
         l.push({ w: wi, i });
@@ -104,18 +110,27 @@ export class Traffic {
     return [p[i * 2], p[i * 2 + 1]];
   }
 
-  /** 線段(from → from + dir)的長度與方向 */
+  private ptY(w: number, i: number): number {
+    return wayPointY(this.ways[w], i);
+  }
+
+  /** 線段(from → from + dir)的長度、高程與方向 */
   private seg(c: Pick<TrafficCar, 'way' | 'from' | 'dir'>) {
     const [ax, az] = this.pt(c.way, c.from);
     const [bx, bz] = this.pt(c.way, c.from + c.dir);
+    const ay = this.ptY(c.way, c.from);
+    const by = this.ptY(c.way, c.from + c.dir);
     const len = Math.hypot(bx - ax, bz - az) || 1e-6;
-    return { ax, az, len, dx: (bx - ax) / len, dz: (bz - az) / len };
+    const pitch = Math.atan2(by - ay, len);
+    return { ax, ay, az, by, len, dx: (bx - ax) / len, dz: (bz - az) / len, pitch };
   }
 
   /** 車道上的目標點:中心線上的點往行車方向右側偏 lane 公尺(x 向右、z 向下的座標:右側 = (−dz, dx)) */
-  target(c: Pick<TrafficCar, 'way' | 'from' | 'dir' | 's' | 'lane'>): { x: number; z: number; dx: number; dz: number } {
+  target(c: Pick<TrafficCar, 'way' | 'from' | 'dir' | 's' | 'lane'>): { x: number; y: number; z: number; dx: number; dz: number; pitch: number } {
     const g = this.seg(c);
-    return { x: g.ax + g.dx * c.s - g.dz * c.lane, z: g.az + g.dz * c.s + g.dx * c.lane, dx: g.dx, dz: g.dz };
+    const t = Math.max(0, Math.min(1, c.s / g.len));
+    const y = g.ay + (g.by - g.ay) * t;
+    return { x: g.ax + g.dx * c.s - g.dz * c.lane, y, z: g.az + g.dz * c.s + g.dx * c.lane, dx: g.dx, dz: g.dz, pitch: g.pitch };
   }
 
   private laneOf(w: number, u: number): number {
@@ -147,10 +162,11 @@ export class Traffic {
     const at = c.from + c.dir;
     const n = this.ways[c.way].points.length / 2;
     const [x, z] = this.pt(c.way, at);
+    const y = this.ptY(c.way, at);
     type Opt = { w: number; from: number; dir: 1 | -1 };
     const straight: Opt | null = at + c.dir >= 0 && at + c.dir < n ? { w: c.way, from: at, dir: c.dir } : null;
     const turns: Opt[] = [];
-    for (const e of this.nodes.get(key(x, z)) ?? []) {
+    for (const e of this.nodes.get(key(x, z, y)) ?? []) {
       if (e.w === c.way) continue;
       if (c.kind === 'bus' && !this.busOk[e.w]) continue; // 公車不轉進小路
       const m = this.ways[e.w].points.length / 2;
@@ -189,7 +205,7 @@ export class Traffic {
       const way = this.ways[e.w];
       const dir: 1 | -1 = way.oneway || this.rand() < 0.5 ? 1 : -1;
       const c: TrafficCar = {
-        id: this.nextId, x: 0, z: 0, heading: 0, speed: 0, cruise: 0, pace: 0,
+        id: this.nextId, x: 0, y: 0, z: 0, heading: 0, pitch: 0, speed: 0, cruise: 0, pace: 0,
         way: e.w, from: dir > 0 ? e.i : e.i + 1, dir, s: 0, lane: this.laneOf(e.w, this.rand()),
         color: pickColor(this.rand(), cfg.colorWeights), kind: 'car', stuck: 0,
       };
@@ -198,10 +214,12 @@ export class Traffic {
       const t = this.target(c);
       const d = Math.hypot(t.x - px, t.z - pz);
       if (d < cfg.spawnMin * 0.8 || d > cfg.despawn) continue;
-      if (this.cars.some((o) => Math.hypot(o.x - t.x, o.z - t.z) < cfg.spawnGap + (c.kind === 'bus' || o.kind === 'bus' ? cfg.bus.size[0] / 2 : 0))) continue;
+      if (this.cars.some((o) => Math.abs((o.y ?? 0) - t.y) < 3.5 && Math.hypot(o.x - t.x, o.z - t.z) < cfg.spawnGap + (c.kind === 'bus' || o.kind === 'bus' ? cfg.bus.size[0] / 2 : 0))) continue;
       c.x = t.x;
+      c.y = t.y;
       c.z = t.z;
       c.heading = Math.atan2(t.dz, t.dx);
+      c.pitch = t.pitch;
       c.pace = this.rand();
       c.cruise = this.cruiseOf(c);
       c.speed = c.cruise;
@@ -216,8 +234,9 @@ export class Traffic {
    * 前進一步。player = 玩家車的位置(用來煞車讓路、決定生成與消失)。
    * 回傳這一步消失的車(id),給畫面 / 物理端移除。
    */
-  update(dt: number, player: { x: number; z: number }): number[] {
+  update(dt: number, player: { x: number; y?: number; z: number }): number[] {
     const cfg = this.cfg;
+    const py = player.y ?? 0;
     const gone: number[] = [];
     for (const c of this.cars) {
       // ---- 前方有沒有東西 ----
@@ -228,7 +247,9 @@ export class Traffic {
       // ahead − (自己半長 + 對方半長) + 一般車長;公車比較長、比較寬,看得遠一點、寬一點
       const me = carSize(c.kind, cfg);
       const base = cfg.body[0];
-      const look = (ox: number, oz: number, isPlayer: boolean, other: { len: number; width: number }) => {
+      const look = (ox: number, oy: number, oz: number, isPlayer: boolean, other: { len: number; width: number }) => {
+        // 高架橋上下的車不互相煞車讓路
+        if (Math.abs(oy - (c.y ?? 0)) > 3.5) return;
         const rx = ox - c.x, rz = oz - c.z;
         const raw = rx * hx + rz * hz;
         const ahead = raw - (me.len + other.len) / 2 + base;
@@ -239,8 +260,8 @@ export class Traffic {
           byPlayer = isPlayer;
         }
       };
-      look(player.x, player.z, true, carSize('car', cfg));
-      for (const o of this.cars) if (o !== c) look(o.x, o.z, false, carSize(o.kind, cfg));
+      look(player.x, py, player.z, true, carSize('car', cfg));
+      for (const o of this.cars) if (o !== c) look(o.x, o.y ?? 0, o.z, false, carSize(o.kind, cfg));
       const want = gap <= cfg.stopGap ? 0 : gap < cfg.lookAhead ? c.cruise * ((gap - cfg.stopGap) / (cfg.lookAhead - cfg.stopGap)) : c.cruise;
       c.speed = want > c.speed ? Math.min(want, c.speed + cfg.accel * dt) : Math.max(want, c.speed - cfg.brake * dt);
       c.stuck = c.speed < 0.3 && !byPlayer ? c.stuck + dt : 0;
@@ -269,7 +290,9 @@ export class Traffic {
           c.heading += Math.max(-3 * dt, Math.min(3 * dt, d));
         }
         c.x = nx;
+        c.y = t.y;
         c.z = nz;
+        c.pitch = t.pitch;
       }
       if (!alive || c.stuck > cfg.stuckSeconds || Math.hypot(c.x - player.x, c.z - player.z) > cfg.despawn) gone.push(c.id);
     }

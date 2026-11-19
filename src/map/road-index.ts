@@ -5,24 +5,39 @@ import Flatbush from 'flatbush';
 import type { RoadWay } from './types';
 
 export const SEARCH_RADIUS = 15;
+/** 未提供明確折點高程 elev 時,每層 layer 的預設高差(公尺) */
+export const LAYER_HEIGHT = 8;
+/** 路名與最近道路判定時,每公尺垂直高差的懲罰權重 */
+export const ELEV_PENALTY = 2.5;
+
+export function wayPointY(way: RoadWay, ptIdx: number): number {
+  return way.elev?.[ptIdx] ?? (way.layer ?? 0) * LAYER_HEIGHT;
+}
 
 export interface RoadHit {
   way: RoadWay;
-  /** 到路段中心線的距離(公尺) */
+  /** 到路段中心線的水平距離(公尺) */
   distance: number;
-  /** 路段上最近點 */
+  /** 路段上最近點(世界座標) */
   x: number;
+  y: number;
   z: number;
   /** 路段方向(單位向量,依折線點順序) */
   dirX: number;
   dirZ: number;
+  /** 沿折線方向的坡度仰角(弧度,上坡為正,平路為 0) */
+  pitch: number;
+  /** 道路立體層級(0 = 地面,1+ = 高架,-1 = 地下道) */
+  layer: number;
 }
 
 interface Seg {
   wayIdx: number;
   ax: number;
+  ay: number;
   az: number;
   bx: number;
+  by: number;
   bz: number;
 }
 
@@ -37,7 +52,16 @@ export class RoadIndex {
     ways.forEach((w, wayIdx) => {
       const p = w.points;
       for (let i = 0; i + 3 < p.length; i += 2) {
-        this.segs.push({ wayIdx, ax: p[i], az: p[i + 1], bx: p[i + 2], bz: p[i + 3] });
+        const ptIdx = i / 2;
+        this.segs.push({
+          wayIdx,
+          ax: p[i],
+          ay: wayPointY(w, ptIdx),
+          az: p[i + 1],
+          bx: p[i + 2],
+          by: wayPointY(w, ptIdx + 1),
+          bz: p[i + 3],
+        });
       }
     });
     this.tree = new Flatbush(Math.max(1, this.segs.length));
@@ -68,18 +92,31 @@ export class RoadIndex {
       const prev = best.get(s.wayIdx);
       if (!prev || d < prev.distance) {
         const len = Math.sqrt(len2);
-        best.set(s.wayIdx, { way: this.ways[s.wayIdx], distance: d, x: px, z: pz, dirX: vx / len, dirZ: vz / len });
+        const way = this.ways[s.wayIdx];
+        const py = s.ay + (s.by - s.ay) * t;
+        const pitch = Math.atan2(s.by - s.ay, len);
+        best.set(s.wayIdx, {
+          way,
+          distance: d,
+          x: px,
+          y: py,
+          z: pz,
+          dirX: vx / len,
+          dirZ: vz / len,
+          pitch,
+          layer: way.layer ?? 0,
+        });
       }
     }
     return [...best.values()];
   }
 
   /**
-   * 目前道路:半徑內、方向與車頭一致者優先。
-   * 分數 = 超出路面的距離 + 方向不一致懲罰(雙向道路取 |cos|,單行道逆向視為不一致)。
+   * 目前道路:半徑內、方向與車頭一致、高度接近者優先。
+   * 分數 = 超出路面的距離 + 方向不一致懲罰(雙向道路取 |cos|,單行道逆向視為不一致) + 垂直高差懲罰。
    * 有名稱的道路略為優先,避免在無名巷口誤判。
    */
-  current(x: number, z: number, headingX: number, headingZ: number): RoadHit | null {
+  current(x: number, z: number, headingX: number, headingZ: number, y?: number): RoadHit | null {
     const hits = this.near(x, z);
     let bestHit: RoadHit | null = null;
     let bestScore = Infinity;
@@ -87,7 +124,8 @@ export class RoadIndex {
       const cos = h.dirX * headingX + h.dirZ * headingZ;
       const align = h.way.oneway ? Math.max(0, cos) : Math.abs(cos);
       const offRoad = Math.max(0, h.distance - h.way.width / 2);
-      const score = offRoad + 8 * (1 - align) + (h.way.name ? 0 : 3);
+      const elevDiff = y !== undefined ? Math.abs(y - h.y) * ELEV_PENALTY : 0;
+      const score = offRoad + 8 * (1 - align) + (h.way.name ? 0 : 3) + elevDiff;
       if (score < bestScore) {
         bestScore = score;
         bestHit = h;
@@ -96,11 +134,12 @@ export class RoadIndex {
     return bestHit;
   }
 
-  /** 最近的道路點(不論方向),給「回到路面」用 */
-  nearest(x: number, z: number, maxRadius = 400): RoadHit | null {
+  /** 最近的道路點(不論方向),給「回到路面」用;有給 y 時優先選同高程/同層級的道路 */
+  nearest(x: number, z: number, maxRadius = 400, y?: number): RoadHit | null {
+    const distScore = (h: RoadHit) => (y !== undefined ? Math.hypot(h.distance, (y - h.y) * 3) : h.distance);
     for (let r = 20; r <= maxRadius; r *= 2) {
       const hits = this.near(x, z, r);
-      if (hits.length) return hits.reduce((a, b) => (a.distance <= b.distance ? a : b));
+      if (hits.length) return hits.reduce((a, b) => (distScore(a) <= distScore(b) ? a : b));
     }
     return null;
   }

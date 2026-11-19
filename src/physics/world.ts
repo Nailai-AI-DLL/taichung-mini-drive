@@ -14,18 +14,19 @@ export function createPhysicsWorld(R: Rapier, bounds?: [number, number, number, 
   const world = new R.World({ x: 0, y: -9.81, z: 0 });
   world.timestep = FIXED_DT;
 
-  // 地面:頂面在 y = 0
-  const ground = world.createRigidBody(R.RigidBodyDesc.fixed().setTranslation(0, -1, 0));
-  world.createCollider(R.ColliderDesc.cuboid(5000, 1, 5000).setFriction(1.0), ground);
-
   const b = bounds;
+  const cx = b ? (b[0] + b[2]) / 2 : 0;
+  const cz = b ? (b[1] + b[3]) / 2 : 0;
+  const hx = b ? (b[2] - b[0]) / 2 : 5000;
+  const hz = b ? (b[3] - b[1]) / 2 : 5000;
+
+  // 基準地面:頂面在 y = 0,自動涵蓋地圖 bounds + 1000 m 邊界(不再寫死 5000 m)
+  const ground = world.createRigidBody(R.RigidBodyDesc.fixed().setTranslation(cx, -1, cz));
+  world.createCollider(R.ColliderDesc.cuboid(Math.max(5000, hx + 1000), 1, Math.max(5000, hz + 1000)).setFriction(1.0), ground);
+
   if (b) {
     // 邊界牆(不可見),高 6 m、厚 2 m
     const [minX, minZ, maxX, maxZ] = b;
-    const cx = (minX + maxX) / 2;
-    const cz = (minZ + maxZ) / 2;
-    const hx = (maxX - minX) / 2;
-    const hz = (maxZ - minZ) / 2;
     const walls: [number, number, number, number][] = [
       [cx, minZ - 1, hx + 2, 1],
       [cx, maxZ + 1, hx + 2, 1],
@@ -46,6 +47,14 @@ export function addStaticTrimesh(pw: PhysicsWorld, position: Float32Array, index
   if (!index.length) return null;
   const body = pw.world.createRigidBody(pw.R.RigidBodyDesc.fixed());
   pw.world.createCollider(pw.R.ColliderDesc.trimesh(position, index).setFriction(0.3).setRestitution(0.2), body);
+  return body;
+}
+
+/** 加入地形起伏網格或高架橋路面碰撞體(摩擦係數 1.0 與地面相同);沒有三角形時回傳 null */
+export function addStaticRoadDeck(pw: PhysicsWorld, position: Float32Array, index: Uint32Array): RAPIER_NS.RigidBody | null {
+  if (!index.length) return null;
+  const body = pw.world.createRigidBody(pw.R.RigidBodyDesc.fixed());
+  pw.world.createCollider(pw.R.ColliderDesc.trimesh(position, index).setFriction(1.0).setRestitution(0.0), body);
   return body;
 }
 

@@ -81,27 +81,28 @@ export class TrafficLayer {
     const uh = TRAFFIC.bus.size[1];
     let nc = 0, ns = 0, nb = 0;
     for (const c of cars) {
+      const baseY = c.y ?? 0;
       // 繞 y 轉 θ 把局部 +x 轉到 (cos θ, 0, −sin θ);要轉到 (cos h, 0, sin h),所以 θ = −h
       this.q.setFromAxisAngle(this.up, -c.heading);
       if (c.kind === 'bus') {
         if (nb >= max) continue;
-        this.p.set(c.x, TRAFFIC.bus.clearance + uh / 2, c.z);
+        this.p.set(c.x, baseY + TRAFFIC.bus.clearance + uh / 2, c.z);
         this.bus.setMatrixAt(nb++, this.m.compose(this.p, this.q, this.one));
         continue;
       }
       if (nc >= max) continue;
       const color = this.colors[c.color % this.colors.length];
-      this.p.set(c.x, TRAFFIC.clearance + bh / 2, c.z);
+      this.p.set(c.x, baseY + TRAFFIC.clearance + bh / 2, c.z);
       this.body.setMatrixAt(nc, this.m.compose(this.p, this.q, this.one));
       this.body.setColorAt(nc, color);
       // 車廂稍微靠後
       const cx = c.x - Math.cos(c.heading) * 0.25, cz = c.z - Math.sin(c.heading) * 0.25;
-      this.p.set(cx, TRAFFIC.clearance + bh + ch / 2, cz);
+      this.p.set(cx, baseY + TRAFFIC.clearance + bh + ch / 2, cz);
       this.cabin.setMatrixAt(nc, this.m.compose(this.p, this.q, this.one));
       this.cabin.setColorAt(nc, color);
       nc++;
       if (c.color === TRAFFIC.taxiColor) {
-        this.p.set(cx, TRAFFIC.clearance + bh + ch + TRAFFIC.taxiSign.height / 2, cz);
+        this.p.set(cx, baseY + TRAFFIC.clearance + bh + ch + TRAFFIC.taxiSign.height / 2, cz);
         this.sign.setMatrixAt(ns++, this.m.compose(this.p, this.q, this.one));
       }
     }
@@ -113,7 +114,7 @@ export class TrafficLayer {
         const l = this.lamps[k];
         if (n[k] >= max) continue;
         this.q.setFromAxisAngle(this.up, -c.heading);
-        this.p.set(c.x, 0, c.z);
+        this.p.set(c.x, c.y ?? 0, c.z);
         this.m.compose(this.p, this.q, this.one);
         l.head.setMatrixAt(n[k], this.m);
         l.tail.setMatrixAt(n[k], this.m);

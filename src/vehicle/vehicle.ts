@@ -78,10 +78,10 @@ export class Vehicle {
     this.body.setAngularDamping(p.angularDamping);
   }
 
-  /** 放到指定位置,車頭朝羅盤方位角(北 = 0,東 = 90) */
-  reset(x: number, z: number, headingDeg: number) {
+  /** 放到指定位置,車頭朝羅盤方位角(北 = 0,東 = 90);surfaceY 為路面海拔高度(預設 0) */
+  reset(x: number, z: number, headingDeg: number, surfaceY = 0) {
     const theta = ((90 - headingDeg) * Math.PI) / 180;
-    this.body.setTranslation({ x, y: 0.9, z }, true);
+    this.body.setTranslation({ x, y: surfaceY + 0.9, z }, true);
     this.body.setRotation({ x: 0, y: Math.sin(theta / 2), z: 0, w: Math.cos(theta / 2) }, true);
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);

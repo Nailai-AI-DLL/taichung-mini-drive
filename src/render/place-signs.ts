@@ -27,6 +27,8 @@ export interface PlaceSignSpec {
   facing: number;
   /** 樓頂招牌給屋頂高度;路邊招牌不給 */
   roofY?: number;
+  /** 所在地面海拔高度(公尺,預設 0) */
+  baseY?: number;
 }
 
 /** 招牌寬度(公尺):全形字算 1 格、半形算 0.6 格,左右各留半格 */
@@ -84,7 +86,7 @@ export function createPlaceSign(s: PlaceSignSpec): THREE.Group {
     pole.castShadow = true;
     g.add(pole);
   }
-  g.position.set(s.x, 0, s.z);
+  g.position.set(s.x, s.baseY ?? 0, s.z);
   // 板面法向量(局部 +z)轉到 (cos f, 0, sin f):繞 y 轉 θ 會把 +z 轉到 (sin θ, 0, cos θ) → θ = π/2 − f
   g.rotation.y = Math.PI / 2 - s.facing;
   return g;
