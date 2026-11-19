@@ -57,6 +57,7 @@ try {
   const s1 = await page.evaluate(() => window.__game.state());
   check('油門 3 秒後車速 > 20 km/h', s1.speedKmh > 20, `${s1.speedKmh.toFixed(1)} km/h`);
   check('路名牌有顯示路名', !!s1.roadName, s1.roadName);
+  check('分區按需載入:只載入附近分區(遠少於全區總數)', s1.tilesLoaded > 0 && s1.tilesLoaded < s1.tilesTotal, `已載入 ${s1.tilesLoaded} / ${s1.tilesTotal} 區`);
 
 
   // 駕駛:每 2 秒換一種操作,每輪(12 秒)回到路面一次,持續取樣

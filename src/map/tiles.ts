@@ -28,6 +28,33 @@ export function parseTileKey(key: string): [number, number] {
   return [tx, tz];
 }
 
+/** 點 (x, z) 到分區 Tile (tx, tz) 矩形邊界的最近距離(公尺;在矩形內為 0) */
+export function distToTile(tx: number, tz: number, x: number, z: number, tileSize = DEFAULT_TILE_SIZE): number {
+  const minX = tx * tileSize, maxX = (tx + 1) * tileSize;
+  const minZ = tz * tileSize, maxZ = (tz + 1) * tileSize;
+  const dx = Math.max(minX - x, 0, x - maxX);
+  const dz = Math.max(minZ - z, 0, z - maxZ);
+  return Math.hypot(dx, dz);
+}
+
+/** 250 m Chunk (cx, cz) 所屬的 1 km Tile 鍵值 */
+export function chunkTileKey(cx: number, cz: number, chunkSize = 250, tileSize = DEFAULT_TILE_SIZE): string {
+  const k = Math.max(1, Math.round(tileSize / chunkSize));
+  return tileKey(Math.floor(cx / k), Math.floor(cz / k));
+}
+
+/** 掛在 World.tiles 上的分區按需載入狀態 */
+export interface WorldTileCatalog {
+  area: string;
+  tileSize: number;
+  /** index.json 列出的所有有效 Tile 鍵值 */
+  available: Set<string>;
+  /** 目前已套用進 world.chunks 的 Tile 鍵值 */
+  loaded: Set<string>;
+  /** 下載單一 Tile 的非同步函式 */
+  fetchTile: (tx: number, tz: number) => Promise<WorldTileJson>;
+}
+
 /** 全區輕量骨架(index.json):含道路、水系、綠地、地標、高架捷運、知名地點與有效分區清單,不含一般建築/標線/傢俱 */
 export interface WorldIndexJson extends WorldJson {
   tileSize: number;
@@ -412,4 +439,119 @@ export function unloadWorldTile(world: World, tx: number, tz: number, tileSize =
     }
   }
   return affected;
+}
+
+export interface TileStreamerOptions {
+  /** 距離車子小於此半徑(公尺)的 Tile 觸發背景下載(預設 1200 m,比 Chunk 生成半徑 800 m 提早 400 m) */
+  loadRadius: number;
+  /** 距離車子大於此半徑(公尺)的 Tile 從記憶體卸載(預設 4500 m,避免在同區域內來回移動時反覆丟棄重抓與觸發 GC) */
+  unloadRadius: number;
+  /** 同時最多幾個 Tile 請求在飛(預設 6) */
+  maxConcurrent: number;
+}
+
+export const DEFAULT_TILE_STREAMER: TileStreamerOptions = {
+  loadRadius: 1200,
+  unloadRadius: 4500,
+  maxConcurrent: 6,
+};
+
+export interface TileStreamerHooks {
+  /** 當某個 Tile 套用或卸載時,通知 ChunkStreamer 重新整理受影響的 250 m 格子 */
+  onChunksChanged?: (chunkKeys: string[]) => void;
+}
+
+/**
+ * 執行期分區按需下載與卸載調度器:
+ * - 背景 fetch 進入 loadRadius 的 Tile,下載完成後放進 readyQueue;
+ * - 每次 update 最多從 readyQueue 套用 1 個最接近玩家的 Tile(避免多個網路回應同時抵達時造成單幀卡頓);
+ * - 自動卸載超過 unloadRadius 的 Tile 釋放記憶體。
+ */
+export class TileStreamer {
+  readonly inFlight = new Set<string>();
+  private readyQueue: WorldTileJson[] = [];
+  readonly opts: TileStreamerOptions;
+
+  constructor(
+    private readonly world: World,
+    private readonly hooks: TileStreamerHooks = {},
+    opts: Partial<TileStreamerOptions> = {},
+  ) {
+    this.opts = { ...DEFAULT_TILE_STREAMER, ...opts };
+  }
+
+  /** 每幀呼叫:回傳本幀是否有套用新的 Tile(有的話 WorldChunkManager 可將網格生成讓到下一幀,避免耗時疊加) */
+  update(x: number, z: number): { applied: boolean; unloaded: number; pendingFetches: number; queued: number } {
+    const cat = this.world.tiles;
+    if (!cat) return { applied: false, unloaded: 0, pendingFetches: 0, queued: 0 };
+
+    const { tileSize } = cat;
+    const { loadRadius, unloadRadius, maxConcurrent } = this.opts;
+
+    // 1. 卸載太遠的 Tile
+    let unloaded = 0;
+    for (const key of [...cat.loaded]) {
+      const [tx, tz] = parseTileKey(key);
+      if (distToTile(tx, tz, x, z, tileSize) > unloadRadius) {
+        cat.loaded.delete(key);
+        const affected = unloadWorldTile(this.world, tx, tz, tileSize);
+        this.hooks.onChunksChanged?.(affected);
+        unloaded++;
+      }
+    }
+
+    // 2. 從已完成下載的佇列中,挑離玩家最近的 1 個 Tile 套用進 world.chunks(每幀最多 1 個,分散 CPU 負擔)
+    let applied = false;
+    if (this.readyQueue.length > 0) {
+      this.readyQueue.sort(
+        (a, b) => distToTile(a.tx, a.tz, x, z, tileSize) - distToTile(b.tx, b.tz, x, z, tileSize),
+      );
+      while (this.readyQueue.length > 0) {
+        const tile = this.readyQueue.shift()!;
+        const key = tileKey(tile.tx, tile.tz);
+        if (cat.loaded.has(key)) continue;
+        if (distToTile(tile.tx, tile.tz, x, z, tileSize) > unloadRadius) continue;
+        const touched = applyWorldTile(this.world, tile, tileSize);
+        cat.loaded.add(key);
+        this.hooks.onChunksChanged?.(touched);
+        applied = true;
+        break;
+      }
+    }
+
+    // 3. 找出進入 loadRadius 但尚未載入也未在下載中的 Tile,由近到遠發起背景下載
+    if (this.inFlight.size < maxConcurrent) {
+      const queuedKeys = new Set(this.readyQueue.map((t) => tileKey(t.tx, t.tz)));
+      const missing: [number, string, number, number][] = [];
+      for (const key of cat.available) {
+        if (cat.loaded.has(key) || this.inFlight.has(key) || queuedKeys.has(key)) continue;
+        const [tx, tz] = parseTileKey(key);
+        const d = distToTile(tx, tz, x, z, tileSize);
+        if (d <= loadRadius) missing.push([d, key, tx, tz]);
+      }
+      missing.sort((a, b) => a[0] - b[0]);
+      for (const [, key, tx, tz] of missing) {
+        if (this.inFlight.size >= maxConcurrent) break;
+        this.inFlight.add(key);
+        cat
+          .fetchTile(tx, tz)
+          .then((tile) => {
+            this.inFlight.delete(key);
+            this.readyQueue.push(tile);
+          })
+          .catch((err) => {
+            console.warn(`分區 Tile ${key} 載入失敗,退回只顯示道路骨架`, err);
+            this.inFlight.delete(key);
+            cat.available.delete(key);
+          });
+      }
+    }
+
+    return {
+      applied,
+      unloaded,
+      pendingFetches: this.inFlight.size,
+      queued: this.readyQueue.length,
+    };
+  }
 }

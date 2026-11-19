@@ -2,6 +2,7 @@
 // 不依賴 DOM 與 three.js,可在 Node 測試中使用。
 import { PALETTE, hexToRgb } from '../config/palette';
 import { QUANT, roadWayOf, type MeshArrays, type RoadWay, type WorldJson, type WorldStreet } from '../map/types';
+import type { WorldTileCatalog } from '../map/tiles';
 import { BAR_GAP, BAR_LEN, BAR_W, CURB_W, DASH_OFF, DASH_ON, MEDIAN_CURB } from '../config/street';
 import { centroid, clipPolygon, clipPolyline, hash32, type Pt, type Rect } from './gen/geom';
 import { dashes, miterNormals, offsetLine } from './gen/polyline';
@@ -110,6 +111,8 @@ export interface World {
   roads: RoadWay[];
   chunkSize: number;
   chunks: Map<string, ChunkSrc>;
+  /** 分區按需載入目錄(從 index.json 載入時啟用;單檔 world.json 模式為 undefined) */
+  tiles?: WorldTileCatalog;
 }
 
 export const chunkKey = (cx: number, cz: number) => `${cx},${cz}`;

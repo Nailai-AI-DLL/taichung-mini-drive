@@ -335,6 +335,8 @@ async function boot() {
         chunksLoaded: chunks.loadedCount,
         chunksTotal: chunks.totalCount,
         chunkMaxMs: chunks.maxChunkMs,
+        tilesLoaded: chunks.tilesLoaded,
+        tilesTotal: chunks.tilesTotal,
         cameraSmoothing: cam.smoothing,
         cameraPos: cam.camera.position.toArray(),
         minimapMode: minimap.mode,

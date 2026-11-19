@@ -11,6 +11,7 @@ import { addChunkFurniture, addChunkMeshes, addLandmark, removeChunkMeshes } fro
 import type { FrameWork } from '../core/perf-tracker';
 import { colliderMeshes, furnitureCollision, type ChunkMeshes, type World } from './chunks';
 import { ChunkStreamer } from './streamer';
+import { TileStreamer } from '../map/tiles';
 import type { MeshArrays } from '../map/types';
 
 export interface LiveChunk {
@@ -20,6 +21,7 @@ export interface LiveChunk {
 
 export class WorldChunkManager {
   readonly streamer: ChunkStreamer;
+  readonly tileStreamer: TileStreamer;
   readonly live = new Map<string, LiveChunk>();
 
   constructor(
@@ -70,6 +72,9 @@ export class WorldChunkManager {
         this.live.delete(src.key);
       },
     });
+    this.tileStreamer = new TileStreamer(world, {
+      onChunksChanged: (keys) => this.streamer.invalidateChunks(keys),
+    });
   }
 
   /** 開場載入出生點周圍所有格子 */
@@ -77,11 +82,13 @@ export class WorldChunkManager {
     return this.streamer.loadAll(x, z);
   }
 
-  /** 每幀依目標位置更新串流並記錄耗時 */
+  /** 每幀依目標位置更新分區 Tile 下載/卸載與 250 m 格子串流並記錄耗時 */
   update(x: number, z: number) {
     const t0 = performance.now();
+    const tileState = this.tileStreamer.update(x, z);
     const built = this.streamer.totalBuildMs;
-    const res = this.streamer.update(x, z);
+    // 若本幀剛套用了 1 個 1 km 分區 Tile,將 3D 網格生成讓到下一幀,避免單幀耗時疊加
+    const res = this.streamer.update(x, z, this.streamer.opts.budgetMs, !tileState.applied);
     if (this.work) {
       this.work.stream = performance.now() - t0;
       this.work.build = this.streamer.totalBuildMs - built;
@@ -99,5 +106,13 @@ export class WorldChunkManager {
 
   get maxChunkMs(): number {
     return this.streamer.maxChunkMs;
+  }
+
+  get tilesLoaded(): number {
+    return this.world.tiles?.loaded.size ?? 0;
+  }
+
+  get tilesTotal(): number {
+    return this.world.tiles?.available.size ?? 0;
   }
 }

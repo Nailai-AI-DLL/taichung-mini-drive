@@ -1,5 +1,6 @@
 // 分塊串流:依車子位置決定哪些格子要生成、哪些要卸載(docs/decisions/0012)。
 // 只管「哪一格、何時」;實際加進場景與物理世界由 hooks 負責,方便在 Node 測試。
+import { chunkTileKey } from '../map/tiles';
 import { buildChunk, buildFurniture, type ChunkMeshes, type ChunkSrc, type FurnitureMeshes, type World } from './chunks';
 
 export interface StreamerOptions {
@@ -49,14 +50,34 @@ export class ChunkStreamer {
     private now: () => number = () => performance.now(),
   ) {}
 
+  /** 單格是否已具備完整的分區 Tile 資料(非分區模式一律為 true;分區模式下等待所屬 1 km Tile 載入完再建 3D 網格) */
+  private isChunkReady(c: ChunkSrc): boolean {
+    const cat = this.world.tiles;
+    if (!cat) return true;
+    const tk = chunkTileKey(c.cx, c.cz, this.world.chunkSize, cat.tileSize);
+    return !cat.available.has(tk) || cat.loaded.has(tk);
+  }
+
+  /** 當某個分區 Tile 套用或卸載時,使受影響的已載入格子失效(觸發 onUnload,下次 update 會以最新資料重建) */
+  invalidateChunks(keys: Iterable<string>) {
+    for (const key of keys) {
+      this.furniturePending.delete(key);
+      if (this.loaded.has(key)) {
+        const c = this.world.chunks.get(key) ?? ({ key } as ChunkSrc);
+        this.hooks.onUnload(c);
+        this.loaded.delete(key);
+      }
+    }
+  }
+
   /** 每幀呼叫:卸載太遠的格子,依距離由近到遠生成缺少的格子,直到用完時間預算 */
-  update(x: number, z: number, budgetMs = this.opts.budgetMs) {
+  update(x: number, z: number, budgetMs = this.opts.budgetMs, allowGenerate = true) {
     const t0 = this.now();
     let unloaded = 0;
     for (const key of this.loaded) {
-      const c = this.world.chunks.get(key)!;
-      if (distToChunk(c, x, z) > this.opts.unloadRadius) {
-        this.hooks.onUnload(c);
+      const c = this.world.chunks.get(key);
+      if (!c || distToChunk(c, x, z) > this.opts.unloadRadius) {
+        this.hooks.onUnload(c ?? ({ key } as ChunkSrc));
         this.loaded.delete(key);
         this.furniturePending.delete(key);
         unloaded++;
@@ -64,9 +85,13 @@ export class ChunkStreamer {
     }
     const missing: [number, ChunkSrc][] = [];
     for (const c of this.world.chunks.values()) {
-      if (this.loaded.has(c.key)) continue;
+      if (this.loaded.has(c.key) || !this.isChunkReady(c)) continue;
       const d = distToChunk(c, x, z);
       if (d <= this.opts.loadRadius) missing.push([d, c]);
+    }
+    if (!allowGenerate) {
+      this.lastStats = { generated: 0, unloaded, ms: this.now() - t0 };
+      return { ...this.lastStats, pending: missing.length, furniturePending: this.furniturePending.size };
     }
     missing.sort((a, b) => a[0] - b[0]);
     const split = !!this.hooks.onFurniture;
