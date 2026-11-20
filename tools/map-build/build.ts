@@ -66,23 +66,22 @@ const OPERA_HOUSE: [number, number] = [24.16293, 120.64052];
 const AREAS: Record<string, AreaConfig> = {
   // M0:臺中國家歌劇院(OSM way 222636759 中心,見 data/osm/derived/landmarks.json)周邊 1 km × 1 km
   m0: { raw: 'data/osm/raw/m0/m0_area.json', center: OPERA_HOUSE, halfX: 500, halfZ: 500, spawnRoad: '惠來路二段', spawnNear: OPERA_HOUSE },
-  // 範圍 A:台中車站 ↔ 七期(24.130,120.630,24.175,120.695),約 6.6 × 5.0 km(production-plan.md §4.1)
+  // 範圍 A(擴大版):原核心區(台中車站 ↔ 七期) + 逢甲夜市、水湳中央公園、北屯、洲際棒球場與台 74 線西段/北段
+  // 經緯度範圍:24.130~24.202°N, 120.620~120.700°E,約 8.2 × 8.0 km(65 km²)
   'range-a': {
     raw: 'data/osm/raw/range-a/range-a_area.json',
     nodes: 'data/osm/raw/range-a/range-a_nodes.json',
     rail: 'data/osm/raw/range-a/range-a_rail.json',
-    center: [24.1525, 120.6625],
-    halfX: 3300,
-    halfZ: 2490,
+    center: [24.166, 120.66],
+    halfX: 4100,
+    halfZ: 4000,
     spawnRoad: '惠來路二段',
     spawnNear: OPERA_HOUSE,
     govWidths: 'data/gov/road-width/widths-range-a.json',
-    // 0039:2026-11-16 先做西屯路 + 七期樣張([24.146, 120.63, 24.168, 120.676]),Cooper 看過後同意鋪到整區
-    govBuildings: { base: 'data/gov/buildings/shp/01-SHP/b114', rect: [24.12, 120.62, 24.185, 120.705] },
+    govBuildings: { base: 'data/gov/buildings/shp/01-SHP/b114', rect: [24.12, 120.61, 24.21, 120.71] },
     govTrees: 'data/gov/trees/trees-range-a.json',
     govLanes: 'data/gov/roads/lanes-range-a.json',
     osmSignals: 'data/osm/raw/range-a/range-a_signals.json',
-    // 2026-10-31 先做樣張區(歌劇院周邊 1 km × 1 km:{ center: OPERA_HOUSE, half: 500 }),Cooper 看過後同意鋪到整區
     detail: 'all',
   },
 };

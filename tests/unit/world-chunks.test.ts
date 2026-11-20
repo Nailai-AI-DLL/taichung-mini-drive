@@ -26,9 +26,9 @@ const polyLen = (pts: [number, number][]) => {
 };
 
 describe('範圍 A 資料', () => {
-  it('world.json 壓縮後遠低於 30 MB 預算(< 6 MB;0039 全區用建物圖後約 5.0 MB)', () => {
+  it('world.json 壓縮後遠低於 30 MB 預算(< 12 MB;擴大範圍後約 8.2 MB,且執行端已改用分區按需下載)', () => {
     const text = readFileSync(join(__dirname, '../../public/map/range-a/world.json'));
-    expect(gzipSync(text).byteLength).toBeLessThan(6 * 1024 * 1024);
+    expect(gzipSync(text).byteLength).toBeLessThan(12 * 1024 * 1024);
   });
 
   it('建築數量合理(臺中市建物圖為主,OSM 只留地標、知名地點、捷運站與建物圖沒收的)', () => {
@@ -37,9 +37,9 @@ describe('範圍 A 資料', () => {
     const fill = world.json.buildings.filter((b) => b.f).length;
     const osm = world.json.buildings.length - gov - fill;
     expect(gov).toBeGreaterThan(110000);
-    expect(gov).toBeLessThan(130000);
+    expect(gov).toBeLessThan(220000);
     expect(osm).toBeGreaterThan(300);
-    expect(osm).toBeLessThan(2000);
+    expect(osm).toBeLessThan(2500);
     expect(fill).toBe(0);
   });
 

@@ -62,10 +62,11 @@ export function assignElevatedRoads(roads: WorldRoad[], deckY = ELEVATED_DECK_Y)
     return out;
   };
 
-  // 1. 收集所有非高架、非陸橋的一般平面道路節點
+  // 1. 收集所有非高架、非陸橋的一般平面道路節點(排除地下道)
+  const isUnderpass = (r: WorldRoad) => r.name.includes('地下道');
   const groundRoadNodes = new Set<string>();
   for (const r of roads) {
-    if (r.highway !== 'trunk' && r.highway !== 'trunk_link' && !r.name.includes('陸橋')) {
+    if ((r.highway !== 'trunk' && r.highway !== 'trunk_link' && !r.name.includes('陸橋')) || isUnderpass(r)) {
       for (const k of ptKeys(r)) groundRoadNodes.add(k);
     }
   }
@@ -75,7 +76,7 @@ export function assignElevatedRoads(roads: WorldRoad[], deckY = ELEVATED_DECK_Y)
   const rampIndices = new Set<number>();
   roads.forEach((r, idx) => {
     const ks = ptKeys(r);
-    if (ks.length < 2) return;
+    if (ks.length < 2 || isUnderpass(r)) return;
     if (r.highway === 'trunk') {
       topIndices.add(idx);
     } else if (r.highway === 'trunk_link') {

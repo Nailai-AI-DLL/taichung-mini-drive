@@ -172,8 +172,8 @@ describe('範圍 A 實際分區產物驗證 (public/map/range-a/)', () => {
     // 出生點附近至少有好幾格建出了建築頂點
     expect([...loadedChunkMeshes.values()].filter((v) => v > 0).length).toBeGreaterThan(15);
 
-    // 車子瞬移到東側遠處(台中車站附近:x = 1800, z = 1200,離出生點 > 4.5 km)
-    const farX = 1800, farZ = 1200;
+    // 車子瞬移到東側遠處(台中車站以東:x = 2600, z = 2500,離出生點 > 4.9 km)
+    const farX = 2600, farZ = 2500;
     // 第 1 次 update:卸載出生點絕大多數舊 Tile,並發起東側新 Tile 的非同步下載
     const step1 = tileStreamer.update(farX, farZ);
     expect(step1.unloaded).toBeGreaterThanOrEqual(initLoadedCount - 1);

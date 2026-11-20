@@ -146,13 +146,14 @@ describe('3D 高架道路網格與 Rapier 物理實車測試 (src/world/gen/elev
 describe('範圍 A 實際地圖高架道路驗證 (台 74 線 + 西屯一/二交流道 + 光明陸橋)', () => {
   const world = loadWorld('range-a');
 
-  it('範圍 A 包含 27 條高架與匝道(台 74 線、西屯一/二交流道、光明陸橋),且對應分塊皆生成 roadDeck 與 roadBarrier 網格', () => {
+  it('範圍 A 包含台 74 線、各交流道匝道與陸橋(超過 100 條),且對應分塊皆生成 roadDeck 與 roadBarrier 網格', () => {
     const elevated = world.json.roads.filter((r) => r.layer === 1 && r.elev && r.elev.some((y) => y > 0));
-    expect(elevated.length).toBe(27);
+    expect(elevated.length).toBeGreaterThanOrEqual(100);
     const names = new Set(elevated.map((r) => r.name));
     expect(names.has('東西向快速公路 快官霧峰線')).toBe(true);
     expect(names.has('西屯一交流道')).toBe(true);
     expect(names.has('西屯二交流道')).toBe(true);
+    expect(names.has('北屯一交流道')).toBe(true);
     expect(names.has('光明陸橋')).toBe(true);
 
     let deckChunks = 0;

@@ -37,9 +37,9 @@ def as_int(s):
         return None
 
 
-def load(path):
-    bx0, by0 = M.to_xy(M.AREA_A[0], M.AREA_A[1])
-    bx1, by1 = M.to_xy(M.AREA_A[2], M.AREA_A[3])
+def load(path, bbox):
+    bx0, by0 = M.to_xy(bbox[0], bbox[1])
+    bx1, by1 = M.to_xy(bbox[2], bbox[3])
     b = M.GOV_BUFFER_M
     segs = []
     with open(path, encoding="utf-8-sig", newline="") as f:
@@ -92,8 +92,12 @@ def main():
     ap.add_argument("--gov", required=True)
     ap.add_argument("--osm", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--bbox", help="南,西,北,東 經緯度(預設為舊範圍 A)")
     a = ap.parse_args()
-    segs = load(a.gov)
+    bbox = tuple(map(float, a.bbox.split(","))) if a.bbox else M.AREA_A
+    M.LAT0 = (bbox[0] + bbox[2]) / 2
+    M.LON0 = (bbox[1] + bbox[3]) / 2
+    segs = load(a.gov, bbox)
     grid = M.build_grid(segs)
     by_name = defaultdict(list)
     for s in segs:
@@ -107,7 +111,7 @@ def main():
         t = el.get("tags", {})
         if not M.is_drivable(t):
             continue
-        pieces, L = M.osm_pieces(el, M.AREA_A)
+        pieces, L = M.osm_pieces(el, bbox)
         if L <= 0:
             continue
         stat["all"] += L

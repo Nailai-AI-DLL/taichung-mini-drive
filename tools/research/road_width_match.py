@@ -278,8 +278,11 @@ def pct(a, b):
     return round(100.0 * a / b, 1) if b else None
 
 
-def run(gov_path, osm_path, out_sample, out_stats, out_widths=None):
-    total_rows, segs = load_gov(gov_path, AREA_A)
+def run(gov_path, osm_path, out_sample, out_stats, out_widths=None, bbox=AREA_A):
+    global LAT0, LON0
+    LAT0 = (bbox[0] + bbox[2]) / 2
+    LON0 = (bbox[1] + bbox[3]) / 2
+    total_rows, segs = load_gov(gov_path, bbox)
     grid = build_grid(segs)
     by_name = defaultdict(list)
     for sg in segs:
@@ -321,7 +324,7 @@ def run(gov_path, osm_path, out_sample, out_stats, out_widths=None):
         t = el.get("tags", {})
         if not is_drivable(t):
             continue
-        pieces, L = osm_pieces(el, AREA_A)
+        pieces, L = osm_pieces(el, bbox)
         if L <= 0:
             continue
         hw = t["highway"]
@@ -606,6 +609,7 @@ def main():
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--profile", action="store_true")
     ap.add_argument("--out-widths", help="建置管線用:輸出 {byOsmId: {id: {w, via}}}(R 法)")
+    ap.add_argument("--bbox", help="南,西,北,東 經緯度(預設為舊範圍 A)")
     a = ap.parse_args()
     if a.selftest:
         return selftest()
@@ -613,7 +617,8 @@ def main():
         return profile(a.gov)
     if not (a.gov and a.osm):
         ap.error("需要 --gov 與 --osm")
-    run(a.gov, a.osm, a.out_sample, a.out_stats, a.out_widths)
+    bbox = tuple(map(float, a.bbox.split(","))) if a.bbox else AREA_A
+    run(a.gov, a.osm, a.out_sample, a.out_stats, a.out_widths, bbox)
     return 0
 
 

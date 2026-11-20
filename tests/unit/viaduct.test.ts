@@ -141,6 +141,6 @@ describe('高架橋(遊戲端)', () => {
     expect(piers).toBe(v.piers.length / 3);
     expect(stations).toBe(10);
     expect(len).toBeGreaterThan(8000);
-    expect(len).toBeLessThan(9500);
+    expect(len).toBeLessThan(12000);
   }, 30000);
 });
