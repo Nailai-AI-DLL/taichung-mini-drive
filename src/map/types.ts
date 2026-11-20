@@ -210,8 +210,10 @@ export interface MeshArrays {
   normal: Float32Array;
   color: Uint8Array;
   index: Uint32Array;
-  /** 建築才有:每頂點 [沿牆距離, 建築代碼](src/world/gen/mesh.ts 的 packBuildingCode) */
+  /** 建築才有:每頂點 [沿牆距離, 建築代碼, 相對高度](src/world/gen/mesh.ts 的 packBuildingCode) */
   wall?: Float32Array;
+  /** 3D 地形模式下的地面圖層才有:每頂點貼地前的相對圖層高度(0.01–0.045),供著色器做與海拔無關的深度偏移 */
+  layer?: Float32Array;
 }
 
 export function dequant(pts: number[]): number[] {

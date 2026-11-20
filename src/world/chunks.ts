@@ -10,7 +10,7 @@ import { dashes, miterNormals, offsetLine } from './gen/polyline';
 import { MeshBuilder, packBuildingCode } from './gen/mesh';
 import { addRibbon } from './gen/ribbon';
 import { addElevatedRoads, type ElevatedRoadPiece } from './gen/elevated-road';
-import { buildChunkTerrain, drapeMeshArrays, extendBuildingSkirt, shiftMeshRangeY, subdivideLine2D } from './gen/terrain';
+import { buildChunkTerrain, buildingElevationRange, drapeMeshArrays, extendBuildingSkirt, shiftMeshRangeY, subdivideLine2D } from './gen/terrain';
 import type { ElevationSampler } from './surface';
 import { extrude, PLAIN_CODE } from './gen/extrude';
 import { addRoofProps } from './gen/roof-props';
@@ -467,26 +467,28 @@ export function buildChunk(
     }
   }
 
-  const lineForGround = (pts: Pt[]) => (elevation ? subdivideLine2D(pts, 20) : pts);
+  const lineForGround = (pts: Pt[]) => (elevation ? subdivideLine2D(pts, 15) : pts);
+  const maxCross = elevation ? 10 : 0;
+  const maxPolyEdge = elevation ? 18 : 0;
   const g = new MeshBuilder();
-  for (const a of c.areas) g.flatPolygon(a.ring, a.k === 2 ? Y_WATER : Y_AREA, areaRgb[a.k]);
-  for (const w of c.waterways) addRibbon(g, lineForGround(w.pts), w.w, Y_WATER, water);
-  for (const r of groundRoads) if (r.sidewalk > 0) addRibbon(g, lineForGround(r.pts), r.width + 2 * r.sidewalk, Y_SIDEWALK, sidewalk);
+  for (const a of c.areas) g.flatPolygon(a.ring, a.k === 2 ? Y_WATER : Y_AREA, areaRgb[a.k], [], maxPolyEdge);
+  for (const w of c.waterways) addRibbon(g, lineForGround(w.pts), w.w, Y_WATER, water, true, maxCross);
+  for (const r of groundRoads) if (r.sidewalk > 0) addRibbon(g, lineForGround(r.pts), r.width + 2 * r.sidewalk, Y_SIDEWALK, sidewalk, true, maxCross);
   // 路緣石:路面外側一圈淺色帶(只是顏色,沒有高度差;車子照樣能開上人行道)
-  for (const r of groundRoads) for (const k of r.curbs) addRibbon(g, lineForGround(k), r.width + 2 * CURB_W, Y_CURB, curb);
-  for (const r of groundRoads) addRibbon(g, lineForGround(r.pts), r.width, Y_ROAD, road);
-  for (const j of c.street.junctions) g.flatPolygon(j, Y_ROAD, road);
+  for (const r of groundRoads) for (const k of r.curbs) addRibbon(g, lineForGround(k), r.width + 2 * CURB_W, Y_CURB, curb, true, maxCross);
+  for (const r of groundRoads) addRibbon(g, lineForGround(r.pts), r.width, Y_ROAD, road, true, maxCross);
+  for (const j of c.street.junctions) g.flatPolygon(j, Y_ROAD, road, [], maxPolyEdge);
   const quadStyle: [number, Rgb][] = [
     [Y_MARK, white],
     [Y_MEDIAN, curb],
     [Y_MEDIAN_TOP, hexToRgb(PALETTE.median)],
   ];
   const st = streetGeometry(c);
-  for (const q of st.quads) g.flatPolygon(q.q, quadStyle[q.k][0], quadStyle[q.k][1]);
+  for (const q of st.quads) g.flatPolygon(q.q, quadStyle[q.k][0], quadStyle[q.k][1], [], maxPolyEdge);
   for (const m of st.marks) addRibbon(g, lineForGround(m.pts), m.w, Y_MARK, m.c ? yellow : white, false);
 
   const groundArr = g.toArrays();
-  if (elevation) drapeMeshArrays(groundArr, elevation);
+  if (elevation) drapeMeshArrays(groundArr, elevation, true);
 
   const deckMb = new MeshBuilder({ wall: true });
   const barrierMb = new MeshBuilder({ wall: true });
@@ -511,11 +513,12 @@ export function buildChunk(
     const roof = extrudeBuilding(b, bd);
     if (roof) addRoofProps(props, roof, bd.t, bd.h / FLOOR_HEIGHT, bd.id, { ...propColors, wall: buildingRgb(bd.id, bd.t), roof: buildingRoofRgb(bd.t) });
     if (elevation) {
-      // 建築以形心地表高度為基準,牆腳向下延伸 3 m 裙腳(避免斜坡上出現底座懸空縫隙)
+      // 建築以基地外框最高地表高程為一樓基準,裙腳往下延伸超過最低點 2.5 m(高坡側不被地形埋沒、低坡側不懸空)
       const ctr = centroid(bd.rings[0]);
-      const baseY = elevation.sampleY(ctr[0], ctr[1]);
-      extendBuildingSkirt(b.pos, bv0, b.vertexCount, baseY, 3.0);
-      shiftMeshRangeY(props.pos, pv0, props.vertexCount, baseY);
+      const { minY, maxY } = buildingElevationRange(bd.rings[0], elevation, ctr);
+      const skirtDepth = Math.max(3.0, maxY - minY + 2.5);
+      extendBuildingSkirt(b.pos, bv0, b.vertexCount, maxY, skirtDepth);
+      shiftMeshRangeY(props.pos, pv0, props.vertexCount, maxY);
     }
   }
   const landmarkSolids = c.landmarks.map((lm) => {

@@ -172,6 +172,7 @@ function toGeometry(m: MeshArrays): THREE.BufferGeometry {
   }
   geo.setAttribute('color', new THREE.BufferAttribute(lin, 3));
   if (m.wall) geo.setAttribute('aWall', new THREE.BufferAttribute(m.wall, 3));
+  if (m.layer) geo.setAttribute('aLayer', new THREE.BufferAttribute(m.layer, 1));
   geo.setIndex(new THREE.BufferAttribute(m.index, 1));
   geo.computeBoundingSphere();
   return geo;
@@ -185,21 +186,23 @@ export const GROUND_DEPTH_BIAS = 1e-3;
  * 只靠幾毫米的高度差,在 300 m 外深度精度不夠會互相閃爍;偏移量只有幾公分高的東西會被蓋住,看不出來。
  */
 function createGroundMaterial(hasTerrain = false): THREE.MeshLambertMaterial {
-  if (hasTerrain) {
-    // 3D 地形模式下頂點 y 在 -41..+78 m 之間變化,改用硬體 polygonOffset 處理地面與道路疊層防閃爍,避免大高度差扭曲深度值
-    return new THREE.MeshLambertMaterial({
-      vertexColors: true,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -2,
-    });
-  }
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
   mat.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <project_vertex>',
-      `#include <project_vertex>\n\tgl_Position.z -= position.y * ${GROUND_DEPTH_BIAS.toExponential()} * gl_Position.w;`,
-    );
+    if (hasTerrain) {
+      // 3D 地形模式下以貼地前紀錄的相對圖層高度 aLayer(0.01–0.045)做深度偏移,
+      // 確保標線 > 路面 > 人行道 > 綠地永遠不閃爍,同時不受地形海拔(-41..+78 m)干擾
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aLayer;')
+        .replace(
+          '#include <project_vertex>',
+          `#include <project_vertex>\n\tgl_Position.z -= aLayer * ${GROUND_DEPTH_BIAS.toExponential()} * gl_Position.w;`,
+        );
+    } else {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>\n\tgl_Position.z -= position.y * ${GROUND_DEPTH_BIAS.toExponential()} * gl_Position.w;`,
+      );
+    }
   };
   return mat;
 }
@@ -244,8 +247,15 @@ export function addChunkMeshes(scene: THREE.Scene, m: ChunkMeshes, elevation?: E
   buildingMat ??= createBuildingMaterial(buildingLookFromSearch(globalThis.location?.search ?? ''));
   const out: THREE.Object3D[] = [];
   if (m.terrain?.index.length) {
-    terrainMat ??= new THREE.MeshLambertMaterial({ vertexColors: true });
+    // 視覺底層地形比物理碰撞面略降 8 cm 並推後深度緩衝,徹底避免底層淺灰地形穿出馬路/路口/綠地(Rapier 物理仍用原精準高程)
+    terrainMat ??= new THREE.MeshLambertMaterial({
+      vertexColors: true,
+      polygonOffset: true,
+      polygonOffsetFactor: 2,
+      polygonOffsetUnits: 4,
+    });
     const terrain = new THREE.Mesh(toGeometry(m.terrain), terrainMat);
+    terrain.position.y = -0.08;
     terrain.receiveShadow = true;
     out.push(terrain);
   }

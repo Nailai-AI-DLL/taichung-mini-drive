@@ -35,8 +35,8 @@ export class MeshBuilder {
     this.idx.push(a, b, c);
   }
 
-  /** 水平多邊形(朝上),y 為高度。ring 不需封閉。 */
-  flatPolygon(ring: Pt[], y: number, rgb: [number, number, number], holes: Pt[][] = []) {
+  /** 水平多邊形(朝上),y 為高度。ring 不需封閉。maxEdge > 0 時會遞迴細分長邊三角形,讓大面積綠地/路口貼合 3D 地形 */
+  flatPolygon(ring: Pt[], y: number, rgb: [number, number, number], holes: Pt[][] = [], maxEdge = 0) {
     const flat: number[] = [];
     const holeIdx: number[] = [];
     for (const p of ring) flat.push(p[0], p[1]);
@@ -47,13 +47,51 @@ export class MeshBuilder {
     const tris = earcut(flat, holeIdx.length ? holeIdx : undefined);
     const base = this.vertexCount;
     for (let i = 0; i < flat.length; i += 2) this.vertex(flat[i], y, flat[i + 1], 0, 1, 0, rgb);
+    if (maxEdge <= 0) {
+      for (let i = 0; i < tris.length; i += 3) {
+        // earcut 回傳的繞向不固定;依面積判斷,保證正面朝上(+Y)
+        const a = base + tris[i];
+        const b = base + tris[i + 1];
+        const c = base + tris[i + 2];
+        if (this.isUpward(a, b, c)) this.tri(a, b, c);
+        else this.tri(a, c, b);
+      }
+      return;
+    }
+    const maxSq = maxEdge * maxEdge;
+    const midCache = new Map<string, number>();
+    const midpoint = (u: number, v: number): number => {
+      const k = u < v ? `${u}_${v}` : `${v}_${u}`;
+      const hit = midCache.get(k);
+      if (hit !== undefined) return hit;
+      const mx = (this.pos[u * 3] + this.pos[v * 3]) * 0.5;
+      const mz = (this.pos[u * 3 + 2] + this.pos[v * 3 + 2]) * 0.5;
+      const id = this.vertex(mx, y, mz, 0, 1, 0, rgb);
+      midCache.set(k, id);
+      return id;
+    };
+    const emitSub = (a: number, b: number, c: number, depth: number) => {
+      const ax = this.pos[a * 3], az = this.pos[a * 3 + 2];
+      const bx = this.pos[b * 3], bz = this.pos[b * 3 + 2];
+      const cx = this.pos[c * 3], cz = this.pos[c * 3 + 2];
+      const lab = (bx - ax) ** 2 + (bz - az) ** 2;
+      const lbc = (cx - bx) ** 2 + (cz - bz) ** 2;
+      const lca = (ax - cx) ** 2 + (az - cz) ** 2;
+      if (depth >= 5 || (lab <= maxSq && lbc <= maxSq && lca <= maxSq)) {
+        if (this.isUpward(a, b, c)) this.tri(a, b, c);
+        else this.tri(a, c, b);
+        return;
+      }
+      const mab = midpoint(a, b);
+      const mbc = midpoint(b, c);
+      const mca = midpoint(c, a);
+      emitSub(a, mab, mca, depth + 1);
+      emitSub(mab, b, mbc, depth + 1);
+      emitSub(mca, mbc, c, depth + 1);
+      emitSub(mab, mbc, mca, depth + 1);
+    };
     for (let i = 0; i < tris.length; i += 3) {
-      // earcut 回傳的繞向不固定;依面積判斷,保證正面朝上(+Y)
-      const a = base + tris[i];
-      const b = base + tris[i + 1];
-      const c = base + tris[i + 2];
-      if (this.isUpward(a, b, c)) this.tri(a, b, c);
-      else this.tri(a, c, b);
+      emitSub(base + tris[i], base + tris[i + 1], base + tris[i + 2], 0);
     }
   }
 

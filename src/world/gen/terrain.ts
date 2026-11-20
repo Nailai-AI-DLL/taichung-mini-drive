@@ -85,12 +85,31 @@ export function subdivideLine2D(line: Pt[], maxStep = 25): Pt[] {
 
 /**
  * 將已生成於基準 y = 0 平面的網格(如平面道路、標線、高架橋、街道傢俱)所有頂點沿 Y 軸抬升至對應地表高程 elevation.sampleY(x, z)。
+ * recordLayer = true 時會先將貼地前的原始層高(例如 0.01–0.045)存到 m.layer,供地面材質做與海拔無關的深度偏移。
  */
-export function drapeMeshArrays(m: MeshArrays, elevation: ElevationSampler): void {
+export function drapeMeshArrays(m: MeshArrays, elevation: ElevationSampler, recordLayer = false): void {
   const pos = m.position;
-  for (let i = 0; i < pos.length; i += 3) {
+  const layer = recordLayer ? new Float32Array(pos.length / 3) : null;
+  for (let i = 0, v = 0; i < pos.length; i += 3, v++) {
+    if (layer) layer[v] = pos[i + 1];
     pos[i + 1] += elevation.sampleY(pos[i], pos[i + 2]);
   }
+  if (layer) m.layer = layer;
+}
+
+/**
+ * 取單棟建築外框頂點與形心的地表高程範圍 [minY, maxY]。
+ * 以 maxY 作為建築一樓基準面,並將裙腳往下延伸到 minY - 2.5 m,確保高坡側不被地形埋沒、低坡側不懸空。
+ */
+export function buildingElevationRange(ring: readonly Pt[], elevation: ElevationSampler, ctr: Pt): { minY: number; maxY: number } {
+  let minY = elevation.sampleY(ctr[0], ctr[1]);
+  let maxY = minY;
+  for (const p of ring) {
+    const y = elevation.sampleY(p[0], p[1]);
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return { minY, maxY };
 }
 
 /**
