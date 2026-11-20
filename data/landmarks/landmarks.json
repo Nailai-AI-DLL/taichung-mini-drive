@@ -240,6 +240,141 @@
         24.167997,
         120.633334
       ]
+    },
+    {
+      "id": "mcdonalds-wenxin6",
+      "name": "麥當勞文心六店",
+      "osmIds": [272245837],
+      "model": "models/landmarks/mcdonalds-wenxin6.glb",
+      "height": 9,
+      "heightSrc": "獨棟麥當勞門市推估 2 層高 9 m(同文心二店)",
+      "ref": [24.16890, 120.65494]
+    },
+    {
+      "id": "mcdonalds-wenxin5",
+      "name": "麥當勞文心五店",
+      "osmIds": [365685281],
+      "model": "models/landmarks/mcdonalds-wenxin5.glb",
+      "height": 9,
+      "heightSrc": "獨棟麥當勞門市推估 2 層高 9 m(同文心二店)",
+      "ref": [24.17296, 120.68108]
+    },
+    {
+      "id": "mcdonalds-chongde",
+      "name": "麥當勞崇德店",
+      "osmIds": [388242367],
+      "model": "models/landmarks/mcdonalds-chongde.glb",
+      "height": 9,
+      "heightSrc": "獨棟麥當勞門市推估 2 層高 9 m(同文心二店)",
+      "ref": [24.16254, 120.68536]
+    },
+    {
+      "id": "mcdonalds-chongde2",
+      "name": "麥當勞崇德二店",
+      "osmIds": [381865380],
+      "model": "models/landmarks/mcdonalds-chongde2.glb",
+      "height": 9,
+      "heightSrc": "獨棟麥當勞門市(OSM levels=2)推估 9 m",
+      "ref": [24.18740, 120.68600]
+    },
+    {
+      "id": "mcdonalds-chongde3",
+      "name": "麥當勞崇德三店",
+      "osmIds": [1307219392],
+      "model": "models/landmarks/mcdonalds-chongde3.glb",
+      "height": 9,
+      "heightSrc": "獨棟麥當勞門市推估 2 層高 9 m(同文心二店)",
+      "ref": [24.19712, 120.68696]
+    },
+    {
+      "id": "mcdonalds-zhongqing",
+      "name": "麥當勞中清店",
+      "osmIds": [446120356],
+      "model": "models/landmarks/mcdonalds-zhongqing.glb",
+      "height": 9,
+      "heightSrc": "獨棟麥當勞門市推估 2 層高 9 m(同文心二店)",
+      "ref": [24.17086, 120.67233]
+    },
+    {
+      "id": "mcdonalds-zhongqing2",
+      "name": "麥當勞中清二店",
+      "osmIds": [951232483],
+      "model": "models/landmarks/mcdonalds-zhongqing2.glb",
+      "height": 9,
+      "heightSrc": "獨棟麥當勞門市(OSM levels=2)推估 9 m",
+      "ref": [24.18773, 120.66309]
+    },
+    {
+      "id": "mcdonalds-wuquanxi",
+      "name": "麥當勞五權西店",
+      "osmIds": [543947305],
+      "model": "models/landmarks/mcdonalds-wuquanxi.glb",
+      "height": 9,
+      "heightSrc": "獨棟麥當勞門市推估 2 層高 9 m(同文心二店)",
+      "ref": [24.14033, 120.64888]
+    },
+    {
+      "id": "mcdonalds-fuxingbei",
+      "name": "麥當勞福星北店",
+      "osmIds": [1324644671],
+      "model": "models/landmarks/mcdonalds-fuxingbei.glb",
+      "height": 9,
+      "heightSrc": "獨棟麥當勞門市推估 2 層高 9 m(同文心二店)",
+      "ref": [24.18570, 120.64480]
+    },
+    {
+      "id": "mcdonalds-xitun",
+      "name": "麥當勞西屯店",
+      "osmIds": [1369976041],
+      "model": "models/landmarks/mcdonalds-xitun.glb",
+      "height": 9,
+      "heightSrc": "獨棟麥當勞門市推估 2 層高 9 m(同文心二店)",
+      "ref": [24.18608, 120.62304]
+    },
+    {
+      "id": "starbucks-daying",
+      "name": "星巴克大英門市",
+      "osmIds": [498718778],
+      "model": "models/landmarks/starbucks-daying.glb",
+      "height": 8.5,
+      "heightSrc": "獨棟星巴克門市推估 2 層高 8.5 m",
+      "ref": [24.15058, 120.64851]
+    },
+    {
+      "id": "starbucks-zhongqing",
+      "name": "星巴克中清門市",
+      "osmIds": [545257485],
+      "model": "models/landmarks/starbucks-zhongqing.glb",
+      "height": 8.5,
+      "heightSrc": "獨棟星巴克門市(OSM levels=2)推估 8.5 m",
+      "ref": [24.18637, 120.66328]
+    },
+    {
+      "id": "starbucks-yongchundong",
+      "name": "星巴克永春東門市",
+      "osmIds": [548482994],
+      "model": "models/landmarks/starbucks-yongchundong.glb",
+      "height": 8.5,
+      "heightSrc": "獨棟星巴克門市推估 2 層高 8.5 m",
+      "ref": [24.13755, 120.63308]
+    },
+    {
+      "id": "starbucks-xiangxin",
+      "name": "星巴克向心門市",
+      "osmIds": [548482997],
+      "model": "models/landmarks/starbucks-xiangxin.glb",
+      "height": 8.5,
+      "heightSrc": "獨棟星巴克門市推估 2 層高 8.5 m",
+      "ref": [24.14234, 120.64641]
+    },
+    {
+      "id": "starbucks-chongde",
+      "name": "星巴克崇德昌平門市",
+      "osmIds": [1016516759],
+      "model": "models/landmarks/starbucks-chongde.glb",
+      "height": 5.5,
+      "heightSrc": "獨棟星巴克門市(OSM levels=1)挑高單層推估 5.5 m",
+      "ref": [24.18850, 120.68666]
     }
   ]
 }
