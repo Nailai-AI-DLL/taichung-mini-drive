@@ -195,6 +195,22 @@ const SIDE_FEATURES: Record<string, SideFeature | SideFeature[]> = {
   'showtime-wenxin': [
     { what: '西側文心南路酒紅影城幕牆', color: 'b03a5b', bearing: 270.0 },
   ],
+  // 水湳／逢甲／北屯 5 棟代表性地標
+  'intercontinental-stadium': [
+    { what: '東側崇德路深藍迎賓雨遮', color: '163a6b', bearing: 90.0 },
+  ],
+  'hanshin-intercontinental': [
+    { what: '東側崇德路酒紅精品入口雨遮', color: '8e3a59', bearing: 90.0 },
+  ],
+  'green-museumbrary': [
+    { what: '東北側中科路灰綠入口挑簷', color: '5e8c7f', bearing: 45.0 },
+  ],
+  'taichung-icce': [
+    { what: '北側黎明路鋼藍主入口雨遮', color: '3a7ca5', bearing: 340.0 },
+  ],
+  'decathlon-beitun': [
+    { what: '東北側中清路深藍門廊雨遮', color: '006299', bearing: 30.0 },
+  ],
 };
 
 async function featureCentroid(file: string, color: string) {

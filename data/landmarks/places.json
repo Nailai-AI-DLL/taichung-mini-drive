@@ -38,13 +38,13 @@
     { "id": "starbucks-xiangxin", "name": "星巴克向心門市", "glyph": "星", "color": "#00704A", "landmark": "starbucks-xiangxin", "road": "文心路" },
     { "id": "starbucks-chongde", "name": "星巴克崇德昌平門市", "glyph": "星", "color": "#00704A", "landmark": "starbucks-chongde", "road": "崇德路" },
 
-    { "id": "intercontinental-stadium", "name": "臺中洲際棒球場", "glyph": "棒", "color": "#1E4E8C", "osm": 9106109, "road": "崇德路" },
-    { "id": "hanshin-intercontinental", "name": "漢神洲際購物廣場", "glyph": "漢", "color": "#8E3A59", "osm": 1307220384, "road": "崇德路" },
+    { "id": "intercontinental-stadium", "name": "臺中洲際棒球場", "glyph": "棒", "color": "#1E4E8C", "landmark": "intercontinental-stadium", "road": "崇德路" },
+    { "id": "hanshin-intercontinental", "name": "漢神洲際購物廣場", "glyph": "漢", "color": "#8E3A59", "landmark": "hanshin-intercontinental", "road": "崇德路" },
     { "id": "central-park", "name": "臺中中央公園", "glyph": "央", "color": "#3C9A5F", "osm": 7139001 },
-    { "id": "green-museumbrary", "name": "臺中綠美圖", "glyph": "綠", "color": "#5E8C7F", "osm": 1307220345 },
-    { "id": "taichung-icce", "name": "臺中國際會展中心", "glyph": "展", "color": "#3A7CA5", "osm": 1305878545 },
+    { "id": "green-museumbrary", "name": "臺中綠美圖", "glyph": "綠", "color": "#5E8C7F", "landmark": "green-museumbrary" },
+    { "id": "taichung-icce", "name": "臺中國際會展中心", "glyph": "展", "color": "#3A7CA5", "landmark": "taichung-icce" },
     { "id": "fengjia-night-market", "name": "逢甲夜市", "glyph": "逢", "color": "#E65C2E", "osm": 534713218, "road": "福星路" },
-    { "id": "decathlon-beitun", "name": "迪卡儂北屯店", "glyph": "迪", "color": "#0082C3", "osm": 649775558, "road": "中清路" },
+    { "id": "decathlon-beitun", "name": "迪卡儂北屯店", "glyph": "迪", "color": "#0082C3", "landmark": "decathlon-beitun", "road": "中清路" },
 
     { "id": "nmns", "name": "科博館", "glyph": "科", "color": "#2B7A78", "landmark": "nmns-greenhouse", "road": "健行路" },
     { "id": "ntmofa", "name": "國美館", "glyph": "美", "color": "#5B6C7D", "landmark": "ntmofa", "road": "五權西路" },

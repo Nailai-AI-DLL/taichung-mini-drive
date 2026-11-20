@@ -474,6 +474,51 @@
       "height": 34,
       "heightSrc": "8 層大型影城商場推估 34 m",
       "ref": [24.130096, 120.645700]
+    },
+    {
+      "id": "intercontinental-stadium",
+      "name": "臺中洲際棒球場",
+      "osmIds": [9106109],
+      "model": "models/landmarks/intercontinental-stadium.glb",
+      "height": 32,
+      "heightSrc": "臺中洲際棒球場看台頂棚與照明燈塔推估高 32 m",
+      "ref": [24.199692, 120.684790]
+    },
+    {
+      "id": "hanshin-intercontinental",
+      "name": "漢神洲際購物廣場",
+      "osmIds": [1307220384],
+      "model": "models/landmarks/hanshin-intercontinental.glb",
+      "height": 48,
+      "heightSrc": "OSM building:levels=11 大型百貨商場推估 48 m",
+      "ref": [24.199194, 120.685925]
+    },
+    {
+      "id": "green-museumbrary",
+      "name": "臺中綠美圖",
+      "osmIds": [1307220345],
+      "model": "models/landmarks/green-museumbrary.glb",
+      "height": 26,
+      "heightSrc": "妹島和世設計 8 棟白色量體最高約 26 m(公開設計資料)",
+      "ref": [24.193054, 120.654512]
+    },
+    {
+      "id": "taichung-icce",
+      "name": "臺中國際會展中心",
+      "osmIds": [1305878545],
+      "model": "models/landmarks/taichung-icce.glb",
+      "height": 30,
+      "heightSrc": "臺中國際會展中心波浪大屋頂最高約 30 m(公開設計資料)",
+      "ref": [24.193860, 120.651776]
+    },
+    {
+      "id": "decathlon-beitun",
+      "name": "迪卡儂北屯店",
+      "osmIds": [649775558],
+      "model": "models/landmarks/decathlon-beitun.glb",
+      "height": 13,
+      "heightSrc": "OSM building:levels=3 運動量販旗艦店推估 13 m",
+      "ref": [24.190799, 120.660089]
     }
   ]
 }
