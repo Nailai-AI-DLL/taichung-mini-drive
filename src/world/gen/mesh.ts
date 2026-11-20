@@ -9,7 +9,7 @@ export class MeshBuilder {
   nor: number[] = [];
   col: number[] = [];
   idx: number[] = [];
-  /** 建築用:每頂點 [沿牆距離, 建築代碼];null = 不輸出 */
+  /** 建築用:每頂點 [沿牆距離 u, 建築代碼, 建築相對地面高度 localY];null = 不輸出 */
   wall: number[] | null;
   /** 接下來加的頂點用的建築代碼(packBuildingCode) */
   code = 0;
@@ -27,7 +27,7 @@ export class MeshBuilder {
     this.pos.push(x, y, z);
     this.nor.push(nx, ny, nz);
     this.col.push(rgb[0], rgb[1], rgb[2]);
-    this.wall?.push(u, this.code);
+    this.wall?.push(u, this.code, y);
     return this.vertexCount - 1;
   }
 

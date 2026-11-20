@@ -74,8 +74,8 @@ export class PropLayer {
   }
 
   /** 低多邊形樹(0045):GLB 裡依名稱取節點,每個樹形一個樣板;頂點色、平面陰影 */
-  static fromGlbNodes(scene: THREE.Scene, url: string, nodes: readonly string[]) {
-    const l = new PropLayer(scene, null);
+  static fromGlbNodes(scene: THREE.Scene, url: string, nodes: readonly string[], yAt?: (x: number, z: number) => number) {
+    const l = new PropLayer(scene, null, yAt);
     l.names = nodes.map((n, k) => `tree${k}-${n}`);
     new GLTFLoader()
       .loadAsync(url)
@@ -100,7 +100,7 @@ export class PropLayer {
 
   private names = ['tree', 'light'];
 
-  constructor(private readonly scene: THREE.Scene, base: string | null) {
+  constructor(private readonly scene: THREE.Scene, base: string | null, private readonly yAt?: (x: number, z: number) => number) {
     if (base === null) return;
     const kinds = [PROP_MODELS.tree, PROP_MODELS.light];
     Promise.all(kinds.map((u, k) => loadVariants(base + u, k === PROP_KIND.Light)))
@@ -179,10 +179,11 @@ export class PropLayer {
         const c = Math.cos(a) * s, sn = Math.sin(a) * s;
         const m = mesh.instanceMatrix.array as Float32Array;
         const o = i * 16;
+        const y = this.yAt ? this.yAt(p[k + 1], p[k + 2]) : 0;
         m[o] = c; m[o + 1] = 0; m[o + 2] = sn; m[o + 3] = 0;
         m[o + 4] = 0; m[o + 5] = s; m[o + 6] = 0; m[o + 7] = 0;
         m[o + 8] = -sn; m[o + 9] = 0; m[o + 10] = c; m[o + 11] = 0;
-        m[o + 12] = p[k + 1]; m[o + 13] = 0; m[o + 14] = p[k + 2]; m[o + 15] = 1;
+        m[o + 12] = p[k + 1]; m[o + 13] = y; m[o + 14] = p[k + 2]; m[o + 15] = 1;
       }
     for (const vs of this.variants)
       for (const v of vs)

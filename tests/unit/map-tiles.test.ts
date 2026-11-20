@@ -153,7 +153,8 @@ describe('範圍 A 實際分區產物驗證 (public/map/range-a/)', () => {
     expect(initLoadedCount).toBeLessThanOrEqual(18);
     expect(world.tiles!.available.size).toBe(indexJson.tiles.length);
     expect(fetchedUrls[0]).toBe('/map/range-a/index.json');
-    expect(fetchedUrls.length).toBe(1 + initLoadedCount);
+    expect(fetchedUrls).toContain('/map/range-a/elevation.json');
+    expect(fetchedUrls.length).toBe(2 + initLoadedCount);
 
     // 搭配 ChunkStreamer 與 TileStreamer:出生點周圍的 250 m 格子都有完整建築可生成
     const loadedChunkMeshes = new Map<string, number>();

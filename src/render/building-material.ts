@@ -147,8 +147,8 @@ export function createBuildingMaterial(look: BuildingLook = 'fps'): THREE.MeshLa
       ...NIGHT_UNIFORMS,
     });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 aWall;\nvarying vec2 vWall;\nvarying float vBandY;\nvarying float vUp;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWall = aWall;\nvBandY = position.y;\nvUp = normal.y;');
+      .replace('#include <common>', '#include <common>\nattribute vec3 aWall;\nvarying vec2 vWall;\nvarying float vBandY;\nvarying float vUp;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWall = aWall.xy;\nvBandY = aWall.z;\nvUp = normal.y;');
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',

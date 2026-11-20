@@ -10,6 +10,8 @@ import { dashes, miterNormals, offsetLine } from './gen/polyline';
 import { MeshBuilder, packBuildingCode } from './gen/mesh';
 import { addRibbon } from './gen/ribbon';
 import { addElevatedRoads, type ElevatedRoadPiece } from './gen/elevated-road';
+import { buildChunkTerrain, drapeMeshArrays, extendBuildingSkirt, shiftMeshRangeY, subdivideLine2D } from './gen/terrain';
+import type { ElevationSampler } from './surface';
 import { extrude, PLAIN_CODE } from './gen/extrude';
 import { addRoofProps } from './gen/roof-props';
 import { addBusStop, addSign, addSignal, addStreetLight, propPoses, scooterPoses, type FurnitureColors, genTreePoses } from './gen/furniture';
@@ -117,6 +119,8 @@ export interface ChunkMeshes {
   roadDeck?: MeshArrays;
   /** 3D 高架道路水泥防撞護欄、箱梁底板與橋墩(物理碰撞體) */
   roadBarrier?: MeshArrays;
+  /** 3D DTM 地表網格(僅在地形模式存在;同時作為視覺地表與 Rapier 物理碰撞體) */
+  terrain?: MeshArrays;
 }
 
 export interface World {
@@ -126,6 +130,8 @@ export interface World {
   chunks: Map<string, ChunkSrc>;
   /** 分區按需載入目錄(從 index.json 載入時啟用;單檔 world.json 模式為 undefined) */
   tiles?: WorldTileCatalog;
+  /** 3D 地形高程取樣器(從 elevation.json 載入時啟用;未提供時為平面模式 y = 0) */
+  elevation?: ElevationSampler;
 }
 
 export const chunkKey = (cx: number, cz: number) => `${cx},${cz}`;
@@ -396,26 +402,29 @@ export function colliderMeshes(m: ChunkMeshes): MeshArrays[] {
 }
 
 /** 街道傢俱的碰撞形狀(世界座標):樹幹、路燈、號誌桿各一個圓柱,一排機車一個長方體;物理端用 addStaticFurniture 加入 */
-export function furnitureCollision(c: ChunkSrc): FurnitureCollision {
+export function furnitureCollision(c: ChunkSrc, elevation?: ElevationSampler): FurnitureCollision {
   const f = c.furniture;
   const trees = furnitureShow.trees ? f.trees : [];
   const scooters = furnitureShow.scooters ? f.scooters : [];
+  const yOpt = (x: number, z: number) => (elevation ? { y: elevation.sampleY(x, z) } : {});
   return {
     posts: [
-      ...trees.map((p) => ({ x: p[0], z: p[1], r: TREE_HIT_R })),
-      ...f.lights.map((l) => ({ x: l.p[0], z: l.p[1], r: LIGHT_HIT_R })),
-      ...f.signals.map((s) => ({ x: s.p[0], z: s.p[1], r: SIGNAL_HIT_R })),
-      ...f.busStops.filter((b) => !b.shelter).map((b) => ({ x: b.p[0], z: b.p[1], r: BUS_POLE_HIT_R })),
+      ...trees.map((p) => ({ x: p[0], z: p[1], ...yOpt(p[0], p[1]), r: TREE_HIT_R })),
+      ...f.lights.map((l) => ({ x: l.p[0], z: l.p[1], ...yOpt(l.p[0], l.p[1]), r: LIGHT_HIT_R })),
+      ...f.signals.map((s) => ({ x: s.p[0], z: s.p[1], ...yOpt(s.p[0], s.p[1]), r: SIGNAL_HIT_R })),
+      ...f.busStops.filter((b) => !b.shelter).map((b) => ({ x: b.p[0], z: b.p[1], ...yOpt(b.p[0], b.p[1]), r: BUS_POLE_HIT_R })),
     ],
     postH: POST_HIT_H,
     boxes: [
       ...scooters.map((s) => {
         const k = ((s.n - 1) * SCOOTER_SLOT) / 2;
-        return { x: s.p[0] + Math.cos(s.a) * k, z: s.p[1] + Math.sin(s.a) * k, a: s.a, hx: (s.n * SCOOTER_SLOT) / 2, hz: SCOOTER_LEN / 2, h: SCOOTER_H };
+        const x = s.p[0] + Math.cos(s.a) * k;
+        const z = s.p[1] + Math.sin(s.a) * k;
+        return { x, z, ...yOpt(x, z), a: s.a, hx: (s.n * SCOOTER_SLOT) / 2, hz: SCOOTER_LEN / 2, h: SCOOTER_H };
       }),
       // 候車亭:長邊沿道路(朝向車道 a 轉 90°)
-      ...f.busStops.filter((b) => b.shelter).map((b) => ({ x: b.p[0], z: b.p[1], a: b.a + Math.PI / 2, hx: BUS_SHELTER_L / 2, hz: BUS_SHELTER_D / 2, h: BUS_SHELTER_H })),
-      ...(f.viaduct ? viaductCollision(f.viaduct) : []),
+      ...f.busStops.filter((b) => b.shelter).map((b) => ({ x: b.p[0], z: b.p[1], ...yOpt(b.p[0], b.p[1]), a: b.a + Math.PI / 2, hx: BUS_SHELTER_L / 2, hz: BUS_SHELTER_D / 2, h: BUS_SHELTER_H })),
+      ...(f.viaduct ? viaductCollision(f.viaduct).map((b) => ({ ...b, ...yOpt(b.x, b.z) })) : []),
     ],
   };
 }
@@ -426,8 +435,13 @@ export function extrudeBuilding(mb: MeshBuilder, bd: ChunkSrc['buildings'][numbe
   return extrude(mb, bd.rings[0], bd.h, bd.col ?? buildingRgb(bd.id, bd.t), buildingRoofRgb(bd.t), bd.rings.slice(1), bd.sharp, bd.t !== KIND.Temple);
 }
 
-/** 生成一個格子的網格 */
-export function buildChunk(c: ChunkSrc, withFurniture = true): ChunkMeshes {
+/** 生成一個格子的網格(提供 elevation 時啟用 3D DTM 地形起伏與全面貼地) */
+export function buildChunk(
+  c: ChunkSrc,
+  withFurniture = true,
+  elevation?: ElevationSampler,
+  sunkHoles: readonly Pt[][] = [],
+): ChunkMeshes {
   const road = hexToRgb(PALETTE.road);
   const sidewalk = hexToRgb(PALETTE.sidewalk);
   const water = hexToRgb(PALETTE.water);
@@ -453,13 +467,14 @@ export function buildChunk(c: ChunkSrc, withFurniture = true): ChunkMeshes {
     }
   }
 
+  const lineForGround = (pts: Pt[]) => (elevation ? subdivideLine2D(pts, 20) : pts);
   const g = new MeshBuilder();
   for (const a of c.areas) g.flatPolygon(a.ring, a.k === 2 ? Y_WATER : Y_AREA, areaRgb[a.k]);
-  for (const w of c.waterways) addRibbon(g, w.pts, w.w, Y_WATER, water);
-  for (const r of groundRoads) if (r.sidewalk > 0) addRibbon(g, r.pts, r.width + 2 * r.sidewalk, Y_SIDEWALK, sidewalk);
+  for (const w of c.waterways) addRibbon(g, lineForGround(w.pts), w.w, Y_WATER, water);
+  for (const r of groundRoads) if (r.sidewalk > 0) addRibbon(g, lineForGround(r.pts), r.width + 2 * r.sidewalk, Y_SIDEWALK, sidewalk);
   // 路緣石:路面外側一圈淺色帶(只是顏色,沒有高度差;車子照樣能開上人行道)
-  for (const r of groundRoads) for (const k of r.curbs) addRibbon(g, k, r.width + 2 * CURB_W, Y_CURB, curb);
-  for (const r of groundRoads) addRibbon(g, r.pts, r.width, Y_ROAD, road);
+  for (const r of groundRoads) for (const k of r.curbs) addRibbon(g, lineForGround(k), r.width + 2 * CURB_W, Y_CURB, curb);
+  for (const r of groundRoads) addRibbon(g, lineForGround(r.pts), r.width, Y_ROAD, road);
   for (const j of c.street.junctions) g.flatPolygon(j, Y_ROAD, road);
   const quadStyle: [number, Rgb][] = [
     [Y_MARK, white],
@@ -468,12 +483,21 @@ export function buildChunk(c: ChunkSrc, withFurniture = true): ChunkMeshes {
   ];
   const st = streetGeometry(c);
   for (const q of st.quads) g.flatPolygon(q.q, quadStyle[q.k][0], quadStyle[q.k][1]);
-  for (const m of st.marks) addRibbon(g, m.pts, m.w, Y_MARK, m.c ? yellow : white, false);
+  for (const m of st.marks) addRibbon(g, lineForGround(m.pts), m.w, Y_MARK, m.c ? yellow : white, false);
+
+  const groundArr = g.toArrays();
+  if (elevation) drapeMeshArrays(groundArr, elevation);
 
   const deckMb = new MeshBuilder({ wall: true });
   const barrierMb = new MeshBuilder({ wall: true });
   if (elevatedRoads.length) {
     addElevatedRoads(deckMb, barrierMb, elevatedRoads, c.elevatedContext ?? elevatedRoads, groundRoads);
+  }
+  const roadDeckArr = deckMb.toArrays();
+  const roadBarrierArr = barrierMb.toArrays();
+  if (elevation) {
+    if (roadDeckArr.index.length) drapeMeshArrays(roadDeckArr, elevation);
+    if (roadBarrierArr.index.length) drapeMeshArrays(roadBarrierArr, elevation);
   }
 
   const b = new MeshBuilder({ wall: true });
@@ -482,8 +506,17 @@ export function buildChunk(c: ChunkSrc, withFurniture = true): ChunkMeshes {
   props.code = PLAIN_CODE;
   const propColors = { shed: PALETTE.roofShed.map(hexToRgb), tank: hexToRgb(PALETTE.roofTank) };
   for (const bd of c.buildings) {
+    const bv0 = b.vertexCount;
+    const pv0 = props.vertexCount;
     const roof = extrudeBuilding(b, bd);
     if (roof) addRoofProps(props, roof, bd.t, bd.h / FLOOR_HEIGHT, bd.id, { ...propColors, wall: buildingRgb(bd.id, bd.t), roof: buildingRoofRgb(bd.t) });
+    if (elevation) {
+      // 建築以形心地表高度為基準,牆腳向下延伸 3 m 裙腳(避免斜坡上出現底座懸空縫隙)
+      const ctr = centroid(bd.rings[0]);
+      const baseY = elevation.sampleY(ctr[0], ctr[1]);
+      extendBuildingSkirt(b.pos, bv0, b.vertexCount, baseY, 3.0);
+      shiftMeshRangeY(props.pos, pv0, props.vertexCount, baseY);
+    }
   }
   const landmarkSolids = c.landmarks.map((lm) => {
     const l = new MeshBuilder({ wall: true });
@@ -491,17 +524,22 @@ export function buildChunk(c: ChunkSrc, withFurniture = true): ChunkMeshes {
     // 下沉地標(秋紅谷):碰撞只是一圈欄杆高的擋牆,車子開不進碗裡;模型載入前也只顯示這麼高的平台
     const h = lm.sink ? SINK_RAIL_H : lm.h;
     for (const r of lm.rings) extrude(l, r.map(([px, pz]) => [px + lm.x, pz + lm.z] as Pt), h, buildingRgb(0, KIND.Commercial), buildingRoofRgb(KIND.Commercial), [], undefined, !lm.sink);
+    if (elevation) {
+      const baseY = elevation.sampleY(lm.x, lm.z);
+      shiftMeshRangeY(l.pos, 0, l.vertexCount, baseY);
+    }
     return l.toArrays();
   });
-  const base = {
-    ground: g.toArrays(),
+  const base: Omit<ChunkMeshes, 'furniture' | 'scooters' | 'props'> = {
+    ground: groundArr,
     buildings: b.toArrays(),
     roofProps: props.toArrays(),
     landmarkSolids,
-    roadDeck: deckMb.toArrays(),
-    roadBarrier: barrierMb.toArrays(),
+    roadDeck: roadDeckArr,
+    roadBarrier: roadBarrierArr,
+    ...(elevation && { terrain: buildChunkTerrain(c.rect, elevation, sunkHoles) }),
   };
-  return { ...base, ...(withFurniture ? buildFurniture(c) : { furniture: new MeshBuilder({ wall: true }).toArrays(), scooters: new Float32Array(), props: new Float32Array() }) };
+  return { ...base, ...(withFurniture ? buildFurniture(c, elevation) : { furniture: new MeshBuilder({ wall: true }).toArrays(), scooters: new Float32Array(), props: new Float32Array() }) };
 }
 
 export type FurnitureMeshes = Pick<ChunkMeshes, 'furniture' | 'scooters' | 'props'>;
@@ -530,7 +568,7 @@ export function furnitureColors(): FurnitureColors {
   };
 }
 
-export function buildFurniture(c: ChunkSrc): FurnitureMeshes {
+export function buildFurniture(c: ChunkSrc, elevation?: ElevationSampler): FurnitureMeshes {
   const fm = new MeshBuilder({ wall: true });
   fm.code = PLAIN_CODE;
   const fc = furnitureColors();
@@ -543,7 +581,11 @@ export function buildFurniture(c: ChunkSrc): FurnitureMeshes {
   if (!tripo) for (const l of c.furniture.lights) addStreetLight(fm, l.p, l.a, fc);
   for (const s of c.furniture.signals) addSignal(fm, s.p, s.a, s.arm, fc);
   if (c.furniture.viaduct) addViaduct(fm, c.furniture.viaduct);
-  return { furniture: fm.toArrays(), scooters: scooterPoses(furnitureShow.scooters ? c.furniture.scooters : [], PALETTE.scooterBody.length),
+  const furnArr = fm.toArrays();
+  if (elevation && furnArr.index.length) drapeMeshArrays(furnArr, elevation);
+  return {
+    furniture: furnArr,
+    scooters: scooterPoses(furnitureShow.scooters ? c.furniture.scooters : [], PALETTE.scooterBody.length),
     props: tripo ? propPoses(trees, c.furniture.lights, PROP_TREE_SCALE, c.roads?.map((r) => r.pts), treeCodes) : genTreePoses(trees, treeCodes),
   };
 }

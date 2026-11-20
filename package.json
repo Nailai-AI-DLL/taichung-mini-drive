@@ -17,6 +17,7 @@
     "map:build:range-a": "tsx tools/map-build/build.ts --area range-a",
     "map:tile:range-a": "tsx tools/map-build/tile.ts --area range-a",
     "map:skyline:range-a": "python3 tools/map-build/skyline.py data/elevation/moi_dtm20_taichung/taichung_dem20.zip public/map/range-a/world.json public/map/range-a/skyline.json",
+    "map:elevation:range-a": "python3 tools/map-build/elevation.py data/elevation/moi_dtm20_taichung/taichung_dem20.zip public/map/range-a/index.json public/map/range-a/elevation.json",
     "map:push": "bash tools/map-build/sync-map-branch.sh push",
     "map:pull": "bash tools/map-build/sync-map-branch.sh pull",
     "test": "vitest run",

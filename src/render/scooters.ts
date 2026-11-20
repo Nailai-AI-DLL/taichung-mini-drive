@@ -12,6 +12,7 @@ export class ScooterLayer {
     private readonly geometry: THREE.BufferGeometry,
     private readonly material: THREE.Material,
     private readonly colors: THREE.Color[],
+    private readonly yAt?: (x: number, z: number) => number,
   ) {}
 
   /** 目前畫出的台數 */
@@ -57,10 +58,11 @@ export class ScooterLayer {
         // 直接寫元素,不建暫時陣列(每次載入卸載要重寫幾千台,暫時陣列會造成垃圾回收停頓)
         const c = Math.cos(p[k + 2]), s = Math.sin(p[k + 2]);
         const o = i * 16;
+        const y = this.yAt ? this.yAt(p[k], p[k + 1]) : 0;
         m[o] = c; m[o + 1] = 0; m[o + 2] = s; m[o + 3] = 0;
         m[o + 4] = 0; m[o + 5] = 1; m[o + 6] = 0; m[o + 7] = 0;
         m[o + 8] = -s; m[o + 9] = 0; m[o + 10] = c; m[o + 11] = 0;
-        m[o + 12] = p[k]; m[o + 13] = 0; m[o + 14] = p[k + 1]; m[o + 15] = 1;
+        m[o + 12] = p[k]; m[o + 13] = y; m[o + 14] = p[k + 1]; m[o + 15] = 1;
         const cc = this.colors[p[k + 3]];
         col[i * 3] = cc.r;
         col[i * 3 + 1] = cc.g;

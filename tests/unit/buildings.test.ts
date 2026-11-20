@@ -124,7 +124,7 @@ describe('一樓店面:臨大路判定', () => {
 describe('窗格:不畫窗的地方', () => {
   /** 牆面(法向量水平)頂點的 [y, 代碼];屋頂是水平面,著色器本來就不畫窗 */
   const codes = (mb: MeshBuilder) =>
-    Array.from({ length: mb.vertexCount }, (_, i) => [mb.pos[i * 3 + 1], mb.wall![i * 2 + 1], mb.nor[i * 3 + 1]] as const)
+    Array.from({ length: mb.vertexCount }, (_, i) => [mb.pos[i * 3 + 1], mb.wall![i * 3 + 1], mb.nor[i * 3 + 1]] as const)
       .filter(([, , ny]) => Math.abs(ny) < 0.5)
       .map(([y, c]) => [y, c] as const);
 
@@ -163,7 +163,7 @@ describe('窗格:沿牆距離', () => {
     const ring = rect(8, 20);
     extrude(mb, ring, 3.2, GREY, GREY);
     const wall = mb.wall!;
-    const u = (v: number) => wall[v * 2];
+    const u = (v: number) => wall[v * 3];
     let maxSpan = 0;
     let maxU = 0;
     for (let i = 0; i < mb.idx.length; i += 3) {
@@ -341,13 +341,13 @@ describe('範圍 A 實際資料', () => {
   it('分塊輸出的附加物網格有牆面屬性,頂點數與牆面屬性長度一致;附加物全用不畫窗的代碼;碰撞體不含附加物', () => {
     const c = [...world.chunks.values()].sort((a, b) => b.buildings.length - a.buildings.length)[0];
     const m = buildChunk(c);
-    for (let i = 1; i < m.roofProps.wall!.length; i += 2) expect(m.roofProps.wall![i]).toBe(PLAIN_CODE);
+    for (let i = 1; i < m.roofProps.wall!.length; i += 3) expect(m.roofProps.wall![i]).toBe(PLAIN_CODE);
     const col = colliderMeshes(m);
     expect(col).not.toContain(m.roofProps);
     expect(col).toEqual([m.buildings, ...m.landmarkSolids]);
     expect(m.roofProps.index.length).toBeGreaterThan(0);
-    expect(m.roofProps.wall!.length).toBe((m.roofProps.position.length / 3) * 2);
-    expect(m.buildings.wall!.length).toBe((m.buildings.position.length / 3) * 2);
+    expect(m.roofProps.wall!.length).toBe((m.roofProps.position.length / 3) * 3);
+    expect(m.buildings.wall!.length).toBe((m.buildings.position.length / 3) * 3);
   });
 });
 

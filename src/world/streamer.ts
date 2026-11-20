@@ -2,6 +2,7 @@
 // 只管「哪一格、何時」;實際加進場景與物理世界由 hooks 負責,方便在 Node 測試。
 import { chunkTileKey } from '../map/tiles';
 import { buildChunk, buildFurniture, type ChunkMeshes, type ChunkSrc, type FurnitureMeshes, type World } from './chunks';
+import { sunkHolesOf } from './surface';
 
 export interface StreamerOptions {
   /** 格子最近點距車子小於這個距離就生成(公尺) */
@@ -42,13 +43,16 @@ export class ChunkStreamer {
   totalBuildMs = 0;
   /** 已載入、還沒生成街道傢俱的格子(兩段生成時) */
   private furniturePending = new Set<string>();
+  private readonly sunkHoles: [number, number][][];
 
   constructor(
     private world: World,
     private hooks: StreamerHooks,
     readonly opts: StreamerOptions = DEFAULT_STREAMER,
     private now: () => number = () => performance.now(),
-  ) {}
+  ) {
+    this.sunkHoles = sunkHolesOf(world.json.landmarks);
+  }
 
   /** 單格是否已具備完整的分區 Tile 資料(非分區模式一律為 true;分區模式下等待所屬 1 km Tile 載入完再建 3D 網格) */
   private isChunkReady(c: ChunkSrc): boolean {
@@ -94,11 +98,12 @@ export class ChunkStreamer {
       }
     }
     const missing: [number, ChunkSrc][] = [];
+    const hasTerrain = !!this.world.elevation;
     for (const c of this.world.chunks.values()) {
       if (this.loaded.has(c.key)) continue;
       const d = distToChunk(c, x, z);
       if (d > this.opts.loadRadius) continue;
-      if (!this.isChunkReady(c) && !(d <= 250 && this.hasElevatedDeck(c))) continue;
+      if (!this.isChunkReady(c) && !(d <= 250 && (hasTerrain || this.hasElevatedDeck(c)))) continue;
       missing.push([d, c]);
     }
     if (!allowGenerate) {
@@ -112,7 +117,7 @@ export class ChunkStreamer {
     for (const [, c] of missing) {
       if (generated > 0 && this.now() - t0 >= budgetMs) break;
       const s = this.now();
-      const meshes = buildChunk(c, !split);
+      const meshes = buildChunk(c, !split, this.world.elevation, this.sunkHoles);
       this.totalBuildMs += this.now() - s;
       this.hooks.onLoad(c, meshes);
       this.maxChunkMs = Math.max(this.maxChunkMs, this.now() - s);
@@ -126,7 +131,7 @@ export class ChunkStreamer {
       for (const c of pend) {
         if ((generated > 0 || furnished > 0) && this.now() - t0 >= budgetMs) break;
         const s = this.now();
-        const f = buildFurniture(c);
+        const f = buildFurniture(c, this.world.elevation);
         this.totalBuildMs += this.now() - s;
         this.hooks.onFurniture!(c, f);
         this.maxChunkMs = Math.max(this.maxChunkMs, this.now() - s);

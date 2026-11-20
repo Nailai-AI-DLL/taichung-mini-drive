@@ -36,11 +36,14 @@ export class WorldChunkManager {
       onLoad: (src, m) => {
         const t0 = performance.now();
         const objects = [
-          addChunkMeshes(scene, m),
-          ...src.landmarks.map((lm, i) => addLandmark(scene, lm, m.landmarkSolids[i])),
+          addChunkMeshes(scene, m, world.elevation),
+          ...src.landmarks.map((lm, i) => addLandmark(scene, lm, m.landmarkSolids[i], world.elevation?.sampleY(lm.x, lm.z) ?? 0)),
         ];
         const t1 = performance.now();
         const bodies = colliderMeshes(m).map((a) => addStaticTrimesh(pw, a.position, a.index));
+        if (m.terrain?.index.length) {
+          bodies.push(addStaticRoadDeck(pw, m.terrain.position, m.terrain.index));
+        }
         if (m.roadDeck?.index.length) {
           bodies.push(addStaticRoadDeck(pw, m.roadDeck.position, m.roadDeck.index));
         }
@@ -59,9 +62,9 @@ export class WorldChunkManager {
         const l = this.live.get(src.key);
         if (!l) return;
         const t0 = performance.now();
-        addChunkFurniture(scene, l.objects[0], f);
+        addChunkFurniture(scene, l.objects[0], f, world.elevation);
         const t1 = performance.now();
-        l.bodies.push(addStaticFurniture(pw, furnitureCollision(src)));
+        l.bodies.push(addStaticFurniture(pw, furnitureCollision(src, world.elevation)));
         if (this.work) {
           this.work.meshes += t1 - t0;
           this.work.colliders += performance.now() - t1;

@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PALETTE } from '../config/palette';
 import type { MeshArrays } from '../map/types';
 import type { ChunkMeshes, FurnitureMeshes } from '../world/chunks';
+import type { ElevationSampler } from '../world/surface';
 import type { VehicleParams } from '../vehicle/params';
 import { createBuildingMaterial, setBuildingNight } from './building-material';
 import { buildingLookFromSearch } from '../config/buildings';
@@ -94,7 +95,11 @@ export function groundGeometry(bounds: [number, number, number, number], holes: 
   return new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
 }
 
-export function createScene(bounds: [number, number, number, number], holes: [number, number][][] = []): World3D {
+export function createScene(
+  bounds: [number, number, number, number],
+  holes: [number, number][][] = [],
+  hasTerrain = false,
+): World3D {
   const scene = new THREE.Scene();
   scene.background = skyGradient(LOOK_LIGHT.skyTop, LOOK_LIGHT.skyHorizon);
   scene.fog = new THREE.Fog(LOOK_LIGHT.skyHorizon, LOOK_LIGHT.fogNear, LOOK_LIGHT.fogFar);
@@ -117,8 +122,12 @@ export function createScene(bounds: [number, number, number, number], holes: [nu
   sun.shadow.normalBias = 0.4;
   scene.add(sun, sun.target);
 
-  // 原本固定 4000 × 4000 m,蓋不到範圍 A(6.6 × 5.0 km)的東西兩側,露出天空色
-  const ground = new THREE.Mesh(groundGeometry(bounds, holes), new THREE.MeshLambertMaterial({ color: PALETTE.ground }));
+  // 平面模式用單一大平面地面;3D 地形模式由各 Chunk 的 terrain 網格承載,這裡只在遠處放低底板防止霧中露出天空縫隙
+  const ground = new THREE.Mesh(
+    hasTerrain ? groundGeometry(bounds) : groundGeometry(bounds, holes),
+    new THREE.MeshLambertMaterial({ color: PALETTE.ground }),
+  );
+  if (hasTerrain) ground.position.y = -45;
   ground.receiveShadow = true;
   scene.add(ground);
   const clouds = createClouds(bounds);
@@ -126,10 +135,10 @@ export function createScene(bounds: [number, number, number, number], holes: [nu
   return { scene, sun, hemi, clouds };
 }
 
-/** 陰影只在車子附近計算:光源跟著車移動 */
-export function followSun(sun: THREE.DirectionalLight, x: number, z: number) {
-  sun.position.set(x + sunOffset[0], sunOffset[1], z + sunOffset[2]);
-  sun.target.position.set(x, 0, z);
+/** 陰影只在車子附近計算:光源跟著車移動(地形模式下同步跟隨車子高度 y) */
+export function followSun(sun: THREE.DirectionalLight, x: number, z: number, y = 0) {
+  sun.position.set(x + sunOffset[0], y + sunOffset[1], z + sunOffset[2]);
+  sun.target.position.set(x, y, z);
 }
 
 function skyGradient(top: string, horizon: string): THREE.Texture {
@@ -162,7 +171,7 @@ function toGeometry(m: MeshArrays): THREE.BufferGeometry {
     lin[i + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(lin, 3));
-  if (m.wall) geo.setAttribute('aWall', new THREE.BufferAttribute(m.wall, 2));
+  if (m.wall) geo.setAttribute('aWall', new THREE.BufferAttribute(m.wall, 3));
   geo.setIndex(new THREE.BufferAttribute(m.index, 1));
   geo.computeBoundingSphere();
   return geo;
@@ -175,7 +184,16 @@ export const GROUND_DEPTH_BIAS = 1e-3;
  * 地面類材質:頂點色 + 依高度的深度偏移。綠地、人行道、路面、標線疊在幾乎同一個平面上,
  * 只靠幾毫米的高度差,在 300 m 外深度精度不夠會互相閃爍;偏移量只有幾公分高的東西會被蓋住,看不出來。
  */
-function createGroundMaterial(): THREE.MeshLambertMaterial {
+function createGroundMaterial(hasTerrain = false): THREE.MeshLambertMaterial {
+  if (hasTerrain) {
+    // 3D 地形模式下頂點 y 在 -41..+78 m 之間變化,改用硬體 polygonOffset 處理地面與道路疊層防閃爍,避免大高度差扭曲深度值
+    return new THREE.MeshLambertMaterial({
+      vertexColors: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2,
+    });
+  }
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
   mat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace(
@@ -187,6 +205,7 @@ function createGroundMaterial(): THREE.MeshLambertMaterial {
 }
 
 let groundMat: THREE.Material | null = null;
+let terrainMat: THREE.Material | null = null;
 let buildingMat: THREE.Material | null = null;
 let scooters: ScooterLayer | null = null;
 let props: PropLayer | null = null;
@@ -219,10 +238,17 @@ function concatArrays(a: MeshArrays, b: MeshArrays): MeshArrays {
 }
 
 /** 一格地圖的場景物件:地面類 1 個網格、建築(含屋頂附加物、街道傢俱)1 個網格(共用材質) */
-export function addChunkMeshes(scene: THREE.Scene, m: ChunkMeshes): THREE.Object3D[] {
-  groundMat ??= createGroundMaterial();
+export function addChunkMeshes(scene: THREE.Scene, m: ChunkMeshes, elevation?: ElevationSampler): THREE.Object3D[] {
+  const hasTerrain = !!elevation || !!m.terrain?.index.length;
+  groundMat ??= createGroundMaterial(hasTerrain);
   buildingMat ??= createBuildingMaterial(buildingLookFromSearch(globalThis.location?.search ?? ''));
   const out: THREE.Object3D[] = [];
+  if (m.terrain?.index.length) {
+    terrainMat ??= new THREE.MeshLambertMaterial({ vertexColors: true });
+    const terrain = new THREE.Mesh(toGeometry(m.terrain), terrainMat);
+    terrain.receiveShadow = true;
+    out.push(terrain);
+  }
   if (m.ground.index.length) {
     const ground = new THREE.Mesh(toGeometry(m.ground), groundMat);
     ground.receiveShadow = true;
@@ -233,8 +259,8 @@ export function addChunkMeshes(scene: THREE.Scene, m: ChunkMeshes): THREE.Object
   if (m.roadBarrier?.index.length) solid = concatArrays(solid, m.roadBarrier);
   if (solid.index.length) out.push(solidMesh(toGeometry(solid)));
   scene.add(...out);
-  addScooters(scene, out, m.scooters);
-  addProps(scene, out, m.props);
+  addScooters(scene, out, m.scooters, elevation);
+  addProps(scene, out, m.props, elevation);
   return out;
 }
 
@@ -247,13 +273,15 @@ function solidMesh(geo: THREE.BufferGeometry) {
   return mesh;
 }
 
-function addScooters(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Array) {
+function addScooters(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Array, elevation?: ElevationSampler) {
   if (!poses.length) return;
+  const yAt = elevation ? (x: number, z: number) => elevation.sampleY(x, z) : undefined;
   scooters ??= new ScooterLayer(
     scene,
     toGeometry(scooterTemplate(hexToRgb(PALETTE.scooterDark), hexToRgb(PALETTE.signalLamps[0]))),
     buildingMat!,
     PALETTE.scooterBody.map((h) => new THREE.Color(h)),
+    yAt,
   );
   // 空物件當這一格機車的代號:removeChunkMeshes 看到它就從共用的 InstancedMesh 拿掉
   const tag = new THREE.Object3D();
@@ -264,9 +292,10 @@ function addScooters(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Ar
 }
 
 /** Tripo 樣板物件(樹、路燈):和機車一樣用空物件當這一格的代號 */
-function addProps(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Array) {
+function addProps(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Array, elevation?: ElevationSampler) {
   if (!poses.length) return;
-  props ??= propsMode() === 'gen' ? PropLayer.fromGlbNodes(scene, import.meta.env.BASE_URL + PROP_MODELS.lowpolyTrees, LOWPOLY_TREE_NODES) : new PropLayer(scene, import.meta.env.BASE_URL);
+  const yAt = elevation ? (x: number, z: number) => elevation.sampleY(x, z) : undefined;
+  props ??= propsMode() === 'gen' ? PropLayer.fromGlbNodes(scene, import.meta.env.BASE_URL + PROP_MODELS.lowpolyTrees, LOWPOLY_TREE_NODES, yAt) : new PropLayer(scene, import.meta.env.BASE_URL, yAt);
   const tag = new THREE.Object3D();
   tag.userData.props = true;
   props.set(tag, poses);
@@ -279,7 +308,7 @@ function addProps(scene: THREE.Scene, out: THREE.Object3D[], poses: Float32Array
  * 換一個 geometry(draw call 不增加;只轉換新加的頂點);機車加進共用的 InstancedMesh。
  * objects = 第一段 addChunkMeshes 回傳的陣列(會被加入新物件,卸載時一起移除)。
  */
-export function addChunkFurniture(scene: THREE.Scene, objects: THREE.Object3D[], f: FurnitureMeshes) {
+export function addChunkFurniture(scene: THREE.Scene, objects: THREE.Object3D[], f: FurnitureMeshes, elevation?: ElevationSampler) {
   buildingMat ??= createBuildingMaterial(buildingLookFromSearch(globalThis.location?.search ?? ''));
   if (f.furniture.index.length) {
     const add = toGeometry(f.furniture);
@@ -295,8 +324,8 @@ export function addChunkFurniture(scene: THREE.Scene, objects: THREE.Object3D[],
       objects.push(m);
     }
   }
-  addScooters(scene, objects, f.scooters);
-  addProps(scene, objects, f.props);
+  addScooters(scene, objects, f.scooters, elevation);
+  addProps(scene, objects, f.props, elevation);
 }
 
 /** 兩個 geometry(屬性相同)接成一個;頂點色已在 toGeometry 轉成線性,不用再轉 */
@@ -361,7 +390,7 @@ function loadLandmarkModel(url: string): Promise<THREE.Object3D | null> {
  * 地標:先放外框擠出的量體;模型載入成功就換成模型(原點 = 外框形心)。
  * 回傳的陣列會在模型載入後被更新,卸載時整個傳給 removeChunkMeshes。
  */
-export function addLandmark(scene: THREE.Scene, lm: { model: string; x: number; z: number }, solid: MeshArrays): THREE.Object3D[] {
+export function addLandmark(scene: THREE.Scene, lm: { model: string; x: number; z: number }, solid: MeshArrays, baseY = 0): THREE.Object3D[] {
   buildingMat ??= createBuildingMaterial(buildingLookFromSearch(globalThis.location?.search ?? ''));
   const fallback = new THREE.Mesh(toGeometry(solid), buildingMat);
   fallback.castShadow = fallback.receiveShadow = true;
@@ -370,7 +399,7 @@ export function addLandmark(scene: THREE.Scene, lm: { model: string; x: number; 
   loadLandmarkModel(`${import.meta.env.BASE_URL}${lm.model}`).then((model) => {
     if (!model || !objs.length) return; // 載入失敗,或在載入前已被卸載
     const inst = model.clone(true);
-    inst.position.set(lm.x, 0, lm.z);
+    inst.position.set(lm.x, baseY, lm.z);
     scene.remove(fallback);
     fallback.geometry.dispose();
     scene.add(inst);

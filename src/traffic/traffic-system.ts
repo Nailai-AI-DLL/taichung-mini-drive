@@ -51,8 +51,9 @@ export class TrafficSystem {
     scene: THREE.Scene,
     pw: PhysicsWorld,
     readonly enabled = true,
+    terrainY?: (x: number, z: number) => number,
   ) {
-    this.traffic = new Traffic(roads);
+    this.traffic = new Traffic(roads, Math.random, TRAFFIC, terrainY);
     this.physics = new TrafficPhysicsSync(pw);
     this.layer = new TrafficLayer(scene);
   }

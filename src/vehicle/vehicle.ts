@@ -25,7 +25,14 @@ export class Vehicle {
   /** 最近一次自動扶正的次數(測試與除錯用) */
   autoRightCount = 0;
 
-  constructor(private readonly pw: PhysicsWorld, x: number, z: number, headingDeg: number, params: Partial<VehicleParams> = {}) {
+  constructor(
+    private readonly pw: PhysicsWorld,
+    x: number,
+    z: number,
+    headingDeg: number,
+    params: Partial<VehicleParams> = {},
+    surfaceY = 0,
+  ) {
     const { R, world } = pw;
     this.params = { ...DEFAULT_PARAMS, ...params };
     const p = this.params;
@@ -58,7 +65,7 @@ export class Vehicle {
       this.controller.addWheel({ x: wx, y: p.wheelY, z: wz }, { x: 0, y: -1, z: 0 }, { x: 0, y: 0, z: 1 }, p.suspensionRest, p.wheelRadius);
     }
     this.applyParams();
-    this.reset(x, z, headingDeg);
+    this.reset(x, z, headingDeg, surfaceY);
   }
 
   /** 參數改變後呼叫(調參面板用) */

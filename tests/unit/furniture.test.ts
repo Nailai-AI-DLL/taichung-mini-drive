@@ -275,7 +275,7 @@ describe('幾何', () => {
       const n = [0, 1, 2].map((j) => t.normal[a * 3 + j] + t.normal[b * 3 + j] + t.normal[d * 3 + j]);
       expect(cr[0] * n[0] + cr[1] * n[1] + cr[2] * n[2]).toBeGreaterThan(0);
     }
-    for (let i = 1; i < t.wall!.length; i += 2) expect(t.wall![i]).toBe(PLAIN_CODE);
+    for (let i = 1; i < t.wall!.length; i += 3) expect(t.wall![i]).toBe(PLAIN_CODE);
     const top: number[] = [];
     for (let i = 0; i < t.position.length; i += 3) if (t.position[i + 1] > 1.0) top.push(t.position[i]);
     expect(Math.min(...top)).toBeGreaterThan(0.3);
@@ -515,7 +515,7 @@ describe('範圍 A 實際資料', () => {
     let n = 0, glow = 0;
     for (const c of [...world.chunks.values()].slice(0, 80)) {
       const m = buildChunk(c);
-      for (let i = 1; i < (m.furniture.wall?.length ?? 0); i += 2) {
+      for (let i = 1; i < (m.furniture.wall?.length ?? 0); i += 3) {
         expect([PLAIN_CODE, GLOW_CODE]).toContain(m.furniture.wall![i]);
         if (m.furniture.wall![i] === GLOW_CODE) glow++;
       }

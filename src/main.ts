@@ -74,16 +74,18 @@ async function boot() {
     R.init(),
   ]);
 
-  const pw = createPhysicsWorld(R, world.json.meta.bounds);
+  const hasTerrain = !!world.elevation;
+  const pw = createPhysicsWorld(R, world.json.meta.bounds, hasTerrain);
   const roadIndex = new RoadIndex(world.roads);
-  const surface = new WorldSurface(world, roadIndex);
+  const surface = new WorldSurface(world, roadIndex, world.elevation);
   const spawn = world.json.spawn;
-  const vehicle = new Vehicle(pw, spawn.x, spawn.z, spawn.headingDeg);
+  const spawnY = surface.terrainY(spawn.x, spawn.z);
+  const vehicle = new Vehicle(pw, spawn.x, spawn.z, spawn.headingDeg, undefined, spawnY);
   const tracker = new RoadNameTracker(0.5);
   const perf = new PerfTracker();
 
   const renderer = createRenderer(document.getElementById('game') as HTMLCanvasElement);
-  const world3d = createScene(world.json.meta.bounds, surface.sunkHoles());
+  const world3d = createScene(world.json.meta.bounds, surface.sunkHoles(), hasTerrain);
   const { scene, sun } = world3d;
   const mountains = skyline ? createMountains(skyline) : null;
   if (mountains) scene.add(mountains);
@@ -111,7 +113,13 @@ async function boot() {
   const keyboard = new Keyboard();
   const gui = createTuningPanel(vehicle);
 
-  const trafficSys = new TrafficSystem(world.roads, scene, pw, params.get('traffic') !== 'off');
+  const trafficSys = new TrafficSystem(
+    world.roads,
+    scene,
+    pw,
+    params.get('traffic') !== 'off',
+    hasTerrain ? (x, z) => surface.terrainY(x, z) : undefined,
+  );
   const pickupSys = new PickupSession(surface, scene, hudRoot, hud, minimap, bigMap, params.get('mode') !== 'free');
 
   let paused = false;
@@ -123,12 +131,15 @@ async function boot() {
   const pose = new PoseInterpolator();
   const teleport = (x: number, z: number, headingDeg: number, surfaceY?: number) => {
     let y = surfaceY;
+    let isElevated = false;
     if (y === undefined) {
       const hits = roadIndex.near(x, z, 8).filter((h) => h.distance <= h.way.width / 2 + 0.5);
-      // hits 已按中心線距離由近到遠排序;若最近命中的車道為高架/匝道(h.y > 0.1),直接放上該高架坡面
-      y = hits.length > 0 && hits[0].y > 0.1 ? hits[0].y : surface.terrainY(x, z);
+      // hits 已按中心線距離由近到遠排序;若最近命中的車道為高架/匝道(h.y > 0.1),疊加到地表高程之上
+      const relY = hits.length > 0 && hits[0].y > 0.1 ? hits[0].y : 0;
+      isElevated = relY > 0.1;
+      y = surface.terrainY(x, z) + relY;
     }
-    if (y > 0.1) chunks.loadAll(x, z);
+    if (isElevated) chunks.loadAll(x, z);
     vehicle.reset(x, z, headingDeg, y);
     pickupSys.resetImpact();
     pose.snap(vehicle.position(), vehicle.body.rotation());
@@ -137,7 +148,8 @@ async function boot() {
   pose.snap(vehicle.position(), vehicle.body.rotation());
 
   const resetToRoad = () => {
-    const snap = surface.snapToRoad(vehicle.position(), vehicle.heading());
+    const vp = vehicle.position();
+    const snap = surface.snapToRoad({ x: vp.x, y: vp.y - surface.terrainY(vp.x, vp.z), z: vp.z }, vehicle.heading());
     teleport(snap.x, snap.z, snap.headingDeg, snap.y);
     if (snap.onRoad) hud.showToast('回到路面');
   };
@@ -274,15 +286,15 @@ async function boot() {
     if (inspectView) {
       const v = inspectView;
       cam.camera.position.set(v.x, v.y, v.z);
-      cam.camera.lookAt(v.lx, v.ly ?? 0, v.lz);
-      followSun(sun, v.lx, v.lz);
+      cam.camera.lookAt(v.lx, v.ly ?? surface.terrainY(v.lx, v.lz), v.lz);
+      followSun(sun, v.lx, v.lz, v.ly ?? surface.terrainY(v.lx, v.lz));
       chunks.update(v.lx, v.lz);
     } else {
-      followSun(sun, p.x, p.z);
+      followSun(sun, p.x, p.z, p.y);
       chunks.update(p.x, p.z);
     }
 
-    const hit = roadIndex.current(p.x, p.z, hx, hz, p.y);
+    const hit = roadIndex.current(p.x, p.z, hx, hz, p.y - surface.terrainY(p.x, p.z));
     if (tracker.update(hit?.way.name ?? '', dt)) hud.setRoadName(tracker.shown);
     hud.setSpeed(vehicle.speedKmh());
 

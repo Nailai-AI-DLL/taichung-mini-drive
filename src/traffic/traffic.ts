@@ -84,7 +84,12 @@ export class Traffic {
   private usable: boolean[];
   private busOk: boolean[];
 
-  constructor(readonly ways: RoadWay[], private rand: Rand = Math.random, readonly cfg = TRAFFIC) {
+  constructor(
+    readonly ways: RoadWay[],
+    private rand: Rand = Math.random,
+    readonly cfg = TRAFFIC,
+    private readonly terrainY?: (x: number, z: number) => number,
+  ) {
     this.usable = ways.map((w) => !cfg.skipHighways.includes(w.highway) && w.points.length >= 4);
     this.busOk = ways.map((w, i) => this.usable[i] && cfg.busRoads.includes(w.highway));
     ways.forEach((w, wi) => {
@@ -111,7 +116,10 @@ export class Traffic {
   }
 
   private ptY(w: number, i: number): number {
-    return wayPointY(this.ways[w], i);
+    const wy = wayPointY(this.ways[w], i);
+    if (!this.terrainY) return wy;
+    const [x, z] = this.pt(w, i);
+    return this.terrainY(x, z) + wy;
   }
 
   /** 線段(from → from + dir)的長度、高程與方向 */
@@ -128,9 +136,23 @@ export class Traffic {
   /** 車道上的目標點:中心線上的點往行車方向右側偏 lane 公尺(x 向右、z 向下的座標:右側 = (−dz, dx)) */
   target(c: Pick<TrafficCar, 'way' | 'from' | 'dir' | 's' | 'lane'>): { x: number; y: number; z: number; dx: number; dz: number; pitch: number } {
     const g = this.seg(c);
+    const x = g.ax + g.dx * c.s - g.dz * c.lane;
+    const z = g.az + g.dz * c.s + g.dx * c.lane;
     const t = Math.max(0, Math.min(1, c.s / g.len));
-    const y = g.ay + (g.by - g.ay) * t;
-    return { x: g.ax + g.dx * c.s - g.dz * c.lane, y, z: g.az + g.dz * c.s + g.dx * c.lane, dx: g.dx, dz: g.dz, pitch: g.pitch };
+    let y = g.ay + (g.by - g.ay) * t;
+    let pitch = g.pitch;
+    if (this.terrainY) {
+      // 在 3D 地形上精確取車子所在位置 (x, z) 的地表高程 + 高架相對高度,並以車頭前後 3 m 差值算俯仰角
+      const way = this.ways[c.way];
+      const rel0 = wayPointY(way, c.from);
+      const rel1 = wayPointY(way, c.from + c.dir);
+      const relY = rel0 + (rel1 - rel0) * t;
+      y = this.terrainY(x, z) + relY;
+      const yf = this.terrainY(x + g.dx * 2, z + g.dz * 2) + relY + ((rel1 - rel0) / g.len) * 2;
+      const yb = this.terrainY(x - g.dx * 2, z - g.dz * 2) + relY - ((rel1 - rel0) / g.len) * 2;
+      pitch = Math.atan2(yf - yb, 4);
+    }
+    return { x, y, z, dx: g.dx, dz: g.dz, pitch };
   }
 
   private laneOf(w: number, u: number): number {
@@ -162,11 +184,10 @@ export class Traffic {
     const at = c.from + c.dir;
     const n = this.ways[c.way].points.length / 2;
     const [x, z] = this.pt(c.way, at);
-    const y = this.ptY(c.way, at);
     type Opt = { w: number; from: number; dir: 1 | -1 };
     const straight: Opt | null = at + c.dir >= 0 && at + c.dir < n ? { w: c.way, from: at, dir: c.dir } : null;
     const turns: Opt[] = [];
-    for (const e of this.nodes.get(key(x, z, y)) ?? []) {
+    for (const e of this.nodes.get(key(x, z, wayPointY(this.ways[c.way], at))) ?? []) {
       if (e.w === c.way) continue;
       if (c.kind === 'bus' && !this.busOk[e.w]) continue; // 公車不轉進小路
       const m = this.ways[e.w].points.length / 2;

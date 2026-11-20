@@ -165,7 +165,7 @@ export function snapToRoad(
   const dz = hit.dirZ * flip;
   const headingDeg = ((Math.atan2(dx, -dz) * 180) / Math.PI + 360) % 360;
   const pitchDeg = (hit.pitch * flip * 180) / Math.PI;
-  const y = hit.y !== 0 ? hit.y : elevation.sampleY(hit.x, hit.z);
+  const y = elevation.sampleY(hit.x, hit.z) + hit.y;
   return { x: hit.x, y, z: hit.z, headingDeg, pitchDeg, onRoad: true };
 }
 

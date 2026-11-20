@@ -11,6 +11,48 @@ import {
   type WorldTileJson,
 } from './tiles';
 import { decodeWorld, type World } from '../world/chunks';
+import { GridElevationSampler, type ElevationSampler } from '../world/surface';
+
+export interface WorldElevationJson {
+  minX: number;
+  minZ: number;
+  step: number;
+  cols: number;
+  rows: number;
+  datum?: number;
+  quant?: number;
+  heights: number[];
+}
+
+/** 選用載入 DTM 地形高程網格(elevation.json);檔案不存在或設 ?terrain=off 時回傳 undefined(退回平面模式) */
+export async function fetchElevation(
+  area: string,
+  opts: MapUrlOptions & { fetchFn?: typeof fetch } = {},
+): Promise<ElevationSampler | undefined> {
+  const search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
+  if (new URLSearchParams(search).get('terrain') === 'off') return undefined;
+  const doFetch = opts.fetchFn ?? fetch;
+  const url = mapAssetUrl(area, 'elevation.json', opts);
+  try {
+    const res = await doFetch(url);
+    if (!res.ok) return undefined;
+    const raw = (await res.json()) as WorldElevationJson;
+    if (!Array.isArray(raw.heights) || raw.cols < 2 || raw.rows < 2) return undefined;
+    const q = raw.quant ?? 1;
+    const heights = new Float32Array(raw.heights.length);
+    for (let i = 0; i < raw.heights.length; i++) heights[i] = raw.heights[i] / q;
+    return new GridElevationSampler({
+      minX: raw.minX,
+      minZ: raw.minZ,
+      step: raw.step,
+      cols: raw.cols,
+      rows: raw.rows,
+      heights,
+    });
+  } catch {
+    return undefined;
+  }
+}
 
 export interface MapUrlOptions {
   /** 網址查詢字串(預設讀 location.search) */
@@ -62,8 +104,10 @@ export async function fetchWorld(area: string, opts: FetchWorldOptions = {}): Pr
   const useTiles = opts.tiled ?? new URLSearchParams(search).get('tiles') !== 'off';
 
   if (useTiles) {
-    const indexUrl = mapAssetUrl(area, 'index.json', opts);
-    const indexRes = await doFetch(indexUrl).catch(() => null);
+    const [indexRes, elevation] = await Promise.all([
+      doFetch(mapAssetUrl(area, 'index.json', opts)).catch(() => null),
+      fetchElevation(area, opts),
+    ]);
     if (indexRes?.ok) {
       const indexJson = (await indexRes.json()) as WorldIndexJson;
       if (Array.isArray(indexJson.tiles)) {
@@ -78,6 +122,7 @@ export async function fetchWorld(area: string, opts: FetchWorldOptions = {}): Pr
         };
 
         const world = decodeWorld(indexJson);
+        world.elevation = elevation;
         world.tiles = { area, tileSize, available, loaded, fetchTile };
 
         const initRadius = opts.initialTileRadius ?? 1500;
@@ -106,9 +151,11 @@ export async function fetchWorld(area: string, opts: FetchWorldOptions = {}): Pr
   }
 
   const url = mapAssetUrl(area, 'world.json', opts);
-  const res = await doFetch(url);
+  const [res, elevation] = await Promise.all([doFetch(url), fetchElevation(area, opts)]);
   if (!res.ok) throw new Error(`地圖載入失敗 (${res.status}): ${url}`);
   opts.onStatus?.('解析地圖資料…');
   const json = (await res.json()) as WorldJson;
-  return decodeWorld(json);
+  const world = decodeWorld(json);
+  world.elevation = elevation;
+  return world;
 }
