@@ -82,28 +82,51 @@ function miterEdges(line: Pt[], halfW: number): { left: Pt[]; right: Pt[]; miter
   return { left, right, miters };
 }
 
-/** 在 3D 斜坡端點補上與坡面共平面的傾斜圓盤端蓋(填補轉角與相接縫隙,且高度夾在 [minY, maxY] 內絕不突出高架平面) */
+/** 判斷高架端點是否需要補轉角填縫圓盤:斜坡段或與鄰段近似直線相接時(如分塊邊界、陸橋引道)不補圓盤,避免斜坡上凸出半圓台階 */
+function needsEndpointDisc(
+  pt: Pt,
+  tx: number,
+  tz: number,
+  slope: number,
+  self: ElevatedRoadPiece,
+  contextPieces: readonly ElevatedRoadPiece[],
+): boolean {
+  if (Math.abs(slope) > 0.005) return false;
+  for (const other of contextPieces) {
+    if (other === self || other.pts.length < 2) continue;
+    const m = other.pts.length;
+    const checks: [Pt, Pt][] = [
+      [other.pts[0], other.pts[1]],
+      [other.pts[m - 1], other.pts[m - 2]],
+    ];
+    for (const [ep, next] of checks) {
+      if (Math.hypot(ep[0] - pt[0], ep[1] - pt[1]) > 0.5) continue;
+      const dx = next[0] - ep[0];
+      const dz = next[1] - ep[1];
+      const l = Math.hypot(dx, dz);
+      if (l < 1e-4) continue;
+      // 兩段方向近似共線(夾角 < 16°)時頂點已完全吻合,無須圓盤端蓋
+      if (Math.abs((dx / l) * tx + (dz / l) * tz) > 0.96) return false;
+    }
+  }
+  return true;
+}
+
+/** 在水平彎道相接端點補上微降 1.5 cm 的圓盤端蓋(從下方填補彎角楔形縫隙,絕不突出高架平面) */
 function addTiltedDisc(
   mb: MeshBuilder,
   c: Pt,
   yCenter: number,
-  tx: number,
-  tz: number,
-  slope: number,
   r: number,
   rgb: Rgb,
-  minY: number,
-  maxY: number,
   segments = 12,
 ) {
-  const center = mb.vertex(c[0], yCenter, c[1], 0, 1, 0, rgb);
+  const y = yCenter - 0.015;
+  const center = mb.vertex(c[0], y, c[1], 0, 1, 0, rgb);
   const ring: number[] = [];
   for (let i = 0; i < segments; i++) {
     const a = (i / segments) * Math.PI * 2;
-    const rx = Math.cos(a) * r;
-    const rz = Math.sin(a) * r;
-    const y = Math.min(maxY, Math.max(minY, yCenter + (rx * tx + rz * tz) * slope));
-    ring.push(mb.vertex(c[0] + rx, y, c[1] + rz, 0, 1, 0, rgb));
+    ring.push(mb.vertex(c[0] + Math.cos(a) * r, y, c[1] + Math.sin(a) * r, 0, 1, 0, rgb));
   }
   for (let i = 0; i < segments; i++) {
     const u = ring[i];
@@ -297,14 +320,12 @@ export function addElevatedRoads(
       up(deckMb, v0, v1, v2);
       up(deckMb, v0, v2, v3);
 
-      // 首尾端點若在空中(> 0.25 m),補上與坡面同斜率的圓盤端蓋,消除彎道或分塊接縫
-      const segMinY = Math.min(y0, y1);
-      const segMaxY = Math.max(y0, y1);
-      if (i === 0 && r.elev[0] > 0.25) {
-        addTiltedDisc(deckMb, r.pts[0], y0, dx / segLen, dz / segLen, slope, halfW, roadRgb, segMinY, segMaxY);
+      // 僅在水平彎道相接端點補微降圓盤端蓋;斜坡或共線分塊交界不補圓盤,避免坡面凸出半圓台階
+      if (i === 0 && r.elev[0] > 0.25 && needsEndpointDisc(r.pts[0], dx / segLen, dz / segLen, slope, r, contextPieces)) {
+        addTiltedDisc(deckMb, r.pts[0], y0, halfW, roadRgb);
       }
-      if (i === n - 2 && r.elev[n - 1] > 0.25) {
-        addTiltedDisc(deckMb, r.pts[n - 1], y1, dx / segLen, dz / segLen, slope, halfW, roadRgb, segMinY, segMaxY);
+      if (i === n - 2 && r.elev[n - 1] > 0.25 && needsEndpointDisc(r.pts[n - 1], dx / segLen, dz / segLen, slope, r, contextPieces)) {
+        addTiltedDisc(deckMb, r.pts[n - 1], y1, halfW, roadRgb);
       }
     }
 
