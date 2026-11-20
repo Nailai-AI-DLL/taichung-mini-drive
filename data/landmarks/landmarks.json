@@ -375,6 +375,105 @@
       "height": 5.5,
       "heightSrc": "獨棟星巴克門市(OSM levels=1)挑高單層推估 5.5 m",
       "ref": [24.18850, 120.68666]
+    },
+    {
+      "id": "taichung-park-pavilion",
+      "name": "臺中公園湖心亭",
+      "osmIds": [322820685],
+      "model": "models/landmarks/taichung-park-pavilion.glb",
+      "height": 10,
+      "heightSrc": "雙併尖頂涼亭推估高 10 m(osm-taichung-feasibility.md §5.3)",
+      "ref": [24.14366, 120.68422]
+    },
+    {
+      "id": "nmns-greenhouse",
+      "name": "科博館熱帶雨林溫室",
+      "osmIds": [219476253],
+      "model": "models/landmarks/nmns-greenhouse.glb",
+      "height": 31,
+      "heightSrc": "科博館植物園熱帶雨林溫室建築高度約 31 m(中文維基)",
+      "ref": [24.15856, 120.66833]
+    },
+    {
+      "id": "ntmofa",
+      "name": "國立臺灣美術館",
+      "osmIds": [240137720],
+      "model": "models/landmarks/ntmofa.glb",
+      "height": 16,
+      "heightSrc": "地上 3 層挑高展館推估 16 m(osm-taichung-feasibility.md §5.3)",
+      "ref": [24.141562, 120.663417]
+    },
+    {
+      "id": "parklane-cmp",
+      "name": "勤美誠品綠園道",
+      "osmIds": [238733789],
+      "model": "models/landmarks/parklane-cmp.glb",
+      "height": 52,
+      "heightSrc": "地上 15 層商場推估 52 m(osm-taichung-feasibility.md §5.3)",
+      "ref": [24.151297, 120.663892]
+    },
+    {
+      "id": "kuangsan-sogo",
+      "name": "廣三SOGO百貨",
+      "osmIds": [238906708],
+      "model": "models/landmarks/kuangsan-sogo.glb",
+      "height": 78,
+      "heightSrc": "OSM building:levels=21 推估 78 m",
+      "ref": [24.155266, 120.661786]
+    },
+    {
+      "id": "chungyo-dept",
+      "name": "中友百貨",
+      "osmIds": [223053792, 223053791, 223053794],
+      "model": "models/landmarks/chungyo-dept.glb",
+      "height": 56,
+      "heightSrc": "A/B/C 三棟各 15 層推估 56 m(osm-taichung-feasibility.md §5.1)",
+      "ref": [24.152269, 120.684845]
+    },
+    {
+      "id": "second-market",
+      "name": "第二市場",
+      "osmIds": [271452260],
+      "model": "models/landmarks/second-market.glb",
+      "height": 14,
+      "heightSrc": "歷史市場主樓與六角樓推估 14 m(osm-taichung-feasibility.md §5.3)",
+      "ref": [24.142359, 120.678738]
+    },
+    {
+      "id": "miyahara",
+      "name": "宮原眼科",
+      "osmIds": [654378518],
+      "model": "models/landmarks/miyahara.glb",
+      "height": 16,
+      "heightSrc": "二層紅磚立面 + 玻璃採光挑高屋頂推估 16 m(osm-taichung-feasibility.md §5.3)",
+      "ref": [24.13793, 120.68364]
+    },
+    {
+      "id": "taroko-mall",
+      "name": "大魯閣新時代",
+      "osmIds": [11523334],
+      "model": "models/landmarks/taroko-mall.glb",
+      "height": 46,
+      "heightSrc": "OSM building:levels=11 大型商場推估 46 m",
+      "ref": [24.135779, 120.687662]
+    },
+    {
+      "id": "costco-taichung",
+      "name": "好市多台中店",
+      "osmIds": [111667837],
+      "model": "models/landmarks/costco-taichung.glb",
+      "height": 14,
+      "heightSrc": "OSM building:levels=2 大型挑高倉儲量販推估 14 m",
+      "ref": [24.13275, 120.64915]
+    },
+    {
+      "id": "showtime-wenxin",
+      "name": "文心秀泰",
+      "osmIds": [454892809],
+      "model": "models/landmarks/showtime-wenxin.glb",
+      "height": 34,
+      "heightSrc": "8 層大型影城商場推估 34 m",
+      "ref": [24.130096, 120.645700]
     }
   ]
 }

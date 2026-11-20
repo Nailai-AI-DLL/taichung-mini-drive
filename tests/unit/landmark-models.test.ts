@@ -161,6 +161,40 @@ const SIDE_FEATURES: Record<string, SideFeature | SideFeature[]> = {
     { what: '入口大門在正面(西,崇德路三段)', color: '63848a', bearing: 271.0 },
     { what: '木格柵在北側', color: 'a6784b', bearing: 1.0 },
   ],
+  // 市中心核心區(西區、北區、中區、南屯)11 棟地標
+  'taichung-park-pavilion': [
+    { what: '北側木碼頭入口', color: 'b8895a', bearing: 0.0 },
+  ],
+  'nmns-greenhouse': [
+    { what: '南側青綠主入口雨遮', color: '2b7a78', bearing: 180.0 },
+  ],
+  'ntmofa': [
+    { what: '南側五權西路大廳雨遮', color: '5b6c7d', bearing: 180.0 },
+  ],
+  'parklane-cmp': [
+    { what: '南側公益路立體植生綠牆', color: '3d8b40', bearing: 180.0 },
+  ],
+  'kuangsan-sogo': [
+    { what: '東北側臺灣大道深藍玻璃帷幕', color: '1d4e89', bearing: 35.0 },
+  ],
+  'chungyo-dept': [
+    { what: '西側三民路入口挑簷', color: 'dce6ee', bearing: 285.0 },
+  ],
+  'second-market': [
+    { what: '東北側臺灣大道入口牌樓雨遮', color: 'a03e2e', bearing: 40.0 },
+  ],
+  'miyahara': [
+    { what: '西北側中山路騎樓雨遮', color: '4a3728', bearing: 315.0 },
+  ],
+  'taroko-mall': [
+    { what: '西北側復興路中庭雨遮', color: 'e85d3f', bearing: 315.0 },
+  ],
+  'costco-taichung': [
+    { what: '北側文心南三路入口雨遮', color: 'd62828', bearing: 0.0 },
+  ],
+  'showtime-wenxin': [
+    { what: '西側文心南路酒紅影城幕牆', color: 'b03a5b', bearing: 270.0 },
+  ],
 };
 
 async function featureCentroid(file: string, color: string) {

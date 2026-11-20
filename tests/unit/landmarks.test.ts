@@ -61,17 +61,40 @@ describe('P0 地標', () => {
   });
 
   it('地標外框內沒有殘留的一般建築', () => {
-    for (const l of world.json.landmarks) {
+    const landmarkRings = world.json.landmarks.map((l) => {
       const rings = l.rings.map((r) => {
         const out: Pt[] = [];
-        for (let i = 0; i < r.length; i += 2) out.push([r[i] / QUANT + l.x, r[i + 1] / QUANT + l.z]);
-        return out;
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        for (let i = 0; i < r.length; i += 2) {
+          const x = r[i] / QUANT + l.x;
+          const z = r[i + 1] / QUANT + l.z;
+          out.push([x, z]);
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (z < minZ) minZ = z;
+          if (z > maxZ) maxZ = z;
+        }
+        return { out, minX, maxX, minZ, maxZ };
       });
-      for (const b of world.json.buildings) {
-        const ring: Pt[] = [];
-        for (let i = 0; i < b.rings[0].length; i += 2) ring.push([b.rings[0][i] / QUANT, b.rings[0][i + 1] / QUANT]);
-        const ctr = centroid(ring);
-        expect(rings.some((r) => pointInPolygon(ctr, r)), `建築 ${b.id} 在地標 ${l.id} 內`).toBe(false);
+      return { id: l.id, rings };
+    });
+    for (const b of world.json.buildings) {
+      const r0 = b.rings[0];
+      let sx = 0, sz = 0;
+      const n = r0.length / 2;
+      for (let i = 0; i < r0.length; i += 2) {
+        sx += r0[i] / QUANT;
+        sz += r0[i + 1] / QUANT;
+      }
+      const cx = sx / n, cz = sz / n;
+      for (const l of landmarkRings) {
+        for (const lr of l.rings) {
+          if (cx < lr.minX || cx > lr.maxX || cz < lr.minZ || cz > lr.maxZ) continue;
+          const ring: Pt[] = [];
+          for (let i = 0; i < r0.length; i += 2) ring.push([r0[i] / QUANT, r0[i + 1] / QUANT]);
+          const ctr = centroid(ring);
+          expect(pointInPolygon(ctr, lr.out), `建築 ${b.id} 在地標 ${l.id} 內`).toBe(false);
+        }
       }
     }
   });
