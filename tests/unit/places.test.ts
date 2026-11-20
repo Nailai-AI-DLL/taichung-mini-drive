@@ -76,18 +76,20 @@ describe('實際地圖', () => {
   const w = JSON.parse(readFileSync(new URL('../../public/map/range-a/world.json', import.meta.url), 'utf8')) as WorldJson;
   const deq = (v: number[]) => v.reduce<Pt[]>((o, _, i) => (i % 2 ? o : [...o, [v[i] / 10, v[i + 1] / 10]]), []);
 
-  it('18 個知名地點都在;Cooper 點名的 7 類都有', () => {
+  it('62 個知名地點都在;原有 7 類與新增麥當勞/星巴克/洲際/逢甲/科博館/國美館皆在列', () => {
     const names = w.places!.map((p) => p.name);
-    expect(names.length).toBe(18);
-    for (const n of ['大遠百', '新光三越', '老虎城', '麥當勞', '蔦屋書店', '金錢豹', '捷運市政府站']) expect(names).toContain(n);
+    expect(names.length).toBe(62);
+    for (const n of ['大遠百', '新光三越', '老虎城', '麥當勞', '麥當勞文心六店', '星巴克大英門市', '蔦屋書店', '金錢豹', '捷運市政府站', '臺中洲際棒球場', '逢甲夜市', '臺中中央公園', '科博館', '國美館']) {
+      expect(names).toContain(n);
+    }
   });
 
-  it('每個接送點都站得了人:在地圖內、不在任何路面上、不在建築裡,離地點不超過 150 m', () => {
+  it('每個接送點都站得了人:在地圖內、不在任何路面上、不在建築裡,離地點不超過 260 m(含大型園區如洲際棒球場與中央公園)', () => {
     const [x0, z0, x1, z1] = w.meta.bounds;
     const rings = w.buildings.map((b) => deq(b.rings[0]));
     for (const p of w.places!) {
       expect(p.px > x0 + 20 && p.px < x1 - 20 && p.pz > z0 + 20 && p.pz < z1 - 20, p.name).toBe(true);
-      expect(Math.hypot(p.x - p.px, p.z - p.pz), p.name).toBeLessThan(150);
+      expect(Math.hypot(p.x - p.px, p.z - p.pz), p.name).toBeLessThan(260);
       for (const r of w.roads) {
         const pts = deq(r.pts);
         for (let i = 0; i + 1 < pts.length; i++) {
