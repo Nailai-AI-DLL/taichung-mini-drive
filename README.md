@@ -1,8 +1,8 @@
 # Taichung MINI Drive
 
-A browser driving game built with three.js: drive a cartoon-style MINI hatchback through downtown Taichung, Taiwan, picking up a passenger and getting her to her destination before she runs out of patience. The roads and street furniture are generated from OpenStreetMap data, and the distant skyline follows the real terrain.
+A browser driving game built with three.js: drive a cartoon-style MINI hatchback through downtown Taichung, Taiwan, picking up a passenger and getting her to her destination before she runs out of patience. Roads, buildings, street trees and signals are generated from OpenStreetMap and Taichung City Government open data, and the ground follows the real terrain.
 
-Status: milestone M1 in progress. The playable area ("range A") runs from Taichung Station to the Seventh Redevelopment Zone.
+Status: milestone M1 in progress. The playable area ("range A", about 8.2 × 8.0 km) covers Taichung Station, the Seventh Redevelopment Zone, Fengjia, Shuinan, Beitun and the Highway 74 corridor.
 
 ## Getting started
 
@@ -10,10 +10,13 @@ Requirements: Node.js 22, Python 3, and Google Chrome (only for browser tests an
 
 ```bash
 npm install
+npm run map:pull   # download the built map from the map-data branch (required once after cloning)
 npm run dev
 ```
 
 Open http://localhost:5173 and press any key to start.
+
+The built map is not on `main`: it lives on the orphan `map-data` branch, and `npm run map:pull` copies it into `public/map/range-a/` (ignored by git). Without it the game shows a loading error.
 
 ## How to play
 
@@ -32,7 +35,8 @@ Each round, Cici appears somewhere on the map and asks for a ride. Follow the ar
 | Space | Handbrake (drift) |
 | R | Reset to the nearest road |
 | C | Cycle camera: chase / close chase / first person / top-down |
-| M | Toggle minimap |
+| M | Open the full map (click a spot to fast-travel there) |
+| N | Toggle night mode |
 | ` | Handling tuning panel |
 | Esc | Pause |
 
@@ -43,22 +47,34 @@ URL options:
 | `?fps` | Show the frame rate |
 | `?mode=free` | Free drive, without the pick-up game |
 | `?traffic=off` | No other cars on the road |
-| `?trees=on` / `?scooters=on` | Bring back street trees / parked scooters (hidden by default) |
+| `?night=1` | Start in night mode |
+| `?trees=off` / `?scooters=on` | Hide street trees / bring back parked scooters (hidden by default) |
+| `?terrain=off` | Flat ground instead of the 3D terrain |
+| `?tiles=off` | Load the whole map at once (`world.json`) instead of streaming 1 km tiles |
+| `?mapUrl=<url>` | Load the map from another location |
 | `?bld=old` | Previous building facade style |
-| `?props=gen` | Use the procedural trees and street lights instead of the 3D models |
+| `?props=tripo` | Use the older Tripo tree and street light models |
 | `?car=gen` | Use the procedural car |
 | `?carstyle=pbr` | Use realistic car materials instead of the toon style |
 | `?hud=a` / `?hud=b` | Alternative HUD themes |
 
 ## Map data
 
-The built map for range A (`public/map/range-a/`) is committed, so the game runs without downloading anything. To rebuild it, use the scripts below. They download the raw data into `data/`, which is not version-controlled.
+Players and most development only need `npm run map:pull` (see Getting started). Rebuilding the map needs the raw data in `data/` (not version-controlled) and runs in this order:
 
 ```bash
-npm run map:fetch:range-a    # download raw OSM data from Overpass
-npm run map:build:range-a    # build public/map/range-a/world.json
-npm run map:skyline:range-a  # build the distant mountain skyline from the 20 m DTM
+npm run map:fetch:range-a      # 1. raw OSM data from Overpass (plus tools/map-build/fetch-range-a-nodes.sh)
+#                                 2. government data: download by hand, see docs/research/data-sources.md
+npm run map:widths:range-a     # 3. match government road widths to OSM ways
+npm run map:lanes:range-a      # 4. match lane counts and speed limits
+npm run map:build:range-a      # 5. build public/map/range-a/world.json
+npm run map:tile:range-a       # 6. split into index.json + 1 km tiles
+npm run map:elevation:range-a  # 7. terrain heights from the 20 m DTM
+npm run map:skyline:range-a    # 8. distant mountain skyline
+npm run map:push               # 9. publish to the map-data branch
 ```
+
+The data sources, dataset IDs and download steps are listed in `docs/research/data-sources.md`.
 
 ## Tests
 
@@ -81,9 +97,9 @@ npm run test:e2e   # browser smoke and performance test (opens Chrome)
 ## Credits
 
 - Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL.
-- Road widths, building footprints with floor counts and street trees: Taichung City Government ([road widths](https://data.gov.tw/dataset/83822), [buildings 2025 edition](https://data.gov.tw/dataset/158889), [street trees](https://data.gov.tw/dataset/109853)), Open Government Data License, version 1.0. Building heights come from the recorded floor counts; OpenStreetMap buildings are kept only for landmarks, named places, metro stations and buildings missing from the government map.
+- Road widths, lane counts and speed limits, building footprints with floor counts, and street trees: Taichung City Government ([road widths](https://data.gov.tw/dataset/83822), [1/1000 road map 2025 edition](https://data.gov.tw/dataset/162899), [buildings 2025 edition](https://data.gov.tw/dataset/158889), [street trees](https://data.gov.tw/dataset/109853)), Open Government Data License, version 1.0. Building heights come from the recorded floor counts; OpenStreetMap buildings are kept only for landmarks, named places, metro stations and buildings missing from the government map.
 - The elevated metro line and the named places (department stores, hotels, stations) are positioned from OpenStreetMap; their signs show names only and the buildings are simplified stand-ins.
 - Terrain: Taiwan Ministry of the Interior 20 m DTM (Open Government Data License, version 1.0).
-- The car, tree and street light models were generated with Tripo AI.
+- The car, street trees and street light models were generated with Tripo AI. The landmark buildings are made with Blender scripts in `tools/models/`.
 
 This is a fan project. It is not affiliated with or endorsed by BMW or MINI.
