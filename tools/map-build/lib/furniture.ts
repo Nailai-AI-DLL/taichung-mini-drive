@@ -134,7 +134,10 @@ const TREE_MIN_GAP = 4;
 /** 實測樹之間的最小距離(只去掉幾乎重疊的重複點)、離建築外框的最小距離(公尺) */
 const GOV_TREE_MIN_GAP = 1;
 const GOV_TREE_BUILDING_GAP = 0.3;
-const GOV_TREE_JUNCTION_GAP = 0.5;
+/** 樹離路口鋪面邊緣至少多遠(公尺):避免樹幹或樹冠伸進路口柏油 */
+const GOV_TREE_JUNCTION_GAP = 1.2;
+/** 樹離任何道路柏油邊緣至少多遠(公尺):樹幹半徑 0.3 m + 路緣石 0.3 m 再留安全淨空,確保絕不種在馬路上 */
+const TREE_LANE_GAP = 0.9;
 /** 實測樹離路燈、號誌桿至少多遠(公尺) */
 const GOV_TREE_POLE_GAP = 1.5;
 /** 路燈與路燈至少隔多遠 */
@@ -254,13 +257,13 @@ export function placeFurniture(
     walks.add(Math.min(a[0], b[0]) - CLEAR_CROSSWALK, Math.min(a[1], b[1]) - CLEAR_CROSSWALK, Math.max(a[0], b[0]) + CLEAR_CROSSWALK, Math.max(a[1], b[1]) + CLEAR_CROSSWALK, { a, b });
   }
 
-  /** 位置可不可以放:dir = 這個傢俱所屬道路的方向(沒有就是號誌桿,只檢查車道) */
-  const ok = (p: Pt, dir: Pt | null, buildingGap: number) => {
+  /** 位置可不可以放:dir = 這個傢俱所屬道路的方向(沒有就是號誌桿/實測樹,只檢查車道);laneGap = 離車道邊緣最小淨空 */
+  const ok = (p: Pt, dir: Pt | null, buildingGap: number, laneGap = LANE_GAP) => {
     for (const s of segs.near(p)) {
       const d = segDist(p, s.a, s.b);
       const parallel = dir && Math.abs(s.dir[0] * dir[0] + s.dir[1] * dir[1]) > PARALLEL_COS;
-      // 平行的路(自己這條、下一段、雙向分開的另一側)只要離車道 LANE_GAP;橫交的路另外留淨空
-      if (d < s.half + (parallel || !dir ? LANE_GAP : CLEAR_ROAD)) return false;
+      // 平行的路(自己這條、下一段、雙向分開的另一側)只要離車道 laneGap;橫交的路另外留 CLEAR_ROAD 淨空
+      if (d < s.half + (parallel || !dir ? laneGap : Math.max(CLEAR_ROAD, laneGap))) return false;
     }
     for (const r of junctions.near(p)) if (pointInPolygon(p, r)) return false;
     for (const s of streams.near(p)) if (segDist(p, s.a, s.b) < s.half + WATER_GAP) return false;
@@ -388,13 +391,19 @@ export function placeFurniture(
     }
   }
 
-  // ---- 實測行道樹(臺中市行道樹分佈圖,decisions/0042):照位置種;不在車道、路口鋪面、水面、建築裡 ----
+  // ---- 實測行道樹(臺中市行道樹分佈圖,decisions/0042):照位置種;不在車道(至少距柏油邊緣 0.9 m)、路口鋪面、斑馬線、公車站、水面、建築裡 ----
   const govSpace = new Spacing(TREE_GOV_COVER);
   const treeSpace = new Spacing(TREE_MIN_GAP);
   for (const t of obstacles.govTrees ?? []) {
-    // 也不和已立的路燈、號誌桿重疊(0042 驗收:有 12 處 1 m 內)
-    if (!treeSpace.free(t.p, GOV_TREE_MIN_GAP) || !lightOrTree.free(t.p, GOV_TREE_POLE_GAP) || !ok(t.p, null, GOV_TREE_BUILDING_GAP)) continue;
-    // 路口鋪面邊上再留一點(量化後點會落進鋪面;0042 測試抓到 1 棵)
+    // 也不和已立的路燈、號誌桿、公車站、斑馬線重疊,且離任何車道柏油邊緣至少 TREE_LANE_GAP(0.9 m)
+    if (
+      !treeSpace.free(t.p, GOV_TREE_MIN_GAP) ||
+      !lightOrTree.free(t.p, GOV_TREE_POLE_GAP) ||
+      !busClear(t.p) ||
+      !clearOfCrosswalk(t.p) ||
+      !ok(t.p, null, GOV_TREE_BUILDING_GAP, TREE_LANE_GAP)
+    ) continue;
+    // 路口鋪面邊上再留淨空,避免量化或樹幹壓進路口
     if (junctions.near(t.p).some((r) => ringDist(t.p, r) < GOV_TREE_JUNCTION_GAP)) continue;
     treeSpace.add(t.p);
     govSpace.add(t.p);
@@ -419,7 +428,15 @@ export function placeFurniture(
         const { p: c, dir } = pointAt(r.pts, cum, s);
         const n = leftNormal(dir);
         const p: Pt = [c[0] + n[0] * e * side, c[1] + n[1] * e * side];
-        if (!govSpace.free(p) || !treeSpace.free(p) || !lightOrTree.free(p) || !busClear(p) || !clearOfCrosswalk(p) || !ok(p, dir, TREE_BUILDING_GAP)) continue;
+        if (
+          !govSpace.free(p) ||
+          !treeSpace.free(p) ||
+          !lightOrTree.free(p) ||
+          !busClear(p) ||
+          !clearOfCrosswalk(p) ||
+          !ok(p, dir, TREE_BUILDING_GAP, TREE_LANE_GAP) ||
+          junctions.near(p).some((jr) => ringDist(p, jr) < GOV_TREE_JUNCTION_GAP)
+        ) continue;
         treeSpace.add(p);
         out.trees.push(p);
         out.treeKinds.push(kind);

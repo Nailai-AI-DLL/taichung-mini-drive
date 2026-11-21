@@ -1,4 +1,4 @@
 # 程式對應的地圖資料版本(由 tools/map-build/sync-map-branch.sh 產生,請勿手改)
 # npm run map:pull 會拉 refs/map-versions/<id> 並核對 commit;要更新請重新 npm run map:push
-id=20261121-142853-b13ef99
-commit=b13ef994f1cb4efd2868629e46640a8dfad4409c
+id=20261121-163843-ab77408
+commit=ab77408fff767c8ea3cbb2d88e765b601a80473f
