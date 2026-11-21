@@ -191,6 +191,8 @@ export const ROAD_CLEAR_MIN_KEEP = 0.4;
 export interface ClearRoad {
   pts: Pt[];
   width: number;
+  /** 單側人行道寬(公尺,選填);有填時建築一併退縮至人行道外緣,不壓到人行道 */
+  sidewalk?: number;
   highway: string;
   bridge?: boolean;
 }
@@ -237,7 +239,7 @@ export function clearBuildingsOffRoads(rings: Pt[][], roads: ClearRoad[]): Clear
   type Seg = { a: Pt; b: Pt; half: number; service: boolean; dir: Pt; len: number };
   const grid = new Map<string, Seg[]>();
   for (const r of roads) {
-    const half = r.width / 2;
+    const half = r.width / 2 + (r.sidewalk ?? 0);
     for (let i = 0; i + 1 < r.pts.length; i++) {
       const a = r.pts[i], b = r.pts[i + 1];
       const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -280,28 +282,45 @@ export function clearBuildingsOffRoads(rings: Pt[][], roads: ClearRoad[]): Clear
       const lat = (p: Pt) => (p[0] - s.a[0]) * -s.dir[1] + (p[1] - s.a[1]) * s.dir[0];
       const along = (p: Pt) => (p[0] - s.a[0]) * s.dir[0] + (p[1] - s.a[1]) * s.dir[1];
       const lim = s.half + ROAD_CLEAR_MARGIN;
-      // 外框(頂點 + 每 1 m 取樣)有沒有落在這段車道裡;端點外的圓頭不算(交給相鄰的線段)
-      let side = 0, hit = false;
-      for (let i = 0; i < ring.length && !hit; i++) {
+      // 外框(頂點 + 每 1 m 取樣)有沒有落在這段車道/人行道或端點圓帽裡(優先判定線段本體,其次才看端點圓帽)
+      let hitBody = false;
+      let hitEnd: Pt | null = null;
+      for (let i = 0; i < ring.length && !hitBody; i++) {
         const a = ring[i], b = ring[(i + 1) % ring.length];
         const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1])));
         for (let k = 0; k < n; k++) {
           const p: Pt = [a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n];
           const t = along(p), d = lat(p);
           if (t >= 0 && t <= s.len && Math.abs(d) < lim - 0.05) {
-            hit = true;
+            hitBody = true;
             break;
+          }
+          if (!hitEnd) {
+            if (t < 0 && Math.hypot(p[0] - s.a[0], p[1] - s.a[1]) < lim - 0.05) hitEnd = s.a;
+            else if (t > s.len && Math.hypot(p[0] - s.b[0], p[1] - s.b[1]) < lim - 0.05) hitEnd = s.b;
           }
         }
       }
-      if (!hit) continue;
-      // 建築在哪一側:看面積重心
+      if (!hitBody && !hitEnd) continue;
+      // 建築在哪一側:看頂點平均重心
       let cx = 0, cz = 0;
       for (const p of ring) {
         cx += p[0]; cz += p[1];
       }
-      side = lat([cx / ring.length, cz / ring.length]) >= 0 ? 1 : -1;
-      const next = clipHalfPlane(ring, (p) => side * lat(p) - lim);
+      cx /= ring.length;
+      cz /= ring.length;
+      let next: Pt[];
+      if (hitBody) {
+        const side = lat([cx, cz]) >= 0 ? 1 : -1;
+        next = clipHalfPlane(ring, (p) => side * lat(p) - lim);
+      } else {
+        const ep = hitEnd!;
+        const vx = cx - ep[0], vz = cz - ep[1];
+        const vl = Math.hypot(vx, vz);
+        if (vl < 1e-4) return { ring: ring0, status: 'removed' };
+        const ux = vx / vl, uz = vz / vl;
+        next = clipHalfPlane(ring, (p) => (p[0] - ep[0]) * ux + (p[1] - ep[1]) * uz - lim);
+      }
       if (next.length < 3) return { ring: ring0, status: 'removed' };
       ring = next;
       clipped = true;

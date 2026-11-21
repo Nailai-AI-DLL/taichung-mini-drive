@@ -519,7 +519,7 @@ function main() {
   {
     const res = clearBuildingsOffRoads(
       buildings.map((b) => dequantPts(b.rings[0])),
-      roads.map((r) => ({ pts: dequantPts(r.pts), width: r.width, highway: r.highway, bridge: roadExtra.get(r.osmId)?.bridge })),
+      roads.map((r) => ({ pts: dequantPts(r.pts), width: r.width, sidewalk: r.sidewalk, highway: r.highway, bridge: roadExtra.get(r.osmId)?.bridge })),
     );
     for (let i = buildings.length - 1; i >= 0; i--) {
       const r = res[i];
