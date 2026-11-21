@@ -87,7 +87,7 @@ export const PALETTE_D: Palette = {
     { walls: ['#5E7FAA', '#4E6E99', '#E9EFF4', '#A9C4E0'], roof: '#C8CED6' },
     { walls: ['#F0AC86', '#E99C78', '#F5D8B2'], roof: '#D9C7B4' },
     { walls: ['#E4573E', '#EA6E4A'], roof: '#E27A36' },
-    { walls: ['#B7C6D1', '#A8BAC7', '#D4D8D2'], roof: '#BCC6CE' },
+    { walls: ['#E6E1D8', '#D9D5CC', '#C9D3DA', '#E3D9C8'], roof: '#C6C8C9' },
     { walls: ['#F4F0E8', '#D6E3EE', '#EFE3CC'], roof: '#D0D3D6' },
   ],
   glassDark: '#1D2A40',

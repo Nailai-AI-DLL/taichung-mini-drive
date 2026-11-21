@@ -395,9 +395,9 @@ export function buildingRoofRgb(kind: BuildingKind): Rgb {
   return hexToRgb(PALETTE.buildingKinds[kind].roof);
 }
 
-/** 建築代碼(畫窗格用):細分類、店面、由 id 決定的亂數種子。廟宇一樓一律畫柱廊(和店面同一套柱子) */
+/** 建築代碼(畫窗格用):細分類、店面、由 id 決定的亂數種子(1–255;0 保留給 PLAIN_CODE / GLOW_CODE 不畫窗)。廟宇一樓一律畫柱廊 */
 export function buildingCode(id: number, kind: BuildingKind, shop: boolean): number {
-  return packBuildingCode(kind, shop || kind === KIND.Temple, hash32(id * 13 + 5));
+  return packBuildingCode(kind, shop || kind === KIND.Temple, (hash32(id * 13 + 5) % 255) + 1);
 }
 
 /** 當碰撞體的網格:建築、地標量體、以及 3D 高架道路水泥護欄與橋墩。屋頂附加物不算(車子到不了屋頂,三角形不用進物理) */

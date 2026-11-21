@@ -38,7 +38,7 @@ export const WINDOW_STYLE: readonly (readonly [number, number, number, number])[
   [1.8, 1.6, 0.4, 2.9], // Commercial(近似帷幕牆)
   [3.6, 3.0, 0.9, 2.6], // School
   [1, 0, 0, 0], // Temple
-  [1, 0, 0, 0], // Low
+  [4.2, 2.4, 1.3, 2.4], // Low(平房/鐵皮/立體停車場高氣窗;PLAIN_CODE 與 GLOW_CODE 由 seed=0 排除畫窗)
   [3.0, 2.4, 0.8, 2.7], // Public
 ];
 /** 0023 之前的窗格(?bld=old 對照用) */

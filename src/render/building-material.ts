@@ -27,10 +27,12 @@ export const FRAGMENT = /* glsl */ `
     float code = floor(vWall.y + 0.5);
     int kind = int(mod(code, ${CODE_SHOP}.0));
     float shop = mod(floor(code / ${CODE_SHOP}.0), 2.0);
+    float seed = floor(code / ${CODE_SEED}.0);
+    // seed = 0 的低矮代碼保留給 PLAIN_CODE(屋頂附加物、街道傢俱、高架護欄、女兒牆)與 GLOW_CODE(發光招牌/號誌),一律不畫窗
+    float isPlain = (kind == ${KIND.Low} && seed < 0.5) ? 1.0 : 0.0;
     // 低矮建築 + 店面 = 會發光的傢俱(招牌板、號誌燈;mesh.ts 的 GLOW_CODE),不畫店面
     float glow = (kind == ${KIND.Low} && shop > 0.5) ? 1.0 : 0.0;
     shop *= 1.0 - glow;
-    float seed = floor(code / ${CODE_SEED}.0);
     vec4 st = uWinStyle[kind]; // 週期、窗寬、窗下緣、窗上緣
     vec2 det = uDetail[kind]; // 窗台線(0/1)、玻璃反光強度
     float vertical = 1.0 - smoothstep(0.2, 0.5, abs(vUp));
@@ -76,8 +78,10 @@ export const FRAGMENT = /* glsl */ `
     float pu = mod(u, uPillarGap);
     float pillar = 1.0 - smoothstep(uPillarW - wu, uPillarW + wu, pu);
     pillar = mix(pillar, uPillarW / uPillarGap, smoothstep(0.12, 0.3, wu / uPillarGap));
-    glass *= 1.0 - shop * step(y, uFloor);
-    sill *= sillOn * (1.0 - shop * step(y, uFloor));
+    glass *= (1.0 - isPlain) * (1.0 - shop * step(y, uFloor));
+    frame *= 1.0 - isPlain;
+    inner *= 1.0 - isPlain;
+    sill *= sillOn * (1.0 - isPlain) * (1.0 - shop * step(y, uFloor));
 
     // 遠處整體再淡一點,避免平均色讓遠景發灰
     float fade = 1.0 - 0.5 * smoothstep(0.3, 1.0, wy);
