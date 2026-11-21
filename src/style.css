@@ -145,4 +145,25 @@ body:has(.overlay[data-mode='title']:not(.hidden)) #hud { opacity: 0; }
 .bigmap-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 0 4px 8px; font-size: 13px; }
 .bigmap-head b { font-size: 18px; }
 .bigmap-head kbd { font-family: inherit; font-weight: 800; font-size: 11px; padding: 2px 7px; border-radius: 6px; background: var(--ink); color: #fff; }
-.bigmap canvas { display: block; border-radius: 10px; }
+.bigmap canvas { display: block; border-radius: 10px; cursor: pointer; }
+.bigmap-wrap { position: relative; }
+.bigmap-tip {
+  position: absolute; pointer-events: none; z-index: 2;
+  padding: 5px 10px; border-radius: 8px;
+  background: rgba(20, 27, 46, 0.92); color: #fff;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transform: translate(12px, calc(-100% - 10px));
+}
+.bigmap-tip[data-flip-x='1'] { transform: translate(calc(-100% - 12px), calc(-100% - 10px)); }
+.bigmap-tip[data-flip-y='1'] { transform: translate(12px, 14px); }
+.bigmap-tip[data-flip-x='1'][data-flip-y='1'] { transform: translate(calc(-100% - 12px), 14px); }
+.bigmap-tip.hidden { display: none; }
+.bigmap-loading {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 3;
+  padding: 8px 16px; border-radius: 999px;
+  background: #2563eb; color: #fff;
+  font-size: 13px; font-weight: 800; white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
+}
+.bigmap-loading.hidden { display: none; }

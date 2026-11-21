@@ -154,6 +154,62 @@ async function boot() {
     if (snap.onRoad) hud.showToast('回到路面');
   };
 
+  // 大地圖快速移動:將點擊／懸停座標吸附到最近可駕駛路面,並預載目標區域後再整車瞬移
+  let pendingTravel: { x: number; z: number; headingDeg: number; surfaceY: number; label: string; startedAt: number } | null = null;
+  const cancelFastTravel = () => {
+    if (!pendingTravel) return;
+    pendingTravel = null;
+    bigMap.setLoading(null);
+  };
+  const nearestGroundHit = (wx: number, wz: number, radius = 300) => {
+    const hits = roadIndex.near(wx, wz, radius);
+    if (!hits.length) return null;
+    const bestDist = hits[0].distance;
+    const ground = hits.find((h) => h.y <= 0.1 && h.distance <= bestDist + 20);
+    return ground ?? hits[0];
+  };
+  bigMap.describePoint = (wx, wz, hitRadiusM) => {
+    let bestPlace: { x: number; z: number; label: string; d: number } | null = null;
+    for (const pl of world.json.places ?? []) {
+      const d = Math.hypot(pl.x - wx, pl.z - wz);
+      if (d <= hitRadiusM && (!bestPlace || d < bestPlace.d)) {
+        const hit = nearestGroundHit(pl.px, pl.pz, 120);
+        bestPlace = { x: hit?.x ?? pl.px, z: hit?.z ?? pl.pz, label: pl.name, d };
+      }
+    }
+    if (bestPlace) return { x: bestPlace.x, z: bestPlace.z, label: bestPlace.label };
+    let bestLm: { x: number; z: number; label: string; d: number } | null = null;
+    for (const lm of world.json.landmarks) {
+      const d = Math.hypot(lm.x - wx, lm.z - wz);
+      if (d <= hitRadiusM && (!bestLm || d < bestLm.d)) {
+        const hit = nearestGroundHit(lm.x, lm.z, 200);
+        if (hit) bestLm = { x: hit.x, z: hit.z, label: lm.name, d };
+      }
+    }
+    if (bestLm) return { x: bestLm.x, z: bestLm.z, label: bestLm.label };
+    const hit = nearestGroundHit(wx, wz, 300);
+    if (!hit) return null;
+    return { x: hit.x, z: hit.z, label: hit.way.name || '道路' };
+  };
+  const finishFastTravel = (t: NonNullable<typeof pendingTravel>) => {
+    pendingTravel = null;
+    bigMap.setLoading(null);
+    bigMap.setOpen(false);
+    teleport(t.x, t.z, t.headingDeg, t.surfaceY);
+    hud.showToast(t.label ? `已抵達：${t.label}` : '已快速移動');
+  };
+  const startFastTravel = (info: { x: number; z: number; label: string }) => {
+    const snap = surface.snapToRoad({ x: info.x, y: 0, z: info.z }, [0, -1]);
+    const travel = { x: snap.x, z: snap.z, headingDeg: snap.headingDeg, surfaceY: snap.y, label: info.label, startedAt: performance.now() };
+    if (chunks.isAreaReady(travel.x, travel.z, 350)) {
+      finishFastTravel(travel);
+      return;
+    }
+    pendingTravel = travel;
+    bigMap.setLoading({ x: travel.x, z: travel.z, label: travel.label });
+  };
+  bigMap.onFastTravel = startFastTravel;
+
   renderer.info.autoReset = false;
   const post = new PostFx(renderer, scene, cam.camera);
   const setFx = (fx: Partial<Record<FxName, boolean>>) => {
@@ -192,6 +248,7 @@ async function boot() {
       hud.showToast(`視角:${cam.modeName}`);
     }
     if (a === 'pause' && bigMap.open) {
+      cancelFastTravel();
       bigMap.setOpen(false);
       return;
     }
@@ -200,7 +257,10 @@ async function boot() {
       overlay.dataset.mode = 'pause';
       overlay.classList.toggle('hidden', !paused);
     }
-    if (a === 'map' && started) bigMap.toggle();
+    if (a === 'map' && started) {
+      if (bigMap.open) cancelFastTravel();
+      bigMap.toggle();
+    }
     if (a === 'night') setNightMode(!isNight());
     if (a === 'debug') {
       gui._hidden ? gui.show() : gui.hide();
@@ -283,7 +343,13 @@ async function boot() {
       fpHood.quaternion.set(q.x, q.y, q.z, q.w);
     }
 
-    if (inspectView) {
+    if (pendingTravel) {
+      // 快速移動預載期間車子停在原地,提高分塊生成預算以加速目標區域就緒
+      chunks.update(pendingTravel.x, pendingTravel.z, 24);
+      if (chunks.isAreaReady(pendingTravel.x, pendingTravel.z, 350) || performance.now() - pendingTravel.startedAt > 5000) {
+        finishFastTravel(pendingTravel);
+      }
+    } else if (inspectView) {
       const v = inspectView;
       cam.camera.position.set(v.x, v.y, v.z);
       cam.camera.lookAt(v.lx, v.ly ?? surface.terrainY(v.lx, v.lz), v.lz);

@@ -20,13 +20,30 @@ export function bigMapPoint(bounds: readonly number[], scale: number, x: number,
   return [(x - bounds[0]) * scale, (z - bounds[1]) * scale];
 }
 
+/** 大地圖畫布座標(CSS px) → 世界座標(公尺) */
+export function bigMapWorldPoint(bounds: readonly number[], scale: number, px: number, py: number): [number, number] {
+  return [bounds[0] + px / scale, bounds[1] + py / scale];
+}
+
+export interface BigMapPointInfo {
+  x: number;
+  z: number;
+  label: string;
+}
+
 export class BigMap {
   readonly el = document.createElement('div');
   open = false;
   places: { x: number; z: number; glyph: string; color: string }[] = [];
   target: { x: number; z: number; color: string } | null = null;
+  /** 將滑鼠指向的世界座標解析為最近可駕駛路面與名稱(由 main.ts 注入) */
+  describePoint?: (x: number, z: number, hitRadiusM: number) => BigMapPointInfo | null;
+  /** 使用者點擊地圖觸發快速移動(由 main.ts 注入) */
+  onFastTravel?: (info: BigMapPointInfo) => void;
 
   private canvas = document.createElement('canvas');
+  private tip = document.createElement('div');
+  private loadingEl = document.createElement('div');
   private ctx: CanvasRenderingContext2D;
   private base = document.createElement('canvas');
   private scale = 1;
@@ -34,6 +51,8 @@ export class BigMap {
   private h = 0;
   private dpr = 1;
   private baseKey = '';
+  private hover: BigMapPointInfo | null = null;
+  private loadingTarget: BigMapPointInfo | null = null;
 
   constructor(private data: MapData, private bounds: readonly number[]) {
     this.el.className = 'bigmap hidden';
@@ -41,10 +60,73 @@ export class BigMap {
     panel.className = 'bigmap-panel';
     const head = document.createElement('div');
     head.className = 'bigmap-head';
-    head.innerHTML = '<b>地圖</b><span><kbd>M</kbd> 或 <kbd>Esc</kbd> 關閉</span>';
-    panel.append(head, this.canvas);
+    head.innerHTML = '<b>地圖</b><span>點擊任意位置快速移動 · <kbd>M</kbd> 或 <kbd>Esc</kbd> 關閉</span>';
+    const wrap = document.createElement('div');
+    wrap.className = 'bigmap-wrap';
+    this.tip.className = 'bigmap-tip hidden';
+    this.loadingEl.className = 'bigmap-loading hidden';
+    wrap.append(this.canvas, this.tip, this.loadingEl);
+    panel.append(head, wrap);
     this.el.append(panel);
     this.ctx = this.canvas.getContext('2d')!;
+
+    this.canvas.addEventListener('pointermove', (e) => this.onPointerMove(e));
+    this.canvas.addEventListener('pointerleave', () => {
+      this.hover = null;
+      this.tip.classList.add('hidden');
+    });
+    this.canvas.addEventListener('click', (e) => this.onClick(e));
+  }
+
+  private resolvePointer(e: MouseEvent): { px: number; py: number; info: BigMapPointInfo | null } {
+    const rect = this.canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    if (px < 0 || py < 0 || px > this.w || py > this.h || !this.scale) return { px, py, info: null };
+    const [wx, wz] = bigMapWorldPoint(this.bounds, this.scale, px, py);
+    const hitRadiusM = 16 / this.scale;
+    const info = this.describePoint ? this.describePoint(wx, wz, hitRadiusM) : { x: wx, z: wz, label: '' };
+    return { px, py, info };
+  }
+
+  private onPointerMove(e: PointerEvent) {
+    if (!this.open || this.loadingTarget) return;
+    const { px, py, info } = this.resolvePointer(e);
+    this.hover = info;
+    if (!info) {
+      this.tip.classList.add('hidden');
+      return;
+    }
+    this.tip.textContent = info.label ? `📍 ${info.label}（點擊快速移動）` : '📍 點擊快速移動';
+    this.tip.classList.remove('hidden');
+    const flipX = px > this.w * 0.65;
+    const flipY = py < 40;
+    this.tip.style.left = `${px}px`;
+    this.tip.style.top = `${py}px`;
+    this.tip.dataset.flipX = flipX ? '1' : '0';
+    this.tip.dataset.flipY = flipY ? '1' : '0';
+  }
+
+  private onClick(e: MouseEvent) {
+    if (!this.open) return;
+    const { info } = this.resolvePointer(e);
+    if (info && this.onFastTravel) {
+      this.hover = null;
+      this.tip.classList.add('hidden');
+      this.onFastTravel(info);
+    }
+  }
+
+  /** 設定／清除快速移動預載狀態提示 */
+  setLoading(target: BigMapPointInfo | null) {
+    this.loadingTarget = target;
+    if (target) {
+      this.tip.classList.add('hidden');
+      this.loadingEl.textContent = target.label ? `正在前往 ${target.label}… 區域讀取中` : '正在快速移動… 區域讀取中';
+      this.loadingEl.classList.remove('hidden');
+    } else {
+      this.loadingEl.classList.add('hidden');
+    }
   }
 
   toggle() {
@@ -54,7 +136,12 @@ export class BigMap {
   setOpen(on: boolean) {
     this.open = on;
     this.el.classList.toggle('hidden', !on);
-    if (on) this.layout();
+    if (!on) {
+      this.hover = null;
+      this.tip.classList.add('hidden');
+    } else {
+      this.layout();
+    }
   }
 
   /** 視窗大小改變時呼叫(開著才重排,關著的話下次開啟時排) */
@@ -172,6 +259,23 @@ export class BigMap {
       g.fillStyle = this.target.color;
       g.fill();
       g.lineWidth = 3;
+      g.strokeStyle = '#fff';
+      g.stroke();
+    }
+    const pin = this.loadingTarget ?? this.hover;
+    if (pin) {
+      const [mx, my] = pt(pin.x, pin.z);
+      const pulse = this.loadingTarget ? 10 + Math.sin(performance.now() * 0.01) * 4 : 11;
+      g.beginPath();
+      g.arc(mx, my, pulse, 0, Math.PI * 2);
+      g.strokeStyle = this.loadingTarget ? '#2563eb' : 'rgba(37, 99, 235, 0.85)';
+      g.lineWidth = 3;
+      g.stroke();
+      g.beginPath();
+      g.arc(mx, my, 4.5, 0, Math.PI * 2);
+      g.fillStyle = '#2563eb';
+      g.fill();
+      g.lineWidth = 2;
       g.strokeStyle = '#fff';
       g.stroke();
     }

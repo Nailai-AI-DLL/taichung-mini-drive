@@ -10,8 +10,8 @@ import {
 import { addChunkFurniture, addChunkMeshes, addLandmark, removeChunkMeshes } from '../render/scene';
 import type { FrameWork } from '../core/perf-tracker';
 import { colliderMeshes, furnitureCollision, type ChunkMeshes, type World } from './chunks';
-import { ChunkStreamer } from './streamer';
-import { TileStreamer } from '../map/tiles';
+import { ChunkStreamer, distToChunk } from './streamer';
+import { distToTile, parseTileKey, TileStreamer } from '../map/tiles';
 import type { MeshArrays } from '../map/types';
 
 export interface LiveChunk {
@@ -89,17 +89,32 @@ export class WorldChunkManager {
   }
 
   /** 每幀依目標位置更新分區 Tile 下載/卸載與 250 m 格子串流並記錄耗時 */
-  update(x: number, z: number) {
+  update(x: number, z: number, budgetMs = this.streamer.opts.budgetMs) {
     const t0 = performance.now();
     const tileState = this.tileStreamer.update(x, z);
     const built = this.streamer.totalBuildMs;
     // 若本幀剛套用了 1 個 1 km 分區 Tile,將 3D 網格生成讓到下一幀,避免單幀耗時疊加
-    const res = this.streamer.update(x, z, this.streamer.opts.budgetMs, !tileState.applied);
+    const res = this.streamer.update(x, z, budgetMs, !tileState.applied);
     if (this.work) {
       this.work.stream = performance.now() - t0;
       this.work.build = this.streamer.totalBuildMs - built;
     }
     return res;
+  }
+
+  /** 檢查目標位置半徑 radius 公尺內的分區 Tile 與 250 m 格子是否皆已載入完畢(大地圖快速移動預載用) */
+  isAreaReady(x: number, z: number, radius = 350): boolean {
+    const cat = this.world.tiles;
+    if (cat) {
+      for (const tk of cat.available) {
+        const [tx, tz] = parseTileKey(tk);
+        if (distToTile(tx, tz, x, z, cat.tileSize) <= radius && !cat.loaded.has(tk)) return false;
+      }
+    }
+    for (const c of this.world.chunks.values()) {
+      if (distToChunk(c, x, z) <= radius && !this.streamer.loaded.has(c.key)) return false;
+    }
+    return true;
   }
 
   get loadedCount(): number {
