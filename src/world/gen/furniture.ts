@@ -2,7 +2,7 @@
 // 位置來自 world.json 的 furniture(建置端 tools/map-build/lib/furniture.ts 擺好);樹的大小、色調、轉向由位置雜湊決定。
 import {
   BUS_POLE_H, BUS_SHELTER_D, BUS_SHELTER_H, BUS_SHELTER_L, SIGN_DEPTH, SIGN_THICK, SIGN_WALL_GAP, TREE_SPECIES,
-  LIGHT_ARM, LIGHT_H, LIGHT_HEAD, LIGHT_R, SCOOTER_SLOT, SIGNAL_BOX, SIGNAL_H, SIGNAL_R, TREE_CROWN_R, TREE_CROWN_Y, TREE_TRUNK_R, TREE_DRAW_SCALE, decodeTreeKind,
+  LIGHT_ARM, LIGHT_H, LIGHT_HEAD, LIGHT_R, SCOOTER_SLOT, SIGNAL_BOX, SIGNAL_H, SIGNAL_R, TREE_CROWN_R, TREE_CROWN_Y, TREE_TRUNK_R, TREE_DISPLAY_JITTER, decodeTreeKind, treeDisplayScale,
 } from '../../config/furniture';
 import { hash32, type Pt } from './geom';
 import { GLOW_CODE, MeshBuilder } from './mesh';
@@ -492,9 +492,11 @@ export function nearestOnLines(p: Pt, lines: readonly Pt[][]): Pt | null {
  */
 export function genTreePoses(trees: readonly Pt[], codes: readonly number[]): Float32Array {
   const out = new Float32Array(trees.length * 5);
+  const [jMin, jMax] = TREE_DISPLAY_JITTER;
+  const jSpan = jMax - jMin;
   trees.forEach((p, i) => {
     const { kind, scale } = decodeTreeKind(codes[i] ?? 0);
-    out.set([kind, p[0], p[1], rnd(p, 4) * Math.PI * 2, TREE_DRAW_SCALE * scale * (0.9 + rnd(p, 1) * 0.25)], i * 5);
+    out.set([kind, p[0], p[1], rnd(p, 4) * Math.PI * 2, treeDisplayScale(scale) * (jMin + rnd(p, 1) * jSpan)], i * 5);
   });
   return out;
 }

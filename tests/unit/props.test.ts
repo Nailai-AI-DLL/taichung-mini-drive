@@ -125,17 +125,19 @@ describe('行道樹、機車先移除(Cooper 2026-11-13)', () => {
 });
 
 import { genTreePoses, treeTemplate } from '../../src/world/gen/furniture';
-import { encodeTreeKind, TREE_DRAW_SCALE } from '../../src/config/furniture';
+import { encodeTreeKind, TREE_DISPLAY_JITTER, TREE_REF_HEIGHT, treeDisplayScale } from '../../src/config/furniture';
 import { furnitureColors } from '../../src/world/chunks';
 describe('程式生成樹(0044)', () => {
-  it('擺放資料：種類 = 樹形、位置、大小含實測樹高倍率', () => {
-    const p = genTreePoses([[3, 4], [8, 9]], [encodeTreeKind(3, 1.5), 1]);
+  it('擺放資料：種類 = 樹形、位置、大小依實測倍率映射且最高不超過 1.5 層樓(4.8 m)', () => {
+    const p = genTreePoses([[3, 4], [8, 9], [15, 20]], [encodeTreeKind(3, 1.5), 1, encodeTreeKind(0, 1.6)]);
     expect([p[0], p[1], p[2]]).toEqual([3, 3, 4]);
-    // 0047:畫面上再乘 TREE_DRAW_SCALE
-    expect(p[4]).toBeGreaterThanOrEqual(TREE_DRAW_SCALE * 1.5 * 0.9 - 1e-6);
-    expect(p[4]).toBeLessThanOrEqual(TREE_DRAW_SCALE * 1.5 * 1.15 + 1e-6);
+    const [jMin, jMax] = TREE_DISPLAY_JITTER;
+    expect(p[4]).toBeGreaterThanOrEqual(treeDisplayScale(1.5) * jMin - 1e-6);
+    expect(p[4]).toBeLessThanOrEqual(treeDisplayScale(1.5) * jMax + 1e-6);
     expect(p[5]).toBe(1);
-    expect(p[9]).toBeLessThanOrEqual(TREE_DRAW_SCALE * 1.15 + 1e-6);
+    expect(p[9]).toBeLessThanOrEqual(treeDisplayScale(1.0) * jMax + 1e-6);
+    // 即使實測樹上限 1.6x,實際畫面高度仍 ≤ 4.8 m(約 1.5 層樓)
+    expect(p[14] * TREE_REF_HEIGHT).toBeLessThanOrEqual(4.8);
   });
   it('5 種樹形樣板都有幾何', () => {
     for (let k = 0; k < 5; k++) expect(treeTemplate(k, furnitureColors()).index.length).toBeGreaterThan(0);

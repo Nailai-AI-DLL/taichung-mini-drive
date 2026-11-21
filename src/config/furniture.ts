@@ -174,6 +174,16 @@ export const TREE_REF_HEIGHT = 7;
 /** 所有行道樹畫面上再乘這個大小(Cooper 2026-11-16:「樹的尺寸有點太大了，我覺得可以縮小些」,decisions/0047) */
 export const TREE_DRAW_SCALE = 0.75;
 export const TREE_SCALE_RANGE: readonly [number, number] = [0.6, 1.6];
+/** 畫面顯示樹高壓在 1.5 層樓(4.8 m)以內(Cooper 2026-11-21):將 [0.6, 1.6] 的實測倍率壓縮映射到 [0.42, 0.64] */
+export const TREE_DISPLAY_SCALE_RANGE: readonly [number, number] = [0.42, 0.64];
+export const TREE_DISPLAY_JITTER: readonly [number, number] = [0.94, 1.07];
+/** 將資料內的實測倍率(0.6–1.6)轉成畫面基準縮放倍率(搭配 TREE_REF_HEIGHT=7 m 與隨機微調,全圖最高約 4.79 m ≈ 1.5 層樓) */
+export function treeDisplayScale(scale: number): number {
+  const [sMin, sMax] = TREE_SCALE_RANGE;
+  const [dMin, dMax] = TREE_DISPLAY_SCALE_RANGE;
+  const t = Math.max(0, Math.min(1, (scale - sMin) / (sMax - sMin)));
+  return dMin + t * (dMax - dMin);
+}
 /** 推論:實測樹 TREE_GOV_COVER 公尺內不再種規則樹(避免實測路段多種一排) */
 export const TREE_GOV_COVER = 15;
 
