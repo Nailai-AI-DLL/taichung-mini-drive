@@ -17,10 +17,10 @@ const browser = await chromium.launch({ channel: 'chrome', headless: false, args
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
 try {
   await page.goto(`http://localhost:5178/${query}`);
-  await page.waitForFunction(() => document.getElementById('status')?.textContent === '按任意鍵開始', null, { timeout: 30000 });
+  await page.waitForFunction(() => document.getElementById('status')?.textContent === '選擇玩法', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
   await page.screenshot({ path: join(out, 'u01-title.jpg'), quality: 85 });
-  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('2');
   await page.keyboard.down('ArrowUp');
   await page.waitForTimeout(4000);
   await page.keyboard.up('ArrowUp');

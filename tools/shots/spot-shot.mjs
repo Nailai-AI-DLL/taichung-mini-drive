@@ -22,7 +22,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: false, args
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
 try {
   await page.goto('http://localhost:5178/' + query);
-  await page.waitForFunction(() => window.__game && document.getElementById('status')?.textContent === '按任意鍵開始', null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__game && document.getElementById('status')?.textContent === '選擇玩法', null, { timeout: 30000 });
   await page.evaluate(() => window.__game.start());
   await page.evaluate(([x, z, hd, c]) => { window.__game.teleport(x, z, hd); window.__game.setCamera(c); }, [x, z, Number(hs), Number(cs)]);
   await page.waitForTimeout(3000);

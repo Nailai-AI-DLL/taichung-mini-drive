@@ -14,13 +14,13 @@ npm run map:pull   # download the built map from the map-data branch (required o
 npm run dev
 ```
 
-Open http://localhost:5173 and press any key to start.
+Open http://localhost:5173 and choose a mode on the title screen: **Free explore** (key 1) or **Pick up Cici** (key 2).
 
 The built map is not on `main`: it lives on the orphan `map-data` branch, and `npm run map:pull` copies it into `public/map/range-a/` (ignored by git). Without it the game shows a loading error.
 
 ## How to play
 
-Each round, Cici appears somewhere on the map and asks for a ride. Follow the arrow and the minimap marker, and stop next to her to pick her up. She then names a destination; stop there to finish the round.
+There are two modes. In **Free explore** you drive anywhere and can fast-travel from the full map. In **Pick up Cici** the full map is view-only (no fast travel). Each round, Cici appears somewhere on the map and asks for a ride. Follow the arrow and the minimap marker, and stop next to her to pick her up. She then names a destination; stop there to finish the round.
 
 - Her impatience rises over time. If it reaches 100%, the round fails.
 - Picking her up halves her impatience.
@@ -35,17 +35,17 @@ Each round, Cici appears somewhere on the map and asks for a ride. Follow the ar
 | Space | Handbrake (drift) |
 | R | Reset to the nearest road |
 | C | Cycle camera: chase / close chase / first person / top-down |
-| M | Open the full map (click a spot to fast-travel there) |
+| M | Open the full map (in Free explore, click a spot to fast-travel there) |
 | N | Toggle night mode |
 | ` | Handling tuning panel |
-| Esc | Pause |
+| Esc | Pause (the pause menu also has **Back to title** to switch modes) |
 
 URL options:
 
 | Option | Effect |
 |---|---|
 | `?fps` | Show the frame rate |
-| `?mode=free` | Free drive, without the pick-up game |
+| `?mode=free` | Default mode for scripts calling `__game.start()` (the title screen still asks) |
 | `?traffic=off` | No other cars on the road |
 | `?night=1` | Start in night mode |
 | `?trees=off` / `?scooters=on` | Hide street trees / bring back parked scooters (hidden by default) |

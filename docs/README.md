@@ -73,6 +73,7 @@
    - `0053-dtm-terrain.md` DTM 地形(高低起伏、道路貼地、物理、地面圖層排序)(已實作(補記於 2026-11-21;commit 71888d7、9a80df0、02fb027))
    - `0054-famous-places-landmark-batch.md` 知名地點擴充與地標模型批次(44 個地點、31 個 GLB)(已實作(補記於 2026-11-21;commit 8c5be7e、1448931、7956c14、01428df))
    - `0055-bigmap-fast-travel.md` 大地圖點擊快速移動(已實作(補記於 2026-11-21;commit e8e32fd))
+   - `0056-title-mode-buttons.md` 開始畫面改成兩顆玩法按鈕(自由探索 / 接送慈慈)(已實作)
    <!-- decisions:end -->
 5. `reviews/2026-11-21-project-review.md` — 專案優缺點分析報告(細節在 `reviews/2026-11-21/`)
 6. `milestones/M0-report.md` — M0 驗收報告

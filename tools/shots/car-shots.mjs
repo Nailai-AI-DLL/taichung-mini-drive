@@ -21,7 +21,7 @@ page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error' && /Shader Error|WebGLProgram/.test(m.text())) errors.push(m.text().split('\n')[0]); });
 try {
   await page.goto(`http://localhost:5178/${query}`);
-  await page.waitForFunction(() => window.__game && document.getElementById('status')?.textContent === '按任意鍵開始', null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__game && document.getElementById('status')?.textContent === '選擇玩法', null, { timeout: 30000 });
   await page.evaluate(() => window.__game.start());
   await page.waitForTimeout(2500);
   await page.screenshot({ path: join(out, 'c00-chase.jpg'), quality: 88 });

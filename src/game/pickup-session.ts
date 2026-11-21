@@ -44,7 +44,7 @@ export class PickupSession {
     private readonly hud: Hud,
     private readonly minimap: Minimap,
     private readonly bigMap: BigMap,
-    readonly enabled = true,
+    public enabled = true,
   ) {
     const { world } = surface;
     const landmarkSpots = (world.json.landmarks ?? []).map((l) => ({ name: l.name, x: l.x, z: l.z }));
@@ -82,10 +82,22 @@ export class PickupSession {
     return [this.cici, this.beacon.group];
   }
 
-  /** 開始第一局接送 */
-  start(pos: { x: number; z: number }) {
+  /** 開始第一局接送;enabled 由開始畫面選的玩法決定(decisions/0056) */
+  start(pos: { x: number; z: number }, enabled = this.enabled) {
+    this.enabled = enabled;
+    this.pickupHud.setVisible(enabled);
     if (!this.enabled) return;
     this.handleEvents(this.game.start(pos));
+  }
+
+  /** 回到標題時結束接送:藏起慈慈、光柱、目標標記與 HUD(decisions/0056) */
+  stop() {
+    this.enabled = false;
+    this.pickupHud.setVisible(false);
+    this.cici.visible = false;
+    this.beacon.hide();
+    this.minimap.target = this.bigMap.target = null;
+    this.impact.reset();
   }
 
   /** 瞬移或自動扶正時重設撞擊速度紀錄 */

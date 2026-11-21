@@ -40,6 +40,9 @@ export class BigMap {
   describePoint?: (x: number, z: number, hitRadiusM: number) => BigMapPointInfo | null;
   /** 使用者點擊地圖觸發快速移動(由 main.ts 注入) */
   onFastTravel?: (info: BigMapPointInfo) => void;
+  /** 是否允許點擊快速移動(接送模式關閉,避免直接跳到慈慈或目的地;decisions/0056) */
+  private travelEnabled = true;
+  private headHint = document.createElement('span');
 
   private canvas = document.createElement('canvas');
   private tip = document.createElement('div');
@@ -60,7 +63,9 @@ export class BigMap {
     panel.className = 'bigmap-panel';
     const head = document.createElement('div');
     head.className = 'bigmap-head';
-    head.innerHTML = '<b>地圖</b><span>點擊任意位置快速移動 · <kbd>M</kbd> 或 <kbd>Esc</kbd> 關閉</span>';
+    head.innerHTML = '<b>地圖</b>';
+    head.append(this.headHint);
+    this.setTravelEnabled(true);
     const wrap = document.createElement('div');
     wrap.className = 'bigmap-wrap';
     this.tip.className = 'bigmap-tip hidden';
@@ -89,8 +94,19 @@ export class BigMap {
     return { px, py, info };
   }
 
+  setTravelEnabled(on: boolean) {
+    this.travelEnabled = on;
+    this.headHint.innerHTML = on
+      ? '點擊任意位置快速移動 · <kbd>M</kbd> 或 <kbd>Esc</kbd> 關閉'
+      : '接送模式不能快速移動 · <kbd>M</kbd> 或 <kbd>Esc</kbd> 關閉';
+    if (!on) {
+      this.hover = null;
+      this.tip.classList.add('hidden');
+    }
+  }
+
   private onPointerMove(e: PointerEvent) {
-    if (!this.open || this.loadingTarget) return;
+    if (!this.open || this.loadingTarget || !this.travelEnabled) return;
     const { px, py, info } = this.resolvePointer(e);
     this.hover = info;
     if (!info) {
@@ -108,7 +124,7 @@ export class BigMap {
   }
 
   private onClick(e: MouseEvent) {
-    if (!this.open) return;
+    if (!this.open || !this.travelEnabled) return;
     const { info } = this.resolvePointer(e);
     if (info && this.onFastTravel) {
       this.hover = null;

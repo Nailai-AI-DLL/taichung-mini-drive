@@ -85,7 +85,16 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe3f5; fon
 .logo h1 { margin: 0; font-size: 84px; font-weight: 900; font-style: italic; letter-spacing: 4px; -webkit-text-stroke: 6px #1d2a40; paint-order: stroke fill; text-shadow: 0 8px 0 #1d2a40, 0 16px 30px rgba(0, 0, 0, 0.3); }
 .logo-tag { background: #ff4a3d; color: #fff; border: 4px solid #fff; border-radius: 10px; padding: 2px 14px; font-weight: 900; font-style: italic; letter-spacing: 3px; font-size: 18px; box-shadow: 0 4px 0 #1d2a40; margin-bottom: -6px; z-index: 1; }
 .logo-sub { margin-top: 10px; background: #ffc83c; color: #1d2a40; border: 4px solid #fff; border-radius: 999px; padding: 4px 18px; font-weight: 900; font-size: 18px; box-shadow: 0 4px 0 #1d2a40; }
-.start-pill { margin: 0; background: #2f6fd0; border: 5px solid #fff; border-radius: 999px; padding: 12px 36px; font-size: 26px; font-weight: 900; letter-spacing: 2px; box-shadow: 0 6px 0 rgba(20, 50, 110, 0.6); animation: pulse 1.2s ease-in-out infinite; }
+.start-status { margin: 0; font-size: 18px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 2px 0 #1d2a40; }
+.mode-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; }
+.mode-buttons button { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 14px; min-width: 240px; font-family: inherit; text-align: left; color: #fff; background: #2f6fd0; border: 5px solid #fff; border-radius: 22px; padding: 12px 22px; cursor: pointer; box-shadow: 0 6px 0 rgba(20, 50, 110, 0.6); transition: transform 0.1s, background 0.15s; }
+.mode-buttons button[data-play='pickup'] { background: #ff4a3d; box-shadow: 0 6px 0 rgba(120, 30, 20, 0.6); }
+.mode-buttons button span { font-size: 26px; font-weight: 900; letter-spacing: 2px; }
+.mode-buttons button small { grid-column: 1; font-size: 14px; font-weight: 800; opacity: 0.9; }
+.mode-buttons button kbd { grid-column: 2; grid-row: 1 / span 2; }
+.mode-buttons button:not(:disabled):hover { transform: translateY(-3px) scale(1.03); }
+.mode-buttons button:not(:disabled):active { transform: translateY(2px); }
+.mode-buttons button:disabled { opacity: 0.45; cursor: wait; }
 @keyframes pulse { 50% { transform: scale(1.06); } }
 .title-keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; font-weight: 800; font-size: 15px; text-shadow: 0 2px 0 #1d2a40; }
 .title-keys .key { display: inline-flex; align-items: center; gap: 6px; }

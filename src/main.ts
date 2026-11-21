@@ -123,6 +123,7 @@ async function boot() {
   const pickupSys = new PickupSession(surface, scene, hudRoot, hud, minimap, bigMap, params.get('mode') !== 'free');
 
   let paused = false;
+  let backToTitle = () => {};
   let started = false;
   let showFps = params.has('fps');
   let autoInput: DriveInput | null = null;
@@ -257,6 +258,7 @@ async function boot() {
       overlay.dataset.mode = 'pause';
       overlay.classList.toggle('hidden', !paused);
     }
+    if (a === 'title' && started) backToTitle();
     if (a === 'map' && started) {
       if (bigMap.open) cancelFastTravel();
       bigMap.toggle();
@@ -276,16 +278,43 @@ async function boot() {
     });
   }
 
-  status.textContent = '按任意鍵開始';
-  const start = () => {
+  // 開始畫面兩顆按鈕選玩法(decisions/0056):自由探索可用大地圖快速移動;接送慈慈不能快速移動
+  type PlayMode = 'free' | 'pickup';
+  const defaultMode: PlayMode = params.get('mode') === 'free' ? 'free' : 'pickup';
+  const modeButtons = overlay.querySelectorAll<HTMLButtonElement>('.mode-buttons button');
+  const start = (mode: PlayMode = defaultMode) => {
     if (started) return;
     started = true;
     overlay.classList.add('hidden');
+    overlay.dataset.mode = 'pause';
+    bigMap.setTravelEnabled(mode === 'free');
     const p = vehicle.position();
-    pickupSys.start({ x: p.x, z: p.z });
+    pickupSys.start({ x: p.x, z: p.z }, mode === 'pickup');
+    hud.showToast(mode === 'free' ? '自由探索:按 M 開地圖可快速移動' : '接送慈慈:跟著箭頭去接她');
   };
-  window.addEventListener('keydown', start, { once: true });
-  window.addEventListener('pointerdown', start, { once: true });
+  for (const b of modeButtons) {
+    b.disabled = false;
+    b.addEventListener('click', () => start(b.dataset.play as PlayMode));
+  }
+  // 暫停選單「回到標題」:結束目前玩法，車子停在原地附近的路面，重新選玩法
+  backToTitle = () => {
+    cancelFastTravel();
+    bigMap.setOpen(false);
+    pickupSys.stop();
+    autoInput = null;
+    resetToRoad();
+    paused = false;
+    started = false;
+    overlay.dataset.mode = 'title';
+    overlay.classList.remove('hidden');
+  };
+  const onTitleKey = (e: KeyboardEvent) => {
+    if (started) return;
+    if (e.key === '1') start('free');
+    if (e.key === '2') start('pickup');
+  };
+  window.addEventListener('keydown', onTitleKey);
+  status.textContent = '選擇玩法';
 
   window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
