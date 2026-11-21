@@ -18,6 +18,8 @@ Open http://localhost:5173 and choose a mode on the title screen: **Free explore
 
 The built map is not on `main`: it lives on the orphan `map-data` branch, and `npm run map:pull` copies it into `public/map/range-a/` (ignored by git). Without it the game shows a loading error.
 
+`map-data.lock` pins the map version that matches this code: `map:pull` fetches that exact version and checks its commit, so old revisions stay reproducible. `npm run map:pull:latest` fetches the newest map instead.
+
 ## How to play
 
 There are two modes. In **Free explore** you drive anywhere and can fast-travel from the full map. In **Pick up Cici** the full map is view-only (no fast travel). Each round, Cici appears somewhere on the map and asks for a ride. Follow the arrow and the minimap marker, and stop next to her to pick her up. She then names a destination; stop there to finish the round.
@@ -71,7 +73,7 @@ npm run map:build:range-a      # 5. build public/map/range-a/world.json
 npm run map:tile:range-a       # 6. split into index.json + 1 km tiles
 npm run map:elevation:range-a  # 7. terrain heights from the 20 m DTM
 npm run map:skyline:range-a    # 8. distant mountain skyline
-npm run map:push               # 9. publish to the map-data branch
+npm run map:push               # 9. publish to the map-data branch and update map-data.lock (commit it)
 ```
 
 The data sources, dataset IDs and download steps are listed in `docs/research/data-sources.md`.

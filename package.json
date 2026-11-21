@@ -20,6 +20,8 @@
     "map:elevation:range-a": "python3 tools/map-build/elevation.py data/elevation/moi_dtm20_taichung/taichung_dem20.zip public/map/range-a/index.json public/map/range-a/elevation.json",
     "map:push": "bash tools/map-build/sync-map-branch.sh push",
     "map:pull": "bash tools/map-build/sync-map-branch.sh pull",
+    "map:pull:latest": "bash tools/map-build/sync-map-branch.sh pull --latest",
+    "map:lock": "bash tools/map-build/sync-map-branch.sh lock",
     "test": "vitest run",
     "test:perf": "PERF_STRICT=1 vitest run tests/unit/world-chunks.test.ts -t 最密的一格",
     "test:e2e": "node tests/e2e/run.mjs",

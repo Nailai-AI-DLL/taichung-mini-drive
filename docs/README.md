@@ -74,6 +74,7 @@
    - `0054-famous-places-landmark-batch.md` 知名地點擴充與地標模型批次(44 個地點、31 個 GLB)(已實作(補記於 2026-11-21;commit 8c5be7e、1448931、7956c14、01428df))
    - `0055-bigmap-fast-travel.md` 大地圖點擊快速移動(已實作(補記於 2026-11-21;commit e8e32fd))
    - `0056-title-mode-buttons.md` 開始畫面改成兩顆玩法按鈕(自由探索 / 接送慈慈)(已實作)
+   - `0057-map-network-retry-version-lock.md` 地圖下載的網路容錯與地圖版本綁定(已實作;第一個版本 `20261121-142853-b13ef99`(= 當時 map-data 分支 b13ef99…)
    <!-- decisions:end -->
 5. `reviews/2026-11-21-project-review.md` — 專案優缺點分析報告(細節在 `reviews/2026-11-21/`)
 6. `milestones/M0-report.md` — M0 驗收報告

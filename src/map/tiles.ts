@@ -1,6 +1,7 @@
 // 地圖分區(Region Tile)切分與動態載入/卸載:
 // 將佔 world.json 93% 體積的「建築、街道標線、街道傢俱」按 1 km × 1 km(預設 4 × 4 個 250 m Chunk)切為獨立 Tile,
 // 開場只需載入輕量的全區骨架(index.json)與出生點附近 Tile,其餘隨車子移動按需下載與釋放。
+import { HttpError, retryBackoffMs } from './fetch-retry';
 import type { BuildingKind } from '../config/buildings';
 import {
   chunkKey,
@@ -469,6 +470,10 @@ export interface TileStreamerHooks {
  */
 export class TileStreamer {
   readonly inFlight = new Set<string>();
+  /** 下載失敗的分區:失敗次數與下次可重試的時間(decisions/0057,指數退避 2 s → 60 s) */
+  readonly failures = new Map<string, { count: number; retryAt: number }>();
+  /** 時鐘(測試可替換) */
+  clock: () => number = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
   private readyQueue: WorldTileJson[] = [];
   readonly opts: TileStreamerOptions;
 
@@ -523,8 +528,11 @@ export class TileStreamer {
     if (this.inFlight.size < maxConcurrent) {
       const queuedKeys = new Set(this.readyQueue.map((t) => tileKey(t.tx, t.tz)));
       const missing: [number, string, number, number][] = [];
+      const now = this.clock();
       for (const key of cat.available) {
         if (cat.loaded.has(key) || this.inFlight.has(key) || queuedKeys.has(key)) continue;
+        const fail = this.failures.get(key);
+        if (fail && now < fail.retryAt) continue;
         const [tx, tz] = parseTileKey(key);
         const d = distToTile(tx, tz, x, z, tileSize);
         if (d <= loadRadius) missing.push([d, key, tx, tz]);
@@ -537,12 +545,22 @@ export class TileStreamer {
           .fetchTile(tx, tz)
           .then((tile) => {
             this.inFlight.delete(key);
+            this.failures.delete(key);
             this.readyQueue.push(tile);
           })
-          .catch((err) => {
-            console.warn(`分區 Tile ${key} 載入失敗,退回只顯示道路骨架`, err);
+          .catch((err: unknown) => {
             this.inFlight.delete(key);
-            cat.available.delete(key);
+            // 4xx(檔案不存在)才永久放棄;網路錯誤、逾時、5xx 依指數退避重試
+            if (err instanceof HttpError && err.permanent) {
+              console.warn(`分區 Tile ${key} 不存在,只顯示道路骨架`, err);
+              cat.available.delete(key);
+              this.failures.delete(key);
+              return;
+            }
+            const count = (this.failures.get(key)?.count ?? 0) + 1;
+            const wait = retryBackoffMs(count);
+            this.failures.set(key, { count, retryAt: this.clock() + wait });
+            console.warn(`分區 Tile ${key} 第 ${count} 次載入失敗,${Math.round(wait / 1000)} 秒後重試`, err);
           });
       }
     }

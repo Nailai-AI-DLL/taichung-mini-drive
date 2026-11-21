@@ -281,20 +281,47 @@ describe('map-data 獨立無歷史分支同步腳本 (tools/map-build/sync-map-b
       writeFileSync(join(srcDir, 'range-a/skyline.json'), '{"sky":1}');
 
       const script = join(process.cwd(), 'tools/map-build/sync-map-branch.sh');
-      execFileSync('bash', [script, 'push', '--remote', bare, '--branch', 'map-data', '--dir', srcDir]);
+      const lock1 = join(tmp, 'lock1');
+      const lock2 = join(tmp, 'lock2');
+      execFileSync('bash', [script, 'push', '--remote', bare, '--branch', 'map-data', '--dir', srcDir, '--lock', lock1]);
 
       // 第二次修改後再 push:分支上仍應只有 1 個 commit(不累積歷史)
       writeFileSync(join(srcDir, 'range-a/world.json'), '{"ver":2}');
-      execFileSync('bash', [script, 'push', '--remote', bare, '--branch', 'map-data', '--dir', srcDir]);
+      execFileSync('bash', [script, 'push', '--remote', bare, '--branch', 'map-data', '--dir', srcDir, '--lock', lock2]);
 
       const count = execFileSync('git', ['-C', bare, 'rev-list', '--count', 'refs/heads/map-data'], { encoding: 'utf8' }).trim();
       expect(count).toBe('1');
 
       // pull 到全新目錄:檔案與最新版一致,且不含巢狀 .git
-      execFileSync('bash', [script, 'pull', '--remote', bare, '--branch', 'map-data', '--dir', dstDir]);
+      execFileSync('bash', [script, 'pull', '--remote', bare, '--branch', 'map-data', '--dir', dstDir, '--lock', lock2]);
       expect(readFileSync(join(dstDir, 'range-a/world.json'), 'utf8')).toBe('{"ver":2}');
       expect(readFileSync(join(dstDir, 'range-a/skyline.json'), 'utf8')).toBe('{"sky":1}');
       expect(existsSync(join(dstDir, '.git'))).toBe(false);
+
+      // 版本綁定(decisions/0057):照舊的 lock 仍拉得到第 1 版;--latest 拉分支最新版
+      const old = join(tmp, 'old-map');
+      execFileSync('bash', [script, 'pull', '--remote', bare, '--dir', old, '--lock', lock1]);
+      expect(readFileSync(join(old, 'range-a/world.json'), 'utf8')).toBe('{"ver":1}');
+      const latest = join(tmp, 'latest-map');
+      execFileSync('bash', [script, 'pull', '--remote', bare, '--dir', latest, '--lock', lock1, '--latest']);
+      expect(readFileSync(join(latest, 'range-a/world.json'), 'utf8')).toBe('{"ver":2}');
+      const versions = execFileSync('git', ['-C', bare, 'for-each-ref', '--format=%(refname)', 'refs/map-versions/'], { encoding: 'utf8' }).trim().split('\n');
+      expect(versions).toHaveLength(2);
+
+      // lock 的 commit 對不上就拒絕
+      writeFileSync(lock1, readFileSync(lock1, 'utf8').replace(/^commit=.*$/m, 'commit=0000000000000000000000000000000000000000'));
+      expect(() => execFileSync('bash', [script, 'pull', '--remote', bare, '--dir', join(tmp, 'bad'), '--lock', lock1], { stdio: 'pipe' })).toThrow();
+
+      // lock 指令:把分支目前那版存成版本(不重新上傳)
+      const lock3 = join(tmp, 'lock3');
+      execFileSync('bash', [script, 'lock', '--remote', bare, '--lock', lock3]);
+      const head = execFileSync('git', ['-C', bare, 'rev-parse', 'refs/heads/map-data'], { encoding: 'utf8' }).trim();
+      expect(readFileSync(lock3, 'utf8')).toContain(`commit=${head}`);
+
+      // 推送失敗(遠端不存在 / 沒權限)時不可寫出 lock(2026-11-21 曾因 bash 3.2 的 $( ) 不繼承 set -e 而寫出錯的 lock)
+      const lock4 = join(tmp, 'lock4');
+      expect(() => execFileSync('bash', [script, 'lock', '--remote', join(tmp, 'no-such.git'), '--lock', lock4], { stdio: 'pipe' })).toThrow();
+      expect(existsSync(lock4)).toBe(false);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

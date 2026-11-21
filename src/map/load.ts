@@ -12,6 +12,19 @@ import {
 } from './tiles';
 import { decodeWorld, type World } from '../world/chunks';
 import { GridElevationSampler, type ElevationSampler } from '../world/surface';
+import { fetchRetry, fetchWithTimeout, HttpError, type RetryOptions } from './fetch-retry';
+
+/** 程式能讀的地圖資料格式版本(world.json / index.json 的 version);改格式時兩邊一起加 1(decisions/0057) */
+export const MAP_FORMAT_VERSION = 2;
+
+/** 地圖格式與程式不符時丟出清楚的錯誤,而不是載到一半壞掉 */
+export function assertMapVersion(json: { version?: unknown }, url: string): void {
+  if (json.version !== MAP_FORMAT_VERSION) {
+    throw new Error(
+      `地圖資料格式 ${String(json.version)} 與程式支援的 ${MAP_FORMAT_VERSION} 不符(${url});本機請執行 npm run map:pull`,
+    );
+  }
+}
 
 export interface WorldElevationJson {
   minX: number;
@@ -31,11 +44,11 @@ export async function fetchElevation(
 ): Promise<ElevationSampler | undefined> {
   const search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
   if (new URLSearchParams(search).get('terrain') === 'off') return undefined;
-  const doFetch = opts.fetchFn ?? fetch;
+  const doFetch: typeof fetch = opts.fetchFn ?? ((u, i) => fetch(u, i)); // 每次呼叫時才取全域 fetch(方便除錯時模擬斷線)
   const url = mapAssetUrl(area, 'elevation.json', opts);
   try {
-    const res = await doFetch(url);
-    if (!res.ok) return undefined;
+    const res = await fetchRetry(doFetch, url, { retries: 1 }).catch(() => null);
+    if (!res) return undefined;
     const raw = (await res.json()) as WorldElevationJson;
     if (!Array.isArray(raw.heights) || raw.cols < 2 || raw.rows < 2) return undefined;
     const q = raw.quant ?? 1;
@@ -68,10 +81,12 @@ export interface FetchWorldOptions extends MapUrlOptions {
   onStatus?: (text: string) => void;
   /** 自訂 fetch(單元測試注入用) */
   fetchFn?: typeof fetch;
-  /** 開場預先載入出生點周圍多大範圍(公尺)內的分區 Tile(預設 900 m,涵蓋 ChunkStreamer 的 800 m 生成半徑) */
+  /** 開場預先載入出生點周圍多大範圍(公尺)內的分區 Tile(預設 1500 m,涵蓋 ChunkStreamer 的 800 m 生成半徑) */
   initialTileRadius?: number;
   /** 是否啟用分區按需載入(預設為 true;網址帶 ?tiles=off 時為 false) */
   tiled?: boolean;
+  /** 逾時與重試設定(單元測試可把等待縮到 0) */
+  retry?: RetryOptions;
 }
 
 /** 解析地圖資料的基底網址(不含結尾斜線) */
@@ -99,25 +114,32 @@ export function regionTileUrl(area: string, rx: number, rz: number, opts: MapUrl
 
 export async function fetchWorld(area: string, opts: FetchWorldOptions = {}): Promise<World> {
   opts.onStatus?.('下載地圖資料…');
-  const doFetch = opts.fetchFn ?? fetch;
+  const doFetch: typeof fetch = opts.fetchFn ?? ((u, i) => fetch(u, i)); // 每次呼叫時才取全域 fetch(方便除錯時模擬斷線)
   const search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
   const useTiles = opts.tiled ?? new URLSearchParams(search).get('tiles') !== 'off';
 
   if (useTiles) {
+    const indexUrl = mapAssetUrl(area, 'index.json', opts);
     const [indexRes, elevation] = await Promise.all([
-      doFetch(mapAssetUrl(area, 'index.json', opts)).catch(() => null),
+      // 逾時 + 重試;404(沒有分區版)才退回 world.json,其他失敗直接回報網路問題
+      fetchRetry(doFetch, indexUrl, opts.retry).catch((e: unknown) => {
+        if (e instanceof HttpError && e.permanent) return null;
+        throw new Error(`網路不穩，地圖骨架下載失敗，請重新整理(${indexUrl}):${e instanceof Error ? e.message : String(e)}`);
+      }),
       fetchElevation(area, opts),
     ]);
-    if (indexRes?.ok) {
+    if (indexRes) {
       const indexJson = (await indexRes.json()) as WorldIndexJson;
+      assertMapVersion(indexJson, indexUrl);
       if (Array.isArray(indexJson.tiles)) {
         const tileSize = indexJson.tileSize ?? DEFAULT_TILE_SIZE;
         const available = new Set(indexJson.tiles);
         const loaded = new Set<string>();
+        // 單一分區只做逾時;失敗的重試交給 TileStreamer(指數退避)
         const fetchTile = async (tx: number, tz: number): Promise<WorldTileJson> => {
           const u = regionTileUrl(area, tx, tz, opts);
-          const r = await doFetch(u);
-          if (!r.ok) throw new Error(`分區載入失敗 (${r.status}): ${u}`);
+          const r = await fetchWithTimeout(doFetch, u, opts.retry?.timeoutMs);
+          if (!r.ok) throw new HttpError(r.status, u, `分區載入失敗 (${r.status}): ${u}`);
           return (await r.json()) as WorldTileJson;
         };
 
@@ -134,15 +156,20 @@ export async function fetchWorld(area: string, opts: FetchWorldOptions = {}): Pr
 
         if (initialKeys.length > 0) {
           opts.onStatus?.(`載入出生點周圍街區 (${initialKeys.length} 區)…`);
-          const initialTiles = await Promise.all(
+          // 任一區失敗不擋開場:沒載到的留給 TileStreamer 進遊戲後重試
+          const results = await Promise.allSettled(
             initialKeys.map((k) => {
               const [tx, tz] = parseTileKey(k);
               return fetchTile(tx, tz);
             }),
           );
-          for (const t of initialTiles) {
-            applyWorldTile(world, t, tileSize);
-            loaded.add(tileKey(t.tx, t.tz));
+          for (const r of results) {
+            if (r.status === 'rejected') {
+              console.warn('開場分區載入失敗,進遊戲後重試', r.reason);
+              continue;
+            }
+            applyWorldTile(world, r.value, tileSize);
+            loaded.add(tileKey(r.value.tx, r.value.tz));
           }
         }
         return world;
@@ -151,10 +178,16 @@ export async function fetchWorld(area: string, opts: FetchWorldOptions = {}): Pr
   }
 
   const url = mapAssetUrl(area, 'world.json', opts);
-  const [res, elevation] = await Promise.all([doFetch(url), fetchElevation(area, opts)]);
-  if (!res.ok) throw new Error(`地圖載入失敗 (${res.status}): ${url}`);
+  const [res, elevation] = await Promise.all([
+    fetchRetry(doFetch, url, { timeoutMs: 120000, ...opts.retry }).catch((e: unknown) => {
+      if (e instanceof HttpError) throw new Error(`地圖載入失敗 (${e.status}): ${url}`);
+      throw new Error(`網路不穩，地圖下載失敗，請重新整理(${url}):${e instanceof Error ? e.message : String(e)}`);
+    }),
+    fetchElevation(area, opts),
+  ]);
   opts.onStatus?.('解析地圖資料…');
   const json = (await res.json()) as WorldJson;
+  assertMapVersion(json, url);
   const world = decodeWorld(json);
   world.elevation = elevation;
   return world;
