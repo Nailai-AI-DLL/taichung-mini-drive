@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { addStaticRoadDeck, createPhysicsWorld, FIXED_DT } from '../../src/physics/world';
 import { Vehicle } from '../../src/vehicle/vehicle';
 import { buildChunk } from '../../src/world/chunks';
-import { buildChunkTerrain } from '../../src/world/gen/terrain';
+import { buildChunkTerrain, TERRAIN_CHUNK_DIVS } from '../../src/world/gen/terrain';
 import { GridElevationSampler, type ElevationSampler } from '../../src/world/surface';
 import type { WorldElevationJson } from '../../src/map/load';
 import { loadWorld } from '../helpers/load-map';
@@ -27,7 +27,7 @@ describe('3D DTM 地形網格與物理爬坡', () => {
     const full = buildChunkTerrain({ minX: 0, minZ: 0, maxX: 250, maxZ: 250 }, slopedElevation);
     const withHole = buildChunkTerrain({ minX: 0, minZ: 0, maxX: 250, maxZ: 250 }, slopedElevation, [hole]);
 
-    expect(full.index.length).toBe(10 * 10 * 6);
+    expect(full.index.length).toBe(TERRAIN_CHUNK_DIVS * TERRAIN_CHUNK_DIVS * 6);
     expect(withHole.index.length).toBeLessThan(full.index.length);
     // 所有頂點法向量 y > 0
     for (let i = 1; i < full.normal.length; i += 3) {

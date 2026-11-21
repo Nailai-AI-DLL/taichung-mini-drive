@@ -182,29 +182,16 @@ function toGeometry(m: MeshArrays): THREE.BufferGeometry {
 export const GROUND_DEPTH_BIAS = 1e-3;
 
 /**
- * 地面類材質:頂點色 + 依高度的深度偏移。綠地、人行道、路面、標線疊在幾乎同一個平面上,
- * 只靠幾毫米的高度差,在 300 m 外深度精度不夠會互相閃爍;偏移量只有幾公分高的東西會被蓋住,看不出來。
+ * 地面圖層材質(綠地/人行道 → 路面/路口 → 標線/分隔島):
+ * 關閉 depthWrite、保留 depthTest,並搭配嚴格的 renderOrder(1 → 2 → 3):
+ * - 大樓、車輛、樹、高架橋與底層地形(renderOrder = 0, depthWrite = true)先寫入深度緩衝,遮擋關係 100% 正確;
+ * - 各地面圖層之間不再互相爭搶深度緩衝,徹底消除任何坡度與距離下的破面、草地/人行道穿出路面與標線閃爍。
  */
-function createGroundMaterial(hasTerrain = false): THREE.MeshLambertMaterial {
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-  mat.onBeforeCompile = (shader) => {
-    if (hasTerrain) {
-      // 3D 地形模式下以貼地前紀錄的相對圖層高度 aLayer(0.01–0.045)做深度偏移,
-      // 確保標線 > 路面 > 人行道 > 綠地永遠不閃爍,同時不受地形海拔(-41..+78 m)干擾
-      shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute float aLayer;')
-        .replace(
-          '#include <project_vertex>',
-          `#include <project_vertex>\n\tgl_Position.z -= aLayer * ${GROUND_DEPTH_BIAS.toExponential()} * gl_Position.w;`,
-        );
-    } else {
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <project_vertex>',
-        `#include <project_vertex>\n\tgl_Position.z -= position.y * ${GROUND_DEPTH_BIAS.toExponential()} * gl_Position.w;`,
-      );
-    }
-  };
-  return mat;
+function createGroundMaterial(): THREE.MeshLambertMaterial {
+  return new THREE.MeshLambertMaterial({
+    vertexColors: true,
+    depthWrite: false,
+  });
 }
 
 let groundMat: THREE.Material | null = null;
@@ -240,30 +227,35 @@ function concatArrays(a: MeshArrays, b: MeshArrays): MeshArrays {
   };
 }
 
-/** 一格地圖的場景物件:地面類 1 個網格、建築(含屋頂附加物、街道傢俱)1 個網格(共用材質) */
+/** 一格地圖的場景物件:底層地形(0) → 綠地/人行道(1) → 路面(2) → 標線(3),以及建築/傢俱/高架(0) */
 export function addChunkMeshes(scene: THREE.Scene, m: ChunkMeshes, elevation?: ElevationSampler): THREE.Object3D[] {
-  const hasTerrain = !!elevation || !!m.terrain?.index.length;
-  groundMat ??= createGroundMaterial(hasTerrain);
+  groundMat ??= createGroundMaterial();
   buildingMat ??= createBuildingMaterial(buildingLookFromSearch(globalThis.location?.search ?? ''));
   const out: THREE.Object3D[] = [];
   if (m.terrain?.index.length) {
-    // 視覺底層地形比物理碰撞面略降 8 cm 並推後深度緩衝,徹底避免底層淺灰地形穿出馬路/路口/綠地(Rapier 物理仍用原精準高程)
+    // 視覺底層地形比物理碰撞面略降 20 cm 並推後深度緩衝,徹底避免底層淺灰地形穿出馬路/路口/綠地(Rapier 物理仍用原精準高程)
     terrainMat ??= new THREE.MeshLambertMaterial({
       vertexColors: true,
       polygonOffset: true,
-      polygonOffsetFactor: 2,
-      polygonOffsetUnits: 4,
+      polygonOffsetFactor: 4,
+      polygonOffsetUnits: 8,
     });
     const terrain = new THREE.Mesh(toGeometry(m.terrain), terrainMat);
-    terrain.position.y = -0.08;
+    terrain.position.y = -0.2;
+    terrain.renderOrder = 0;
     terrain.receiveShadow = true;
     out.push(terrain);
   }
-  if (m.ground.index.length) {
-    const ground = new THREE.Mesh(toGeometry(m.ground), groundMat);
-    ground.receiveShadow = true;
-    out.push(ground);
-  }
+  const addGroundLayer = (arr: MeshArrays | undefined, order: number) => {
+    if (!arr?.index.length) return;
+    const mesh = new THREE.Mesh(toGeometry(arr), groundMat!);
+    mesh.renderOrder = order;
+    mesh.receiveShadow = true;
+    out.push(mesh);
+  };
+  addGroundLayer(m.ground, 1);
+  addGroundLayer(m.roadSurface, 2);
+  addGroundLayer(m.roadMarks, 3);
   let solid = concatArrays(concatArrays(m.buildings, m.roofProps), m.furniture);
   if (m.roadDeck?.index.length) solid = concatArrays(solid, m.roadDeck);
   if (m.roadBarrier?.index.length) solid = concatArrays(solid, m.roadBarrier);

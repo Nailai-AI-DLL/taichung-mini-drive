@@ -101,8 +101,12 @@ export interface ChunkSrc {
 }
 
 export interface ChunkMeshes {
-  /** 地面類:綠地、水、人行道、道路(同一材質,合併成一個網格) */
+  /** 地面底層:綠地、水面、人行道、路緣石(renderOrder = 1, depthWrite = false) */
   ground: MeshArrays;
+  /** 平面柏油路面與路口鋪面(renderOrder = 2, depthWrite = false;保證永遠覆蓋底層草地與人行道) */
+  roadSurface?: MeshArrays;
+  /** 道路標線、斑馬線與分隔島(renderOrder = 3, depthWrite = false;保證永遠清晰浮在路面上方不閃爍) */
+  roadMarks?: MeshArrays;
   /** 建築外牆、屋頂(也是碰撞體) */
   buildings: MeshArrays;
   /** 屋頂附加物(鐵皮加蓋、水塔、屋突):和建築同材質一起畫,但不當碰撞體 */
@@ -467,28 +471,50 @@ export function buildChunk(
     }
   }
 
-  const lineForGround = (pts: Pt[]) => (elevation ? subdivideLine2D(pts, 15) : pts);
+  const lineForGround = (pts: Pt[]) => (elevation ? subdivideLine2D(pts, 12) : pts);
+  const lineForMark = (pts: Pt[]) => (elevation ? subdivideLine2D(pts, 8) : pts);
   const maxCross = elevation ? 10 : 0;
-  const maxPolyEdge = elevation ? 18 : 0;
-  const g = new MeshBuilder();
-  for (const a of c.areas) g.flatPolygon(a.ring, a.k === 2 ? Y_WATER : Y_AREA, areaRgb[a.k], [], maxPolyEdge);
-  for (const w of c.waterways) addRibbon(g, lineForGround(w.pts), w.w, Y_WATER, water, true, maxCross);
-  for (const r of groundRoads) if (r.sidewalk > 0) addRibbon(g, lineForGround(r.pts), r.width + 2 * r.sidewalk, Y_SIDEWALK, sidewalk, true, maxCross);
+  const maxPolyEdge = elevation ? 16 : 0;
+
+  // 1. 地面底層(renderOrder = 1, depthWrite = false):嚴格依 綠地/水面 → 水道 → 人行道 → 路緣石 繪製
+  const gBase = new MeshBuilder();
+  for (const a of c.areas) gBase.flatPolygon(a.ring, a.k === 2 ? Y_WATER : Y_AREA, areaRgb[a.k], [], maxPolyEdge);
+  for (const w of c.waterways) addRibbon(gBase, lineForGround(w.pts), w.w, Y_WATER, water, true, maxCross);
+  for (const r of groundRoads) if (r.sidewalk > 0) addRibbon(gBase, lineForGround(r.pts), r.width + 2 * r.sidewalk, Y_SIDEWALK, sidewalk, true, maxCross);
   // 路緣石:路面外側一圈淺色帶(只是顏色,沒有高度差;車子照樣能開上人行道)
-  for (const r of groundRoads) for (const k of r.curbs) addRibbon(g, lineForGround(k), r.width + 2 * CURB_W, Y_CURB, curb, true, maxCross);
-  for (const r of groundRoads) addRibbon(g, lineForGround(r.pts), r.width, Y_ROAD, road, true, maxCross);
-  for (const j of c.street.junctions) g.flatPolygon(j, Y_ROAD, road, [], maxPolyEdge);
+  for (const r of groundRoads) for (const k of r.curbs) addRibbon(gBase, lineForGround(k), r.width + 2 * CURB_W, Y_CURB, curb, true, maxCross);
+
+  // 2. 柏油路面與路口(renderOrder = 2, depthWrite = false):永遠蓋在底層綠地與人行道上方
+  const gRoad = new MeshBuilder();
+  for (const r of groundRoads) addRibbon(gRoad, lineForGround(r.pts), r.width, Y_ROAD, road, true, maxCross);
+  for (const j of c.street.junctions) gRoad.flatPolygon(j, Y_ROAD, road, [], maxPolyEdge);
+
+  // 3. 分隔島、斑馬線與車道標線(renderOrder = 3, depthWrite = false):永遠清晰浮在路面上方
+  const gMarks = new MeshBuilder();
   const quadStyle: [number, Rgb][] = [
     [Y_MARK, white],
     [Y_MEDIAN, curb],
     [Y_MEDIAN_TOP, hexToRgb(PALETTE.median)],
   ];
   const st = streetGeometry(c);
-  for (const q of st.quads) g.flatPolygon(q.q, quadStyle[q.k][0], quadStyle[q.k][1], [], maxPolyEdge);
-  for (const m of st.marks) addRibbon(g, lineForGround(m.pts), m.w, Y_MARK, m.c ? yellow : white, false);
+  // 先畫分隔島(底緣 → 植栽),再畫枕木紋斑馬線,最後畫白/黃車道標線
+  for (const q of st.quads) if (q.k === QuadKind.MedianCurb) gMarks.flatPolygon(q.q, quadStyle[q.k][0], quadStyle[q.k][1], [], maxPolyEdge);
+  for (const q of st.quads) if (q.k === QuadKind.MedianTop) gMarks.flatPolygon(q.q, quadStyle[q.k][0], quadStyle[q.k][1], [], maxPolyEdge);
+  for (const q of st.quads) if (q.k === QuadKind.Bar) gMarks.flatPolygon(q.q, quadStyle[q.k][0], quadStyle[q.k][1], [], maxPolyEdge);
+  for (const m of st.marks) {
+    // 適度加寬 10–15 cm 的細車道線(白線 20 cm、雙黃線單條 14 cm 保留中央 6 cm 縫隙),避免 3D 遠距次像素斷裂模糊
+    const markW = m.w <= 0.16 ? (m.c ? Math.max(m.w, 0.14) : Math.max(m.w, 0.20)) : m.w;
+    addRibbon(gMarks, lineForMark(m.pts), markW, Y_MARK, m.c ? yellow : white, false);
+  }
 
-  const groundArr = g.toArrays();
-  if (elevation) drapeMeshArrays(groundArr, elevation, true);
+  const groundArr = gBase.toArrays();
+  const roadSurfaceArr = gRoad.toArrays();
+  const roadMarksArr = gMarks.toArrays();
+  if (elevation) {
+    if (groundArr.index.length) drapeMeshArrays(groundArr, elevation);
+    if (roadSurfaceArr.index.length) drapeMeshArrays(roadSurfaceArr, elevation);
+    if (roadMarksArr.index.length) drapeMeshArrays(roadMarksArr, elevation);
+  }
 
   const deckMb = new MeshBuilder({ wall: true });
   const barrierMb = new MeshBuilder({ wall: true });
@@ -535,6 +561,8 @@ export function buildChunk(
   });
   const base: Omit<ChunkMeshes, 'furniture' | 'scooters' | 'props'> = {
     ground: groundArr,
+    roadSurface: roadSurfaceArr,
+    roadMarks: roadMarksArr,
     buildings: b.toArrays(),
     roofProps: props.toArrays(),
     landmarkSolids,

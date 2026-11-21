@@ -5,8 +5,8 @@ import { pointInPolygon, type Pt, type Rect } from './geom';
 import { MeshBuilder } from './mesh';
 import type { MeshArrays } from '../../map/types';
 
-/** 單一 250 m 分塊地形網格細分格數(每格 250 / 10 = 25 m,與 40 m DTM 高度貼合且頂點數極少:121 點 / 200 三角形) */
-export const TERRAIN_CHUNK_DIVS = 10;
+/** 單一 250 m 分塊地形網格細分格數(每格 250 / 16 ≈ 15.6 m,曲面誤差 < 4 cm 且頂點數仍極少:289 點 / 512 三角形) */
+export const TERRAIN_CHUNK_DIVS = 16;
 
 /**
  * 為一個 250 m 分塊生成 3D 地表網格(作為視覺地面 + Rapier 物理碰撞面)。
